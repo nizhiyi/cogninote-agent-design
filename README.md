@@ -200,6 +200,8 @@ cogniNote-agent-front/src/
   utils/        # 时间、文件大小、分数格式化
 ```
 
+本次可维护性重构的完整计划和验收记录见 [docs/maintainability-refactor-plan.md](docs/maintainability-refactor-plan.md)。
+
 ## 注释规范
 
 代码注释只写有维护价值的内容：解释为什么这样做、这里有什么约束、修改时要注意什么。复杂事务边界、索引失败降级、RAG 检索降级、SSE 手动解析、API Key 复用和外部模型实例缓存等非显然逻辑必须保留简洁注释；简单自解释代码不逐行注释，避免噪音。
