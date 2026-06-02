@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: cogninote-agent-design
+
+server:
+  address: 127.0.0.1
+  port: ${COGNINOTE_PORT:18080}
+
+app:
+  storage:
+    base-dir: ${COGNINOTE_DATA_DIR:}
