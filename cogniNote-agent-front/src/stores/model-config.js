@@ -9,6 +9,20 @@ import {
 import { useSearchStore } from './search'
 
 export const useModelConfigStore = defineStore('modelConfig', () => {
+  const providerOptions = [
+    {
+      value: 'DASHSCOPE',
+      label: '阿里百炼 DashScope',
+      baseUrl: 'https://dashscope.aliyuncs.com/api/v1',
+      displayName: 'DashScope'
+    },
+    {
+      value: 'OPENAI_COMPATIBLE',
+      label: 'OpenAI-compatible Completions',
+      baseUrl: '',
+      displayName: 'OpenAI-compatible Completions'
+    }
+  ]
   const modelConfig = ref(null)
   const isLoadingModelConfig = ref(false)
   const isSavingModelConfig = ref(false)
@@ -24,8 +38,14 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     if (modelConfig.value?.apiKeyConfigured) {
       return '已保存，留空表示继续使用当前 Key'
     }
-    return '请输入 DashScope API Key'
+    return '请输入 API Key'
   })
+
+  const providerLabel = computed(() => {
+    return providerOptions.find(option => option.value === form.value.provider)?.label || form.value.provider
+  })
+
+  const isOpenAiCompatible = computed(() => form.value.provider === 'OPENAI_COMPATIBLE')
 
   async function fetchModelConfig() {
     isLoadingModelConfig.value = true
@@ -83,7 +103,17 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     try {
       const saved = await requestSaveModelConfig(payload())
       modelConfig.value = saved
-      form.value.apiKey = ''
+      form.value = {
+        provider: saved.provider || form.value.provider,
+        displayName: saved.displayName || form.value.displayName,
+        baseUrl: saved.baseUrl || form.value.baseUrl,
+        apiKey: '',
+        chatModel: saved.chatModel || form.value.chatModel,
+        embeddingModel: saved.embeddingModel || form.value.embeddingModel,
+        embeddingDimensions: saved.embeddingDimensions || form.value.embeddingDimensions,
+        temperature: saved.temperature ?? form.value.temperature,
+        topK: saved.topK || form.value.topK
+      }
       message.value = '模型配置已保存'
       await searchStore.fetchIndexStatus()
     } catch (err) {
@@ -100,12 +130,31 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
 
     try {
       const result = await requestTestModelConfig(payload())
-      message.value = result.message || 'DashScope 连接测试成功'
+      message.value = result.message || '模型连接测试成功'
     } catch (err) {
       error.value = `连接测试失败：${err.message}`
     } finally {
       isTestingModelConfig.value = false
     }
+  }
+
+  function changeProvider(provider) {
+    const option = providerOptions.find(item => item.value === provider)
+    if (!option) {
+      return
+    }
+
+    form.value.provider = option.value
+    form.value.displayName = option.displayName
+    form.value.baseUrl = option.baseUrl
+    modelOptions.value = []
+
+    // 切换协议时模型 ID 的可用范围也跟着变。
+    // 先回到保守默认值，用户再通过“获取模型”或手动输入覆盖。
+    form.value.chatModel = 'qwen-plus'
+    form.value.embeddingModel = 'text-embedding-v4'
+    message.value = ''
+    error.value = ''
   }
 
   function payload() {
@@ -153,13 +202,17 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     error,
     message,
     form,
+    providerOptions,
+    providerLabel,
+    isOpenAiCompatible,
     apiKeyPlaceholder,
     chatModelOptions,
     embeddingModelOptions,
     fetchModelConfig,
     fetchModels,
     saveModelConfig,
-    testModelConfig
+    testModelConfig,
+    changeProvider
   }
 })
 
@@ -167,7 +220,7 @@ function defaultForm() {
   return {
     provider: 'DASHSCOPE',
     displayName: 'DashScope',
-    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    baseUrl: 'https://dashscope.aliyuncs.com/api/v1',
     apiKey: '',
     chatModel: 'qwen-plus',
     embeddingModel: 'text-embedding-v4',

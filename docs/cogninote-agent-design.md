@@ -263,8 +263,8 @@ app:
 
 用户在前端配置：
 
-- Provider 名称
-- Base URL
+- Provider 类型
+- Base URL（仅 OpenAI-compatible 可自定义；DashScope 使用默认百炼地址）
 - API Key
 - 默认模型
 
@@ -277,7 +277,7 @@ POST   /api/model-config/test
 POST   /api/model-config/models
 ```
 
-第五阶段先把模型配置页做扎实：用户输入 Base URL 和 API Key，后端通过 OpenAI-compatible `/models` 自动获取模型列表，前端让用户选择默认对话模型和 Embedding 模型。第一版仍只维护一个 active 配置，多 provider 列表管理放到后续。
+第五阶段先把模型配置页做扎实：用户选择 `DASHSCOPE` 时使用默认百炼通道，配置页展示 `https://dashscope.aliyuncs.com/api/v1`；选择 `OPENAI_COMPATIBLE` 时输入自定义 Base URL，后端按 `Base URL + /models`、`Base URL + /chat/completions`、`Base URL + /embeddings` 调用通用接口。第一版仍只维护一个 active 配置，多 provider 列表管理放到后续。
 
 API Key 第四、五阶段仍以开发态明文保存到 SQLite；本地加密或 Windows 凭据管理放到安全加固阶段，不能在最终交付版本继续明文保存。
 
@@ -329,8 +329,9 @@ Lucene 混合检索
 
 核心功能：
 
-- 添加模型提供者
-- 输入 Base URL 和 API Key
+- 选择阿里百炼或 OpenAI-compatible Provider
+- 为 OpenAI-compatible 输入 Base URL；DashScope 使用默认地址
+- 输入 API Key
 - 测试连接
 - 自动拉取模型列表
 - 选择默认对话模型
@@ -586,7 +587,7 @@ PUT    /api/settings
 
 ### Milestone 5：模型配置增强
 
-- 自定义模型 Base URL 和 API Key
+- Provider 选择：DashScope 默认地址或 OpenAI-compatible 自定义 Base URL
 - 自动获取模型列表
 - 选择默认 Chat 模型
 - 选择默认 Embedding 模型
@@ -643,7 +644,7 @@ PUT    /api/settings
 
 控制方式：
 
-- 先支持最标准的 `/chat/completions` 和 `/models`
+- 先支持最标准的 `/chat/completions`、`/embeddings` 和 `/models`
 - 对 Ollama、LM Studio 等做单独兼容测试
 - 模型配置页必须提供“测试连接”
 

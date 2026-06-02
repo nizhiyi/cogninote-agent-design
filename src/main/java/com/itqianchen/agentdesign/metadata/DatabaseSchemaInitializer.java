@@ -71,7 +71,7 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
         // 这里显式做轻量迁移，保证用户本地 SQLite 能跟随阶段升级继续使用。
         addColumnIfMissing("model_config", "display_name", "TEXT NOT NULL DEFAULT 'DashScope'");
         addColumnIfMissing("model_config", "base_url",
-                "TEXT NOT NULL DEFAULT 'https://dashscope.aliyuncs.com/compatible-mode/v1'");
+                "TEXT NOT NULL DEFAULT 'https://dashscope.aliyuncs.com/api/v1'");
         jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_documents_updated_at ON documents(updated_at DESC)");
         jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_chunks_document_id ON chunks(document_id)");
     }

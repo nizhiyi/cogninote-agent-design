@@ -5,7 +5,11 @@ public final class ModelConfigDefaults {
     public static final String ACTIVE_CONFIG_ID = "active";
     public static final ModelProvider PROVIDER = ModelProvider.DASHSCOPE;
     public static final String DISPLAY_NAME = "DashScope";
-    public static final String BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+    /**
+     * DashScope Provider 对用户展示原生 HTTP API Root。
+     * Spring AI Alibaba 内部 path 已包含 /api/v1，实际构造客户端时会转换成裸域名。
+     */
+    public static final String BASE_URL = "https://dashscope.aliyuncs.com/api/v1";
     public static final String CHAT_MODEL = "qwen-plus";
     public static final String EMBEDDING_MODEL = "text-embedding-v4";
     public static final int EMBEDDING_DIMENSIONS = 1024;

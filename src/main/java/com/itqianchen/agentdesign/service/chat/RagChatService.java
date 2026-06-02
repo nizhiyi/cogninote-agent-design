@@ -2,6 +2,7 @@ package com.itqianchen.agentdesign.service.chat;
 
 import com.itqianchen.agentdesign.domain.chat.LlmGateway;
 import com.itqianchen.agentdesign.domain.chat.RagChatStream;
+import com.itqianchen.agentdesign.domain.chat.ChatPromptProperties;
 import com.itqianchen.agentdesign.domain.model.ModelConfig;
 import com.itqianchen.agentdesign.service.model.ModelConfigService;
 import com.itqianchen.agentdesign.repository.document.DocumentRepository;
@@ -33,17 +34,20 @@ public class RagChatService {
     private final DocumentRepository documentRepository;
     private final ModelConfigService modelConfigService;
     private final LlmGateway llmGateway;
+    private final ChatPromptProperties promptProperties;
 
     public RagChatService(
             KnowledgeStore knowledgeStore,
             DocumentRepository documentRepository,
             ModelConfigService modelConfigService,
-            LlmGateway llmGateway
+            LlmGateway llmGateway,
+            ChatPromptProperties promptProperties
     ) {
         this.knowledgeStore = knowledgeStore;
         this.documentRepository = documentRepository;
         this.modelConfigService = modelConfigService;
         this.llmGateway = llmGateway;
+        this.promptProperties = promptProperties;
     }
 
     public RagChatStream stream(ChatStreamRequest request) {
@@ -64,23 +68,17 @@ public class RagChatService {
     }
 
     public Prompt buildPrompt(String question, List<RagSourceResponse> sources) {
-        String systemPrompt = """
-                你是 CogniNote Agent 的本地知识库问答助手。
-                你必须只基于提供的知识库上下文回答，不要编造未出现的信息。
-                如果上下文不足以回答，明确说明：当前知识库中没有足够依据。
-                回答中必须用 [1]、[2] 这样的编号标注引用来源。
-                """;
-        String userPrompt = """
-                用户问题：
-                %s
-
-                知识库上下文：
-                %s
-
-                请给出简洁、可验证的中文回答。
-                """.formatted(question, buildContext(sources));
+        String systemPrompt = promptProperties.rag().system();
+        String userPrompt = renderRagUserPrompt(question, buildContext(sources));
 
         return new Prompt(List.of(new SystemMessage(systemPrompt), new UserMessage(userPrompt)));
+    }
+
+    private String renderRagUserPrompt(String question, String context) {
+        // 提示词模板放在配置文件中维护，这里只负责注入运行时变量。
+        return promptProperties.rag().user()
+                .replace("{question}", question)
+                .replace("{context}", context);
     }
 
     private SearchResponse searchWithFallback(String question, SearchMode requestedMode, int topK) {
@@ -128,7 +126,7 @@ public class RagChatService {
 
     private String buildContext(List<RagSourceResponse> sources) {
         if (sources.isEmpty()) {
-            return "没有检索到相关知识库片段。";
+            return promptProperties.rag().emptyContext();
         }
 
         StringBuilder builder = new StringBuilder();

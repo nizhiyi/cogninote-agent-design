@@ -15,7 +15,18 @@ const modelConfigStore = useModelConfigStore()
 
     <label class="field">
       <span>Provider</span>
-      <input v-model="modelConfigStore.form.provider" type="text" autocomplete="off" readonly />
+      <select
+        v-model="modelConfigStore.form.provider"
+        @change="modelConfigStore.changeProvider(modelConfigStore.form.provider)"
+      >
+        <option
+          v-for="provider in modelConfigStore.providerOptions"
+          :key="provider.value"
+          :value="provider.value"
+        >
+          {{ provider.label }}
+        </option>
+      </select>
     </label>
 
     <label class="field field--full">
@@ -24,12 +35,15 @@ const modelConfigStore = useModelConfigStore()
         v-model="modelConfigStore.form.baseUrl"
         type="url"
         autocomplete="off"
-        placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1"
+        :readonly="!modelConfigStore.isOpenAiCompatible"
+        :placeholder="modelConfigStore.isOpenAiCompatible
+          ? 'https://api.example.com/v1'
+          : 'https://dashscope.aliyuncs.com/api/v1'"
       />
     </label>
 
     <label class="field field--full">
-      <span>DashScope API Key</span>
+      <span>API Key</span>
       <input
         v-model="modelConfigStore.form.apiKey"
         type="password"
@@ -146,6 +160,7 @@ const modelConfigStore = useModelConfigStore()
   </section>
 
   <p class="warning-message">
+    阿里百炼会使用默认 DashScope 地址；OpenAI-compatible 使用用户填写的 Base URL，并调用 Base URL + /chat/completions、/embeddings 和 /models。
     当前阶段 API Key 会以明文保存到本机 SQLite，仅用于开发态闭环；后续交付阶段再接入 Windows 本地加密或凭据管理。
   </p>
 </template>

@@ -53,8 +53,9 @@ class ModelConfigServiceTests {
     @Test
     void savePersistsActiveConfig() {
         modelConfigService.save(request(
+                "DASHSCOPE",
                 "sk-test",
-                "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+                "https://dashscope.aliyuncs.com/api/v1/",
                 "qwen-max",
                 "text-embedding-v4",
                 0.3,
@@ -71,11 +72,67 @@ class ModelConfigServiceTests {
     }
 
     @Test
+    void dashScopeProviderIgnoresCustomBaseUrlAndKeepsOfficialDefault() {
+        modelConfigService.save(request(
+                "DASHSCOPE",
+                "sk-test",
+                "https://api.example.test/v1",
+                "qwen-plus",
+                "text-embedding-v4",
+                0.7,
+                8
+        ));
+
+        ModelConfig config = modelConfigService.requireConfigured();
+
+        assertThat(config.provider()).isEqualTo(ModelProvider.DASHSCOPE);
+        assertThat(config.baseUrl()).isEqualTo(ModelConfigDefaults.BASE_URL);
+    }
+
+    @Test
+    void dashScopeProviderUsesDefaultWhenBaseUrlIsBlank() {
+        modelConfigService.save(request(
+                "DASHSCOPE",
+                "sk-test",
+                "",
+                "qwen-plus",
+                "text-embedding-v4",
+                0.7,
+                8
+        ));
+
+        ModelConfig config = modelConfigService.requireConfigured();
+
+        assertThat(config.provider()).isEqualTo(ModelProvider.DASHSCOPE);
+        assertThat(config.baseUrl()).isEqualTo(ModelConfigDefaults.BASE_URL);
+    }
+
+    @Test
+    void openAiCompatibleProviderPersistsCustomBaseUrl() {
+        modelConfigService.save(request(
+                "OPENAI_COMPATIBLE",
+                "sk-test",
+                "https://api.example.test/v1/chat/completions",
+                "gpt-4.1-mini",
+                "text-embedding-3-small",
+                0.4,
+                10
+        ));
+
+        ModelConfig config = modelConfigService.requireConfigured();
+
+        assertThat(config.provider()).isEqualTo(ModelProvider.OPENAI_COMPATIBLE);
+        assertThat(config.baseUrl()).isEqualTo("https://api.example.test/v1");
+        assertThat(config.chatModel()).isEqualTo("gpt-4.1-mini");
+        assertThat(config.embeddingModel()).isEqualTo("text-embedding-3-small");
+    }
+
+    @Test
     void saveWithBlankApiKeyKeepsExistingSecret() {
-        modelConfigService.save(request("sk-test", ModelConfigDefaults.BASE_URL, "qwen-plus",
+        modelConfigService.save(request("DASHSCOPE", "sk-test", ModelConfigDefaults.BASE_URL, "qwen-plus",
                 "text-embedding-v4", 0.7, 8));
 
-        modelConfigService.save(request("", ModelConfigDefaults.BASE_URL, "qwen-max",
+        modelConfigService.save(request("DASHSCOPE", "", ModelConfigDefaults.BASE_URL, "qwen-max",
                 "text-embedding-v4", 0.2, 6));
 
         ModelConfig config = modelConfigService.requireConfigured();
@@ -88,7 +145,7 @@ class ModelConfigServiceTests {
 
     @Test
     void saveRejectsInvalidBaseUrl() {
-        assertThatThrownBy(() -> modelConfigService.save(request("sk-test", "ftp://example.com",
+        assertThatThrownBy(() -> modelConfigService.save(request("OPENAI_COMPATIBLE", "sk-test", "ftp://example.com",
                 "qwen-plus", "text-embedding-v4", 0.7, 8)))
                 .isInstanceOf(ModelConfigurationException.class)
                 .hasMessageContaining("Base URL");
@@ -102,6 +159,7 @@ class ModelConfigServiceTests {
     }
 
     private static ModelConfigRequest request(
+            String provider,
             String apiKey,
             String baseUrl,
             String chatModel,
@@ -110,7 +168,7 @@ class ModelConfigServiceTests {
             int topK
     ) {
         return new ModelConfigRequest(
-                "DASHSCOPE",
+                provider,
                 "DashScope",
                 baseUrl,
                 apiKey,

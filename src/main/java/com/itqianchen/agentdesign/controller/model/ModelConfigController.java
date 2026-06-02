@@ -47,7 +47,7 @@ public class ModelConfigController {
     @PostMapping("/test")
     public ApiResponse<ModelConfigTestResponse> testConfig(@Valid @RequestBody ModelConfigRequest request) {
         llmGateway.testConnection(modelConfigService.connectionTestConfig(request));
-        return ApiResponse.ok(new ModelConfigTestResponse(true, "DashScope connection succeeded"));
+        return ApiResponse.ok(new ModelConfigTestResponse(true, "模型连接测试成功"));
     }
 
     @PostMapping("/models")

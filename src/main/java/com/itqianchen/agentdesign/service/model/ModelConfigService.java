@@ -6,8 +6,6 @@ import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
 import com.itqianchen.agentdesign.domain.model.ModelProvider;
 import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
 import com.itqianchen.agentdesign.repository.model.ModelConfigRepository;
-import java.net.URI;
-import java.net.URISyntaxException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +21,7 @@ public class ModelConfigService {
     public ModelConfig activeOrDefault() {
         long now = System.currentTimeMillis();
         return modelConfigRepository.findActive()
+                .map(ModelConfigService::normalizeLoadedConfig)
                 .orElseGet(() -> new ModelConfig(
                         ModelConfigDefaults.ACTIVE_CONFIG_ID,
                         ModelConfigDefaults.PROVIDER,
@@ -42,7 +41,7 @@ public class ModelConfigService {
     public ModelConfig requireConfigured() {
         ModelConfig config = activeOrDefault();
         if (!config.hasApiKey()) {
-            throw new ModelConfigurationException("DashScope API Key is not configured");
+            throw new ModelConfigurationException("API Key is not configured");
         }
         return config;
     }
@@ -58,7 +57,7 @@ public class ModelConfigService {
     public ModelConfig connectionTestConfig(ModelConfigRequest request) {
         ModelConfig config = mergeRequest(request, activeOrDefault(), System.currentTimeMillis());
         if (!config.hasApiKey()) {
-            throw new ModelConfigurationException("DashScope API Key is required for connection test");
+            throw new ModelConfigurationException("API Key is required for connection test");
         }
         return config;
     }
@@ -68,15 +67,16 @@ public class ModelConfigService {
     }
 
     private static ModelConfig mergeRequest(ModelConfigRequest request, ModelConfig existing, long now) {
+        ModelProvider provider = normalizeProvider(request.provider());
         String requestedApiKey = normalizeApiKey(request.apiKey());
         // GET 响应不会回显已保存的 API Key。
         // 因此前端提交空 key 时表示“复用旧 key”，不是清空密钥。
         String apiKey = requestedApiKey.isBlank() ? existing.apiKey() : requestedApiKey;
         return new ModelConfig(
                 ModelConfigDefaults.ACTIVE_CONFIG_ID,
-                normalizeProvider(request.provider()),
+                provider,
                 normalizeDisplayName(request.displayName()),
-                normalizeBaseUrl(request.baseUrl()),
+                normalizeBaseUrl(provider, request.baseUrl()),
                 apiKey,
                 request.chatModel().trim(),
                 request.embeddingModel().trim(),
@@ -105,6 +105,30 @@ public class ModelConfigService {
         }
     }
 
+    private static ModelConfig normalizeLoadedConfig(ModelConfig config) {
+        if (config.provider() != ModelProvider.DASHSCOPE) {
+            return config;
+        }
+        String normalizedBaseUrl = DashScopeBaseUrls.normalizeConfigBaseUrl(config.baseUrl());
+        if (normalizedBaseUrl.equals(config.baseUrl())) {
+            return config;
+        }
+        return new ModelConfig(
+                config.id(),
+                config.provider(),
+                config.displayName(),
+                normalizedBaseUrl,
+                config.apiKey(),
+                config.chatModel(),
+                config.embeddingModel(),
+                config.embeddingDimensions(),
+                config.temperature(),
+                config.topK(),
+                config.createdAt(),
+                config.updatedAt()
+        );
+    }
+
     private static String normalizeDisplayName(String displayName) {
         if (displayName == null || displayName.isBlank()) {
             return ModelConfigDefaults.DISPLAY_NAME;
@@ -112,26 +136,11 @@ public class ModelConfigService {
         return displayName.trim();
     }
 
-    private static String normalizeBaseUrl(String baseUrl) {
-        String normalized = baseUrl == null || baseUrl.isBlank()
-                ? ModelConfigDefaults.BASE_URL
-                : baseUrl.trim();
-        while (normalized.endsWith("/")) {
-            normalized = normalized.substring(0, normalized.length() - 1);
-        }
-
-        try {
-            URI uri = new URI(normalized);
-            if (!"http".equalsIgnoreCase(uri.getScheme()) && !"https".equalsIgnoreCase(uri.getScheme())) {
-                throw new ModelConfigurationException("Base URL must use http or https");
-            }
-            if (uri.getHost() == null || uri.getHost().isBlank()) {
-                throw new ModelConfigurationException("Base URL host is required");
-            }
-            return uri.toString();
-        } catch (URISyntaxException ex) {
-            throw new ModelConfigurationException("Base URL is not valid: " + baseUrl, ex);
-        }
+    private static String normalizeBaseUrl(ModelProvider provider, String baseUrl) {
+        return switch (provider) {
+            case DASHSCOPE -> DashScopeBaseUrls.normalizeConfigBaseUrl(ModelConfigDefaults.BASE_URL);
+            case OPENAI_COMPATIBLE -> OpenAiCompatibleUrls.normalizeBaseUrl(baseUrl);
+        };
     }
 }
 

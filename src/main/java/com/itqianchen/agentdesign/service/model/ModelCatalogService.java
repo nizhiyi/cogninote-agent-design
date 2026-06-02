@@ -7,7 +7,6 @@ import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
 import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
 import com.itqianchen.agentdesign.dto.model.ModelOptionResponse;
 import com.itqianchen.agentdesign.dto.model.ModelOptionsResponse;
-import java.net.URI;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -19,8 +18,6 @@ import org.springframework.web.client.RestClientException;
 @Service
 public class ModelCatalogService {
 
-    private static final String MODELS_PATH = "/models";
-
     private final ModelConfigService modelConfigService;
     private final RestClient restClient;
 
@@ -31,11 +28,10 @@ public class ModelCatalogService {
 
     public ModelOptionsResponse fetchModels(ModelConfigRequest request) {
         ModelConfig config = modelConfigService.connectionTestConfig(request);
-        URI modelsUri = modelsUri(config.baseUrl());
 
         try {
             JsonNode response = restClient.get()
-                    .uri(modelsUri)
+                    .uri(modelsUri(config))
                     .header("Authorization", "Bearer " + config.apiKey())
                     .retrieve()
                     .body(JsonNode.class);
@@ -45,9 +41,11 @@ public class ModelCatalogService {
         }
     }
 
-    private static URI modelsUri(String baseUrl) {
-        String normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
-        return URI.create(normalizedBaseUrl + MODELS_PATH);
+    private static java.net.URI modelsUri(ModelConfig config) {
+        return switch (config.provider()) {
+            case DASHSCOPE -> DashScopeBaseUrls.modelsUri(config.baseUrl());
+            case OPENAI_COMPATIBLE -> OpenAiCompatibleUrls.modelsUri(config.baseUrl());
+        };
     }
 
     private static List<ModelOptionResponse> parseModels(JsonNode response) {

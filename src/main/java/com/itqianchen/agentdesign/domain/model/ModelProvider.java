@@ -1,7 +1,8 @@
 package com.itqianchen.agentdesign.domain.model;
 
 public enum ModelProvider {
-    DASHSCOPE
+    DASHSCOPE,
+    OPENAI_COMPATIBLE
 }
 
 

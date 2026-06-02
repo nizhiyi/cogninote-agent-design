@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Size;
 public record ModelConfigRequest(
         @Size(max = 32) String provider,
         @Size(max = 120) String displayName,
-        @NotBlank @Size(max = 512) String baseUrl,
+        @Size(max = 512) String baseUrl,
         @Size(max = 4096) String apiKey,
         @NotBlank @Size(max = 120) String chatModel,
         @NotBlank @Size(max = 120) String embeddingModel,

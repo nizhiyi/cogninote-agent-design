@@ -7,6 +7,7 @@ import com.alibaba.cloud.ai.dashscope.embedding.text.DashScopeEmbeddingModel;
 import com.alibaba.cloud.ai.dashscope.embedding.text.DashScopeEmbeddingOptions;
 import com.itqianchen.agentdesign.domain.model.ModelConfig;
 import io.micrometer.observation.ObservationRegistry;
+import java.util.Locale;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.document.MetadataMode;
 import org.springframework.ai.embedding.EmbeddingModel;
@@ -17,9 +18,6 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class DashScopeModelFactory {
-
-    private static final String DASHSCOPE_COMPATIBLE_SUFFIX = "/compatible-mode/v1";
-    private static final String DASHSCOPE_NATIVE_BASE_URL = "https://dashscope.aliyuncs.com";
 
     private final ObservationRegistry observationRegistry;
     private volatile CachedChatModel cachedChatModel;
@@ -69,11 +67,13 @@ public class DashScopeModelFactory {
     }
 
     private ChatModel buildChatModel(ModelConfig config) {
+        DashScopeChatEndpoint endpoint = DashScopeChatEndpoint.fromModel(config.chatModel());
         DashScopeChatOptions options = DashScopeChatOptions.builder()
                 .model(config.chatModel())
                 .temperature(config.temperature())
                 .stream(true)
                 .incrementalOutput(true)
+                .multiModel(endpoint.multiModel())
                 .build();
 
         return DashScopeChatModel.builder()
@@ -104,37 +104,76 @@ public class DashScopeModelFactory {
 
     private DashScopeApi api(ModelConfig config) {
         return DashScopeApi.builder()
-                .baseUrl(toDashScopeNativeBaseUrl(config.baseUrl()))
+                .baseUrl(DashScopeBaseUrls.toSpringAiAlibabaBaseUrl(config.baseUrl()))
                 .apiKey(config.apiKey())
                 .build();
     }
 
-    private static String toDashScopeNativeBaseUrl(String configuredBaseUrl) {
-        if (configuredBaseUrl == null || configuredBaseUrl.isBlank()) {
-            return DASHSCOPE_NATIVE_BASE_URL;
+    enum DashScopeChatEndpoint {
+        TEXT_GENERATION(false),
+        MULTIMODAL_GENERATION(true);
+
+        private final boolean multiModel;
+
+        DashScopeChatEndpoint(boolean multiModel) {
+            this.multiModel = multiModel;
         }
-        String normalized = configuredBaseUrl.endsWith("/")
-                ? configuredBaseUrl.substring(0, configuredBaseUrl.length() - 1)
-                : configuredBaseUrl;
-        if (normalized.endsWith(DASHSCOPE_COMPATIBLE_SUFFIX)) {
-            // 配置页使用 compatible Base URL 读取 /models；
-            // Spring AI Alibaba 当前 DashScopeApi 仍发送原生 DashScope 请求体，
-            // 因此实际 Chat/Embedding 调用要回到同一主机的原生 API 根路径。
-            return normalized.substring(0, normalized.length() - DASHSCOPE_COMPATIBLE_SUFFIX.length());
+
+        boolean multiModel() {
+            return multiModel;
         }
-        return normalized;
+
+        static DashScopeChatEndpoint fromModel(String model) {
+            String normalized = model == null ? "" : model.trim().toLowerCase(Locale.ROOT);
+            /*
+             * 阿里百炼的 /models 会同时返回文本、视觉、语音和新一代多模态模型。
+             * Spring AI Alibaba 只靠 multiModel 决定最终 endpoint：
+             * false -> /text-generation/generation，true -> /multimodal-generation/generation。
+             * qwen3.6+/qwen3.7+ 这类模型即使只传文本，也必须走多模态 endpoint；
+             * 否则百炼会返回 “url error, please check url”。
+             */
+            if (normalized.startsWith("qwen3.5-")
+                    || normalized.startsWith("qwen3.6-")
+                    || normalized.startsWith("qwen3.7-")
+                    || normalized.contains("-vl-")
+                    || normalized.contains("-omni-")
+                    || normalized.contains("-image-")
+                    || normalized.contains("-asr-")
+                    || normalized.contains("-tts-")
+                    || normalized.contains("-livetranslate-")) {
+                return MULTIMODAL_GENERATION;
+            }
+            return TEXT_GENERATION;
+        }
     }
 
-    private record ChatModelKey(String baseUrl, String apiKey, String chatModel, double temperature) {
+    private record ChatModelKey(
+            String nativeBaseUrl,
+            String apiKey,
+            String chatModel,
+            double temperature,
+            DashScopeChatEndpoint endpoint
+    ) {
         private static ChatModelKey from(ModelConfig config) {
-            return new ChatModelKey(config.baseUrl(), config.apiKey(), config.chatModel(), config.temperature());
+            return new ChatModelKey(
+                    DashScopeBaseUrls.toSpringAiAlibabaBaseUrl(config.baseUrl()),
+                    config.apiKey(),
+                    config.chatModel(),
+                    config.temperature(),
+                    DashScopeChatEndpoint.fromModel(config.chatModel())
+            );
         }
     }
 
-    private record EmbeddingModelKey(String baseUrl, String apiKey, String embeddingModel, int embeddingDimensions) {
+    private record EmbeddingModelKey(
+            String nativeBaseUrl,
+            String apiKey,
+            String embeddingModel,
+            int embeddingDimensions
+    ) {
         private static EmbeddingModelKey from(ModelConfig config) {
             return new EmbeddingModelKey(
-                    config.baseUrl(),
+                    DashScopeBaseUrls.toSpringAiAlibabaBaseUrl(config.baseUrl()),
                     config.apiKey(),
                     config.embeddingModel(),
                     config.embeddingDimensions()

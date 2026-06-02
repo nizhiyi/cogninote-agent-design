@@ -13,6 +13,7 @@ replay_pid*
 CogniNote/
 cogninote-data/
 logs/
+资料参考/
 
 # Frontend dependencies and build output
 node_modules/

@@ -27,8 +27,8 @@ const navItems = [
     id: 'model-config',
     to: { name: 'model-config' },
     name: '模型配置',
-    state: 'DashScope',
-    description: '配置 Spring AI Alibaba DashScope 的 Chat 与 Embedding。'
+    state: 'Provider',
+    description: '配置阿里百炼默认通道，或使用 OpenAI-compatible 自定义 Base URL。'
   },
   {
     id: 'settings',
@@ -55,7 +55,7 @@ const pillState = computed(() => {
         <p class="eyebrow">本地个人知识库智能体</p>
         <h1>CogniNote Agent</h1>
         <p class="subtitle">
-          第四阶段进入 RAG 对话闭环：配置 DashScope，检索知识片段，流式回答并展示引用来源。
+          第五阶段完善模型配置：阿里百炼走默认 DashScope，自定义服务走 OpenAI-compatible 接口。
         </p>
       </div>
 

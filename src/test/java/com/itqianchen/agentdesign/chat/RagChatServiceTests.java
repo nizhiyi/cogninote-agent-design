@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.itqianchen.agentdesign.domain.chat.LlmGateway;
 import com.itqianchen.agentdesign.domain.chat.RagChatStream;
+import com.itqianchen.agentdesign.domain.chat.ChatPromptProperties;
 import com.itqianchen.agentdesign.domain.model.ModelConfig;
 import com.itqianchen.agentdesign.domain.model.ModelConfigDefaults;
 import com.itqianchen.agentdesign.domain.search.EmbeddingUnavailableException;
@@ -46,6 +47,26 @@ class RagChatServiceTests {
     }
 
     @Test
+    void promptUsesConfiguredTemplates() {
+        ChatPromptProperties promptProperties = new ChatPromptProperties(
+                new ChatPromptProperties.Rag(
+                        "自定义系统提示词",
+                        "Q={question}\nCTX={context}",
+                        "自定义空上下文"
+                ),
+                new ChatPromptProperties.ConnectionTest("测试连接")
+        );
+        RagChatService service = newService(new FakeKnowledgeStore(false), new FakeLlmGateway(), promptProperties);
+
+        Prompt prompt = service.buildPrompt("没有资料的问题", List.of());
+
+        assertThat(prompt.getContents())
+                .contains("自定义系统提示词")
+                .contains("Q=没有资料的问题")
+                .contains("CTX=自定义空上下文");
+    }
+
+    @Test
     void hybridFallsBackToKeywordWhenEmbeddingIsUnavailable() {
         FakeKnowledgeStore knowledgeStore = new FakeKnowledgeStore(true);
         RagChatService service = newService(knowledgeStore, new FakeLlmGateway());
@@ -59,6 +80,14 @@ class RagChatServiceTests {
     }
 
     private static RagChatService newService(KnowledgeStore knowledgeStore, LlmGateway llmGateway) {
+        return newService(knowledgeStore, llmGateway, defaultPromptProperties());
+    }
+
+    private static RagChatService newService(
+            KnowledgeStore knowledgeStore,
+            LlmGateway llmGateway,
+            ChatPromptProperties promptProperties
+    ) {
         ModelConfigRepository repository = new ModelConfigRepository(null) {
             @Override
             public Optional<ModelConfig> findActive() {
@@ -83,7 +112,32 @@ class RagChatServiceTests {
                 knowledgeStore,
                 new FakeDocumentRepository(),
                 new ModelConfigService(repository),
-                llmGateway
+                llmGateway,
+                promptProperties
+        );
+    }
+
+    private static ChatPromptProperties defaultPromptProperties() {
+        return new ChatPromptProperties(
+                new ChatPromptProperties.Rag(
+                        """
+                                你是 CogniNote Agent 的本地知识库问答助手。
+                                你必须只基于提供的知识库上下文回答，不要编造未出现的信息。
+                                如果上下文不足以回答，明确说明：当前知识库中没有足够依据。
+                                回答中必须用 [1]、[2] 这样的编号标注引用来源。
+                                """,
+                        """
+                                用户问题：
+                                {question}
+
+                                知识库上下文：
+                                {context}
+
+                                请给出简洁、可验证的中文回答。
+                                """,
+                        "没有检索到相关知识库片段。"
+                ),
+                new ChatPromptProperties.ConnectionTest("请用一句话回答：CogniNote 连接测试是否可用？")
         );
     }
 

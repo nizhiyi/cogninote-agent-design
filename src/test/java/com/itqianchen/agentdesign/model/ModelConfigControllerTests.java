@@ -32,7 +32,7 @@ class ModelConfigControllerTests {
                                 {
                                   "provider": "DASHSCOPE",
                                   "displayName": "DashScope",
-                                  "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                                  "baseUrl": "https://dashscope.aliyuncs.com/api/v1",
                                   "apiKey": "",
                                   "chatModel": "qwen-plus",
                                   "embeddingModel": "text-embedding-v4",

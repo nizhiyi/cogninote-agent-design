@@ -20,7 +20,7 @@ import org.springframework.web.client.RestClient;
 class ModelCatalogServiceTests {
 
     @Test
-    void fetchModelsCallsOpenAiCompatibleModelsEndpointAndClassifiesResults() {
+    void fetchModelsUsesDashScopeDefaultModelsEndpointAndClassifiesResults() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         ModelCatalogService service = new ModelCatalogService(
@@ -28,7 +28,7 @@ class ModelCatalogServiceTests {
                 builder
         );
 
-        server.expect(requestTo("https://example.test/compatible-mode/v1/models"))
+        server.expect(requestTo("https://dashscope.aliyuncs.com/compatible-mode/v1/models"))
                 .andExpect(header("Authorization", "Bearer sk-test"))
                 .andRespond(withSuccess("""
                         {
@@ -43,6 +43,7 @@ class ModelCatalogServiceTests {
         ModelOptionsResponse response = service.fetchModels(new ModelConfigRequest(
                 "DASHSCOPE",
                 "DashScope",
+                // DashScope provider 固定使用百炼默认地址，这里传入自定义 host 是为了防止旧逻辑回退。
                 "https://example.test/compatible-mode/v1",
                 "sk-test",
                 "qwen-plus",
@@ -57,6 +58,47 @@ class ModelCatalogServiceTests {
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple("qwen-plus", ModelCapability.CHAT),
                         org.assertj.core.groups.Tuple.tuple("text-embedding-v4", ModelCapability.EMBEDDING)
+                );
+        server.verify();
+    }
+
+    @Test
+    void fetchModelsUsesCustomOpenAiCompatibleModelsEndpoint() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        ModelCatalogService service = new ModelCatalogService(
+                new ModelConfigService(emptyRepository()),
+                builder
+        );
+
+        server.expect(requestTo("https://api.example.test/v1/models"))
+                .andExpect(header("Authorization", "Bearer sk-test"))
+                .andRespond(withSuccess("""
+                        {
+                          "data": [
+                            { "id": "gpt-4.1-mini" },
+                            { "id": "text-embedding-3-small" }
+                          ]
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        ModelOptionsResponse response = service.fetchModels(new ModelConfigRequest(
+                "OPENAI_COMPATIBLE",
+                "OpenAI-compatible",
+                "https://api.example.test/v1/chat/completions",
+                "sk-test",
+                "gpt-4.1-mini",
+                "text-embedding-3-small",
+                1536,
+                0.7,
+                8
+        ));
+
+        assertThat(response.models())
+                .extracting("id", "capability")
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("gpt-4.1-mini", ModelCapability.CHAT),
+                        org.assertj.core.groups.Tuple.tuple("text-embedding-3-small", ModelCapability.EMBEDDING)
                 );
         server.verify();
     }

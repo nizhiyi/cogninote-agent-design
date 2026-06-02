@@ -37,7 +37,7 @@ const modelConfigStore = useModelConfigStore()
 
       <p v-if="chatStore.error" class="error-message">{{ chatStore.error }}</p>
       <p v-if="!modelConfigStore.modelConfig?.apiKeyConfigured" class="hint-message">
-        尚未保存 DashScope API Key。请先到“模型配置”页保存后再对话。
+        尚未保存模型 API Key。请先到“模型配置”页保存后再对话。
       </p>
     </form>
 
