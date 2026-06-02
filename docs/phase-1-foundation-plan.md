@@ -8,7 +8,7 @@
 
 ## Key Changes
 
-- 构建基线：统一为 Java 21 LTS + Spring Boot 3.5.14 稳定版，移除 Snapshot 仓库。
+- 构建基线：统一为 Java 25 + Spring Boot 3.5.14 稳定版，移除 Snapshot 仓库。
 - 后端依赖：第一阶段只保留 Web、Validation、Test 和必要构建插件。
 - 后端基础能力：固定监听 `127.0.0.1`，开发端口默认 `18080`；创建 `%APPDATA%/CogniNote/` 下的 `config/`、`data/`、`index/lucene/`、`logs/`。
 - 前后端联调：新增 `GET /api/system/status`，返回应用名、版本、状态和数据目录。
@@ -18,8 +18,8 @@
 
 ## Implementation Steps
 
-1. 调整 `pom.xml`：Spring Boot parent 改为 `3.5.14`，`java.version` 改为 `21`，移除 Snapshot repositories 和第一阶段不用的依赖。
-2. 加 Maven Enforcer：要求运行 JDK 为 `[21,25)`，避免 JDK 8 构建失败，也避免当前 Spring Boot 3.5 线未覆盖的 JDK 25。
+1. 调整 `pom.xml`：Spring Boot parent 改为 `3.5.14`，`java.version` 改为 `25`，移除 Snapshot repositories 和第一阶段不用的依赖。
+2. 加 Maven Enforcer：要求运行 JDK 为 `[25,26)`，避免 JDK 8、17 等非目标环境参与构建。
 3. 配置 `application.yaml`：`server.address=127.0.0.1`，`server.port=${COGNINOTE_PORT:18080}`，`app.storage.base-dir=${COGNINOTE_DATA_DIR:}`。
 4. 新增后端 `storage` 与 `system` 基础包：负责解析数据目录、启动时创建目录、提供 `/api/system/status`。
 5. 修改 Vue：增加基础布局、系统状态请求、错误态；配置 Vite dev proxy。
@@ -28,7 +28,7 @@
 
 ## Test Plan
 
-- 后端：在 JDK 21+ 下运行 `mvn test`，确认 Spring context 能启动。
+- 后端：在 JDK 25 下运行 `mvn test`，确认 Spring context 能启动。
 - 前端：运行 `npm ci` 和 `npm run build`，确认 Vue 能正常构建。
 - 联调：启动后端和 Vite，访问前端页面，确认 `/api/system/status` 返回并显示连接成功。
 - 静态托管：运行 `mvn -Pwith-frontend package`，再启动 Jar，访问 `http://127.0.0.1:18080/`，确认由 Spring Boot 返回 Vue 页面。

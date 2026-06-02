@@ -9,3 +9,4 @@ server:
 app:
   storage:
     base-dir: ${COGNINOTE_DATA_DIR:}
+    database-path: ${COGNINOTE_DATABASE_PATH:}

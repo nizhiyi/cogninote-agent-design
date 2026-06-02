@@ -6,6 +6,7 @@ public record AppStorage(
         Path baseDir,
         Path configDir,
         Path dataDir,
+        Path databasePath,
         Path luceneIndexDir,
         Path logsDir
 ) {

@@ -1,6 +1,6 @@
 # cogniNote-agent-front
 
-This template should help get you started developing with Vue 3 in Vite.
+CogniNote Agent 的 Vue 3 前端。第一阶段只实现基础应用壳和后端状态联调。
 
 ## Recommended IDE Setup
 
@@ -22,7 +22,7 @@ See [Vite Configuration Reference](https://vite.dev/config/).
 ## Project Setup
 
 ```sh
-npm install
+npm ci
 ```
 
 ### Compile and Hot-Reload for Development
@@ -31,8 +31,16 @@ npm install
 npm run dev
 ```
 
+Vite 会把 `/api` 代理到本地 Spring Boot 后端：
+
+```text
+http://127.0.0.1:18080
+```
+
 ### Compile and Minify for Production
 
 ```sh
 npm run build
 ```
+
+生产构建产物会输出到 `dist/`，整包构建时由根目录 Maven `with-frontend` profile 复制进 Spring Boot 静态资源目录。
