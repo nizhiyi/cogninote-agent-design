@@ -1,5 +1,7 @@
 package com.itqianchen.agentdesign.metadata;
 
+import java.util.List;
+import java.util.Map;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -53,6 +55,8 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
                 CREATE TABLE IF NOT EXISTS model_config (
                     id TEXT PRIMARY KEY,
                     provider TEXT NOT NULL,
+                    display_name TEXT NOT NULL,
+                    base_url TEXT NOT NULL,
                     api_key TEXT,
                     chat_model TEXT NOT NULL,
                     embedding_model TEXT NOT NULL,
@@ -63,8 +67,23 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
                     updated_at INTEGER NOT NULL
                 )
                 """);
+        // 旧版本数据库中已经存在 model_config 时，CREATE TABLE 不会补列。
+        // 这里显式做轻量迁移，保证用户本地 SQLite 能跟随阶段升级继续使用。
+        addColumnIfMissing("model_config", "display_name", "TEXT NOT NULL DEFAULT 'DashScope'");
+        addColumnIfMissing("model_config", "base_url",
+                "TEXT NOT NULL DEFAULT 'https://dashscope.aliyuncs.com/compatible-mode/v1'");
         jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_documents_updated_at ON documents(updated_at DESC)");
         jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_chunks_document_id ON chunks(document_id)");
+    }
+
+    private void addColumnIfMissing(String tableName, String columnName, String definition) {
+        List<Map<String, Object>> columns = jdbcTemplate.queryForList("PRAGMA table_info(" + tableName + ")");
+        boolean exists = columns.stream()
+                .map(column -> String.valueOf(column.get("name")))
+                .anyMatch(columnName::equalsIgnoreCase);
+        if (!exists) {
+            jdbcTemplate.execute("ALTER TABLE " + tableName + " ADD COLUMN " + columnName + " " + definition);
+        }
     }
 }
 

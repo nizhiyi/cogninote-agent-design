@@ -18,6 +18,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class DashScopeModelFactory {
 
+    private static final String DASHSCOPE_COMPATIBLE_SUFFIX = "/compatible-mode/v1";
+    private static final String DASHSCOPE_NATIVE_BASE_URL = "https://dashscope.aliyuncs.com";
+
     private final ObservationRegistry observationRegistry;
     private volatile CachedChatModel cachedChatModel;
     private volatile CachedEmbeddingModel cachedEmbeddingModel;
@@ -74,7 +77,7 @@ public class DashScopeModelFactory {
                 .build();
 
         return DashScopeChatModel.builder()
-                .dashScopeApi(api(config.apiKey()))
+                .dashScopeApi(api(config))
                 .defaultOptions(options)
                 .retryTemplate(RetryTemplate.defaultInstance())
                 .toolCallingManager(ToolCallingManager.builder()
@@ -91,7 +94,7 @@ public class DashScopeModelFactory {
                 .build();
 
         return DashScopeEmbeddingModel.builder()
-                .dashScopeApi(api(config.apiKey()))
+                .dashScopeApi(api(config))
                 .metadataMode(MetadataMode.EMBED)
                 .defaultOptions(options)
                 .retryTemplate(RetryTemplate.defaultInstance())
@@ -99,21 +102,43 @@ public class DashScopeModelFactory {
                 .build();
     }
 
-    private DashScopeApi api(String apiKey) {
+    private DashScopeApi api(ModelConfig config) {
         return DashScopeApi.builder()
-                .apiKey(apiKey)
+                .baseUrl(toDashScopeNativeBaseUrl(config.baseUrl()))
+                .apiKey(config.apiKey())
                 .build();
     }
 
-    private record ChatModelKey(String apiKey, String chatModel, double temperature) {
+    private static String toDashScopeNativeBaseUrl(String configuredBaseUrl) {
+        if (configuredBaseUrl == null || configuredBaseUrl.isBlank()) {
+            return DASHSCOPE_NATIVE_BASE_URL;
+        }
+        String normalized = configuredBaseUrl.endsWith("/")
+                ? configuredBaseUrl.substring(0, configuredBaseUrl.length() - 1)
+                : configuredBaseUrl;
+        if (normalized.endsWith(DASHSCOPE_COMPATIBLE_SUFFIX)) {
+            // 配置页使用 compatible Base URL 读取 /models；
+            // Spring AI Alibaba 当前 DashScopeApi 仍发送原生 DashScope 请求体，
+            // 因此实际 Chat/Embedding 调用要回到同一主机的原生 API 根路径。
+            return normalized.substring(0, normalized.length() - DASHSCOPE_COMPATIBLE_SUFFIX.length());
+        }
+        return normalized;
+    }
+
+    private record ChatModelKey(String baseUrl, String apiKey, String chatModel, double temperature) {
         private static ChatModelKey from(ModelConfig config) {
-            return new ChatModelKey(config.apiKey(), config.chatModel(), config.temperature());
+            return new ChatModelKey(config.baseUrl(), config.apiKey(), config.chatModel(), config.temperature());
         }
     }
 
-    private record EmbeddingModelKey(String apiKey, String embeddingModel, int embeddingDimensions) {
+    private record EmbeddingModelKey(String baseUrl, String apiKey, String embeddingModel, int embeddingDimensions) {
         private static EmbeddingModelKey from(ModelConfig config) {
-            return new EmbeddingModelKey(config.apiKey(), config.embeddingModel(), config.embeddingDimensions());
+            return new EmbeddingModelKey(
+                    config.baseUrl(),
+                    config.apiKey(),
+                    config.embeddingModel(),
+                    config.embeddingDimensions()
+            );
         }
     }
 

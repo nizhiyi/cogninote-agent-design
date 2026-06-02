@@ -5,6 +5,8 @@ import com.itqianchen.agentdesign.domain.chat.LlmGateway;
 import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
 import com.itqianchen.agentdesign.dto.model.ModelConfigResponse;
 import com.itqianchen.agentdesign.dto.model.ModelConfigTestResponse;
+import com.itqianchen.agentdesign.dto.model.ModelOptionsResponse;
+import com.itqianchen.agentdesign.service.model.ModelCatalogService;
 import com.itqianchen.agentdesign.service.model.ModelConfigService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,10 +21,16 @@ import org.springframework.web.bind.annotation.RestController;
 public class ModelConfigController {
 
     private final ModelConfigService modelConfigService;
+    private final ModelCatalogService modelCatalogService;
     private final LlmGateway llmGateway;
 
-    public ModelConfigController(ModelConfigService modelConfigService, LlmGateway llmGateway) {
+    public ModelConfigController(
+            ModelConfigService modelConfigService,
+            ModelCatalogService modelCatalogService,
+            LlmGateway llmGateway
+    ) {
         this.modelConfigService = modelConfigService;
+        this.modelCatalogService = modelCatalogService;
         this.llmGateway = llmGateway;
     }
 
@@ -40,6 +48,11 @@ public class ModelConfigController {
     public ApiResponse<ModelConfigTestResponse> testConfig(@Valid @RequestBody ModelConfigRequest request) {
         llmGateway.testConnection(modelConfigService.connectionTestConfig(request));
         return ApiResponse.ok(new ModelConfigTestResponse(true, "DashScope connection succeeded"));
+    }
+
+    @PostMapping("/models")
+    public ApiResponse<ModelOptionsResponse> fetchModels(@Valid @RequestBody ModelConfigRequest request) {
+        return ApiResponse.ok(modelCatalogService.fetchModels(request));
     }
 }
 

@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import {
+  fetchModelOptions as requestFetchModelOptions,
   getModelConfig,
   saveModelConfig as requestSaveModelConfig,
   testModelConfig as requestTestModelConfig
@@ -12,6 +13,9 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
   const isLoadingModelConfig = ref(false)
   const isSavingModelConfig = ref(false)
   const isTestingModelConfig = ref(false)
+  const isFetchingModels = ref(false)
+  const modelOptions = ref([])
+  const modelsFetchedAt = ref(null)
   const error = ref('')
   const message = ref('')
   const form = ref(defaultForm())
@@ -32,6 +36,9 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
       const config = await getModelConfig()
       modelConfig.value = config
       form.value = {
+        provider: config.provider || 'DASHSCOPE',
+        displayName: config.displayName || 'DashScope',
+        baseUrl: config.baseUrl || defaultForm().baseUrl,
         apiKey: '',
         chatModel: config.chatModel,
         embeddingModel: config.embeddingModel,
@@ -44,6 +51,26 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
       error.value = `模型配置读取失败：${err.message}`
     } finally {
       isLoadingModelConfig.value = false
+    }
+  }
+
+  async function fetchModels() {
+    isFetchingModels.value = true
+    error.value = ''
+    message.value = ''
+
+    try {
+      const result = await requestFetchModelOptions(payload())
+      modelOptions.value = result.models || []
+      modelsFetchedAt.value = result.fetchedAt || Date.now()
+      autoSelectModels()
+      message.value = modelOptions.value.length
+        ? `已获取 ${modelOptions.value.length} 个模型`
+        : '模型列表为空，可继续手动输入模型 ID'
+    } catch (err) {
+      error.value = `获取模型失败：${err.message}`
+    } finally {
+      isFetchingModels.value = false
     }
   }
 
@@ -83,6 +110,9 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
 
   function payload() {
     return {
+      provider: form.value.provider,
+      displayName: form.value.displayName.trim(),
+      baseUrl: form.value.baseUrl.trim(),
       apiKey: form.value.apiKey,
       chatModel: form.value.chatModel.trim(),
       embeddingModel: form.value.embeddingModel.trim(),
@@ -92,16 +122,42 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     }
   }
 
+  function autoSelectModels() {
+    const chatModels = chatModelOptions.value
+    const embeddingModels = embeddingModelOptions.value
+    // 拉取模型后只在当前值不存在于列表时自动兜底，避免覆盖用户刚刚手动挑选的模型。
+    if (chatModels.length && !chatModels.some(model => model.id === form.value.chatModel)) {
+      form.value.chatModel = chatModels[0].id
+    }
+    if (embeddingModels.length && !embeddingModels.some(model => model.id === form.value.embeddingModel)) {
+      form.value.embeddingModel = embeddingModels[0].id
+    }
+  }
+
+  const chatModelOptions = computed(() => {
+    return modelOptions.value.filter(model => model.capability === 'CHAT' || model.capability === 'UNKNOWN')
+  })
+
+  const embeddingModelOptions = computed(() => {
+    return modelOptions.value.filter(model => model.capability === 'EMBEDDING')
+  })
+
   return {
     modelConfig,
     isLoadingModelConfig,
     isSavingModelConfig,
     isTestingModelConfig,
+    isFetchingModels,
+    modelOptions,
+    modelsFetchedAt,
     error,
     message,
     form,
     apiKeyPlaceholder,
+    chatModelOptions,
+    embeddingModelOptions,
     fetchModelConfig,
+    fetchModels,
     saveModelConfig,
     testModelConfig
   }
@@ -109,6 +165,9 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
 
 function defaultForm() {
   return {
+    provider: 'DASHSCOPE',
+    displayName: 'DashScope',
+    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     apiKey: '',
     chatModel: 'qwen-plus',
     embeddingModel: 'text-embedding-v4',

@@ -1,66 +1,36 @@
 package com.itqianchen.agentdesign.chat;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
 
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
 import com.itqianchen.agentdesign.domain.chat.LlmGateway;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
 import com.itqianchen.agentdesign.domain.model.ModelConfig;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
+import com.itqianchen.agentdesign.domain.model.ModelConfigDefaults;
 import com.itqianchen.agentdesign.domain.search.EmbeddingGateway;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
 import com.itqianchen.agentdesign.domain.search.KnowledgeStore;
 import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.domain.search.SearchMode;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
+import com.itqianchen.agentdesign.service.model.ModelConfigService;
 import java.nio.file.Files;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
 import java.nio.file.Path;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
 import org.junit.jupiter.api.BeforeEach;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
 import org.junit.jupiter.api.Test;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
 import org.junit.jupiter.api.io.TempDir;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import org.springframework.beans.factory.annotation.Autowired;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import org.springframework.boot.test.context.SpringBootTest;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import org.springframework.boot.test.context.TestConfiguration;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import org.springframework.context.annotation.Bean;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import org.springframework.context.annotation.Primary;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import org.springframework.http.MediaType;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import org.springframework.jdbc.core.JdbcTemplate;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
 import org.springframework.ai.chat.prompt.Prompt;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
 import org.springframework.test.web.servlet.MockMvc;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
 import org.springframework.test.web.servlet.MvcResult;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
 import reactor.core.publisher.Flux;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -105,6 +75,9 @@ class ChatControllerTests {
     void chatStreamReturnsMetaDeltaAndDoneEvents() throws Exception {
         Files.writeString(tempDir.resolve("packaging.md"), "CogniNote uses Launch4j for Windows EXE packaging.");
         modelConfigService.save(new ModelConfigRequest(
+                "DASHSCOPE",
+                "DashScope",
+                ModelConfigDefaults.BASE_URL,
                 "sk-test",
                 "qwen-plus",
                 "text-embedding-v4",
@@ -219,5 +192,3 @@ class ChatControllerTests {
         }
     }
 }
-
-

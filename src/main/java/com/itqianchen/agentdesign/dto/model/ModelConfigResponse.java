@@ -4,6 +4,8 @@ import com.itqianchen.agentdesign.domain.model.ModelConfig;
 
 public record ModelConfigResponse(
         String provider,
+        String displayName,
+        String baseUrl,
         boolean apiKeyConfigured,
         String chatModel,
         String embeddingModel,
@@ -15,6 +17,8 @@ public record ModelConfigResponse(
     public static ModelConfigResponse from(ModelConfig config) {
         return new ModelConfigResponse(
                 config.provider().name(),
+                config.displayName(),
+                config.baseUrl(),
                 config.hasApiKey(),
                 config.chatModel(),
                 config.embeddingModel(),

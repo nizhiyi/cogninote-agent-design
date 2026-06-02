@@ -271,16 +271,15 @@ app:
 后端接口：
 
 ```text
-GET    /api/llm-providers
-POST   /api/llm-providers
-GET    /api/llm-providers/{id}/models
-PUT    /api/llm-providers/{id}/activate
-DELETE /api/llm-providers/{id}
+GET    /api/model-config
+PUT    /api/model-config
+POST   /api/model-config/test
+POST   /api/model-config/models
 ```
 
-模型列表第一版优先通过 Spring AI Alibaba / DashScope 配置和测试连接完成；后续若接 OpenAI-compatible provider，再通过对应 `/models` 接口自动获取。
+第五阶段先把模型配置页做扎实：用户输入 Base URL 和 API Key，后端通过 OpenAI-compatible `/models` 自动获取模型列表，前端让用户选择默认对话模型和 Embedding 模型。第一版仍只维护一个 active 配置，多 provider 列表管理放到后续。
 
-API Key 需要本地加密存储，至少不要明文写入普通配置文件。
+API Key 第四、五阶段仍以开发态明文保存到 SQLite；本地加密或 Windows 凭据管理放到安全加固阶段，不能在最终交付版本继续明文保存。
 
 ### 5.6 RAG 问答流程
 
@@ -585,7 +584,15 @@ PUT    /api/settings
 - SSE 流式输出
 - 引用来源展示
 
-### Milestone 5：本地交付
+### Milestone 5：模型配置增强
+
+- 自定义模型 Base URL 和 API Key
+- 自动获取模型列表
+- 选择默认 Chat 模型
+- 选择默认 Embedding 模型
+- 模型配置保存、测试连接和前端可用性增强
+
+### Milestone 6：本地交付
 
 - 前后端合并打包
 - jlink 精简 JRE

@@ -8,6 +8,26 @@ const modelConfigStore = useModelConfigStore()
 
 <template>
   <form class="model-form" @submit.prevent="modelConfigStore.saveModelConfig">
+    <label class="field">
+      <span>配置名称</span>
+      <input v-model="modelConfigStore.form.displayName" type="text" autocomplete="off" />
+    </label>
+
+    <label class="field">
+      <span>Provider</span>
+      <input v-model="modelConfigStore.form.provider" type="text" autocomplete="off" readonly />
+    </label>
+
+    <label class="field field--full">
+      <span>Base URL</span>
+      <input
+        v-model="modelConfigStore.form.baseUrl"
+        type="url"
+        autocomplete="off"
+        placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1"
+      />
+    </label>
+
     <label class="field field--full">
       <span>DashScope API Key</span>
       <input
@@ -20,11 +40,29 @@ const modelConfigStore = useModelConfigStore()
 
     <label class="field">
       <span>Chat 模型</span>
+      <select v-model="modelConfigStore.form.chatModel">
+        <option
+          v-for="model in modelConfigStore.chatModelOptions"
+          :key="model.id"
+          :value="model.id"
+        >
+          {{ model.name || model.id }}
+        </option>
+      </select>
       <input v-model="modelConfigStore.form.chatModel" type="text" autocomplete="off" />
     </label>
 
     <label class="field">
       <span>Embedding 模型</span>
+      <select v-model="modelConfigStore.form.embeddingModel">
+        <option
+          v-for="model in modelConfigStore.embeddingModelOptions"
+          :key="model.id"
+          :value="model.id"
+        >
+          {{ model.name || model.id }}
+        </option>
+      </select>
       <input v-model="modelConfigStore.form.embeddingModel" type="text" autocomplete="off" />
     </label>
 
@@ -44,6 +82,14 @@ const modelConfigStore = useModelConfigStore()
     </label>
 
     <div class="model-form__actions">
+      <button
+        class="secondary-button"
+        type="button"
+        :disabled="modelConfigStore.isFetchingModels"
+        @click="modelConfigStore.fetchModels"
+      >
+        {{ modelConfigStore.isFetchingModels ? '获取中...' : '获取模型' }}
+      </button>
       <button class="primary-button" type="submit" :disabled="modelConfigStore.isSavingModelConfig">
         {{ modelConfigStore.isSavingModelConfig ? '保存中...' : '保存配置' }}
       </button>
@@ -71,15 +117,33 @@ const modelConfigStore = useModelConfigStore()
 
   <StatGrid
     class="config-summary"
-    :columns="5"
+    :columns="6"
     :items="[
       { label: 'Provider', value: modelConfigStore.modelConfig?.provider || 'DASHSCOPE' },
+      { label: 'Base URL', value: modelConfigStore.modelConfig?.baseUrl || modelConfigStore.form.baseUrl },
       { label: 'API Key', value: modelConfigStore.modelConfig?.apiKeyConfigured ? '已保存' : '未配置' },
       { label: 'Chat', value: modelConfigStore.modelConfig?.chatModel || modelConfigStore.form.chatModel },
       { label: 'Embedding', value: modelConfigStore.modelConfig?.embeddingModel || modelConfigStore.form.embeddingModel },
       { label: '更新于', value: formatTime(modelConfigStore.modelConfig?.updatedAt) }
     ]"
   />
+
+  <section v-if="modelConfigStore.modelOptions.length" class="model-options-panel">
+    <div class="section-title-line">
+      <h3>模型列表</h3>
+      <span>{{ modelConfigStore.modelOptions.length }} 个模型</span>
+    </div>
+    <div class="model-options-grid">
+      <span
+        v-for="model in modelConfigStore.modelOptions"
+        :key="model.id"
+        class="model-option-chip"
+      >
+        <strong>{{ model.name || model.id }}</strong>
+        <em>{{ model.capability }}</em>
+      </span>
+    </div>
+  </section>
 
   <p class="warning-message">
     当前阶段 API Key 会以明文保存到本机 SQLite，仅用于开发态闭环；后续交付阶段再接入 Windows 本地加密或凭据管理。

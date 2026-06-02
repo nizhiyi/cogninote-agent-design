@@ -3,6 +3,8 @@ package com.itqianchen.agentdesign.domain.model;
 public record ModelConfig(
         String id,
         ModelProvider provider,
+        String displayName,
+        String baseUrl,
         String apiKey,
         String chatModel,
         String embeddingModel,

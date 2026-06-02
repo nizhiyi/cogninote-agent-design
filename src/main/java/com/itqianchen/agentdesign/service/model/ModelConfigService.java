@@ -3,8 +3,11 @@ package com.itqianchen.agentdesign.service.model;
 import com.itqianchen.agentdesign.domain.model.ModelConfig;
 import com.itqianchen.agentdesign.domain.model.ModelConfigDefaults;
 import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
+import com.itqianchen.agentdesign.domain.model.ModelProvider;
 import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
 import com.itqianchen.agentdesign.repository.model.ModelConfigRepository;
+import java.net.URI;
+import java.net.URISyntaxException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +26,8 @@ public class ModelConfigService {
                 .orElseGet(() -> new ModelConfig(
                         ModelConfigDefaults.ACTIVE_CONFIG_ID,
                         ModelConfigDefaults.PROVIDER,
+                        ModelConfigDefaults.DISPLAY_NAME,
+                        ModelConfigDefaults.BASE_URL,
                         "",
                         ModelConfigDefaults.CHAT_MODEL,
                         ModelConfigDefaults.EMBEDDING_MODEL,
@@ -69,7 +74,9 @@ public class ModelConfigService {
         String apiKey = requestedApiKey.isBlank() ? existing.apiKey() : requestedApiKey;
         return new ModelConfig(
                 ModelConfigDefaults.ACTIVE_CONFIG_ID,
-                ModelConfigDefaults.PROVIDER,
+                normalizeProvider(request.provider()),
+                normalizeDisplayName(request.displayName()),
+                normalizeBaseUrl(request.baseUrl()),
                 apiKey,
                 request.chatModel().trim(),
                 request.embeddingModel().trim(),
@@ -85,6 +92,46 @@ public class ModelConfigService {
                 existing.createdAt(),
                 now
         );
+    }
+
+    private static ModelProvider normalizeProvider(String provider) {
+        if (provider == null || provider.isBlank()) {
+            return ModelConfigDefaults.PROVIDER;
+        }
+        try {
+            return ModelProvider.valueOf(provider.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new ModelConfigurationException("Unsupported model provider: " + provider);
+        }
+    }
+
+    private static String normalizeDisplayName(String displayName) {
+        if (displayName == null || displayName.isBlank()) {
+            return ModelConfigDefaults.DISPLAY_NAME;
+        }
+        return displayName.trim();
+    }
+
+    private static String normalizeBaseUrl(String baseUrl) {
+        String normalized = baseUrl == null || baseUrl.isBlank()
+                ? ModelConfigDefaults.BASE_URL
+                : baseUrl.trim();
+        while (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+
+        try {
+            URI uri = new URI(normalized);
+            if (!"http".equalsIgnoreCase(uri.getScheme()) && !"https".equalsIgnoreCase(uri.getScheme())) {
+                throw new ModelConfigurationException("Base URL must use http or https");
+            }
+            if (uri.getHost() == null || uri.getHost().isBlank()) {
+                throw new ModelConfigurationException("Base URL host is required");
+            }
+            return uri.toString();
+        } catch (URISyntaxException ex) {
+            throw new ModelConfigurationException("Base URL is not valid: " + baseUrl, ex);
+        }
     }
 }
 

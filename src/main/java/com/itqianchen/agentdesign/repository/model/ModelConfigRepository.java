@@ -21,7 +21,7 @@ public class ModelConfigRepository {
 
     public Optional<ModelConfig> findActive() {
         List<ModelConfig> configs = jdbcTemplate.query("""
-                        SELECT id, provider, api_key, chat_model, embedding_model,
+                        SELECT id, provider, display_name, base_url, api_key, chat_model, embedding_model,
                                embedding_dimensions, temperature, top_k, created_at, updated_at
                         FROM model_config
                         WHERE id = ?
@@ -35,12 +35,14 @@ public class ModelConfigRepository {
     public ModelConfig saveActive(ModelConfig config) {
         jdbcTemplate.update("""
                         INSERT INTO model_config (
-                            id, provider, api_key, chat_model, embedding_model,
+                            id, provider, display_name, base_url, api_key, chat_model, embedding_model,
                             embedding_dimensions, temperature, top_k, created_at, updated_at
                         )
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(id) DO UPDATE SET
                             provider = excluded.provider,
+                            display_name = excluded.display_name,
+                            base_url = excluded.base_url,
                             api_key = excluded.api_key,
                             chat_model = excluded.chat_model,
                             embedding_model = excluded.embedding_model,
@@ -51,6 +53,8 @@ public class ModelConfigRepository {
                         """,
                 config.id(),
                 config.provider().name(),
+                config.displayName(),
+                config.baseUrl(),
                 config.apiKey(),
                 config.chatModel(),
                 config.embeddingModel(),
@@ -68,6 +72,8 @@ public class ModelConfigRepository {
         return new ModelConfig(
                 rs.getString("id"),
                 ModelProvider.valueOf(rs.getString("provider")),
+                rs.getString("display_name"),
+                rs.getString("base_url"),
                 rs.getString("api_key"),
                 rs.getString("chat_model"),
                 rs.getString("embedding_model"),

@@ -1,262 +1,20 @@
 package com.itqianchen.agentdesign.model;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
 
+import com.itqianchen.agentdesign.domain.model.ModelConfig;
+import com.itqianchen.agentdesign.domain.model.ModelConfigDefaults;
+import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
+import com.itqianchen.agentdesign.domain.model.ModelProvider;
+import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
+import com.itqianchen.agentdesign.service.model.ModelConfigService;
 import org.junit.jupiter.api.BeforeEach;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
 import org.junit.jupiter.api.Test;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
 import org.springframework.beans.factory.annotation.Autowired;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
 import org.springframework.boot.test.context.SpringBootTest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
 import org.springframework.jdbc.core.JdbcTemplate;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
 import org.springframework.test.context.TestPropertySource;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.service.model.ModelConfigService;
 
 @SpringBootTest
 @TestPropertySource(properties = {
@@ -282,6 +40,8 @@ class ModelConfigServiceTests {
         ModelConfig config = modelConfigService.activeOrDefault();
 
         assertThat(config.provider()).isEqualTo(ModelProvider.DASHSCOPE);
+        assertThat(config.displayName()).isEqualTo(ModelConfigDefaults.DISPLAY_NAME);
+        assertThat(config.baseUrl()).isEqualTo(ModelConfigDefaults.BASE_URL);
         assertThat(config.chatModel()).isEqualTo("qwen-plus");
         assertThat(config.embeddingModel()).isEqualTo("text-embedding-v4");
         assertThat(config.embeddingDimensions()).isEqualTo(1024);
@@ -292,11 +52,11 @@ class ModelConfigServiceTests {
 
     @Test
     void savePersistsActiveConfig() {
-        modelConfigService.save(new ModelConfigRequest(
-                " sk-test ",
+        modelConfigService.save(request(
+                "sk-test",
+                "https://dashscope.aliyuncs.com/compatible-mode/v1/",
                 "qwen-max",
                 "text-embedding-v4",
-                1024,
                 0.3,
                 12
         ));
@@ -304,6 +64,7 @@ class ModelConfigServiceTests {
         ModelConfig config = modelConfigService.requireConfigured();
 
         assertThat(config.apiKey()).isEqualTo("sk-test");
+        assertThat(config.baseUrl()).isEqualTo(ModelConfigDefaults.BASE_URL);
         assertThat(config.chatModel()).isEqualTo("qwen-max");
         assertThat(config.temperature()).isEqualTo(0.3);
         assertThat(config.topK()).isEqualTo(12);
@@ -311,23 +72,11 @@ class ModelConfigServiceTests {
 
     @Test
     void saveWithBlankApiKeyKeepsExistingSecret() {
-        modelConfigService.save(new ModelConfigRequest(
-                "sk-test",
-                "qwen-plus",
-                "text-embedding-v4",
-                1024,
-                0.7,
-                8
-        ));
+        modelConfigService.save(request("sk-test", ModelConfigDefaults.BASE_URL, "qwen-plus",
+                "text-embedding-v4", 0.7, 8));
 
-        modelConfigService.save(new ModelConfigRequest(
-                "",
-                "qwen-max",
-                "text-embedding-v4",
-                1024,
-                0.2,
-                6
-        ));
+        modelConfigService.save(request("", ModelConfigDefaults.BASE_URL, "qwen-max",
+                "text-embedding-v4", 0.2, 6));
 
         ModelConfig config = modelConfigService.requireConfigured();
 
@@ -338,11 +87,38 @@ class ModelConfigServiceTests {
     }
 
     @Test
+    void saveRejectsInvalidBaseUrl() {
+        assertThatThrownBy(() -> modelConfigService.save(request("sk-test", "ftp://example.com",
+                "qwen-plus", "text-embedding-v4", 0.7, 8)))
+                .isInstanceOf(ModelConfigurationException.class)
+                .hasMessageContaining("Base URL");
+    }
+
+    @Test
     void requireConfiguredFailsWithoutApiKey() {
         assertThatThrownBy(() -> modelConfigService.requireConfigured())
                 .isInstanceOf(ModelConfigurationException.class)
                 .hasMessageContaining("API Key");
     }
+
+    private static ModelConfigRequest request(
+            String apiKey,
+            String baseUrl,
+            String chatModel,
+            String embeddingModel,
+            double temperature,
+            int topK
+    ) {
+        return new ModelConfigRequest(
+                "DASHSCOPE",
+                "DashScope",
+                baseUrl,
+                apiKey,
+                chatModel,
+                embeddingModel,
+                1024,
+                temperature,
+                topK
+        );
+    }
 }
-
-

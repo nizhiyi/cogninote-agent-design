@@ -11,3 +11,7 @@ export function saveModelConfig(payload) {
 export function testModelConfig(payload) {
   return requestJson('/api/model-config/test', jsonOptions('POST', payload))
 }
+
+export function fetchModelOptions(payload) {
+  return requestJson('/api/model-config/models', jsonOptions('POST', payload))
+}
