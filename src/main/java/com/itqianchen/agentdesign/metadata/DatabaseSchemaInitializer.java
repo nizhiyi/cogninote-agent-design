@@ -49,6 +49,20 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
                     FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
                 )
                 """);
+        jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS model_config (
+                    id TEXT PRIMARY KEY,
+                    provider TEXT NOT NULL,
+                    api_key TEXT,
+                    chat_model TEXT NOT NULL,
+                    embedding_model TEXT NOT NULL,
+                    embedding_dimensions INTEGER NOT NULL,
+                    temperature REAL NOT NULL,
+                    top_k INTEGER NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL
+                )
+                """);
         jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_documents_updated_at ON documents(updated_at DESC)");
         jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_chunks_document_id ON chunks(document_id)");
     }

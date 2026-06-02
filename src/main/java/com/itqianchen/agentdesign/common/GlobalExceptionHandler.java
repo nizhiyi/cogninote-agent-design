@@ -1,6 +1,7 @@
 package com.itqianchen.agentdesign.common;
 
 import com.itqianchen.agentdesign.ingestion.DocumentParseException;
+import com.itqianchen.agentdesign.model.ModelConfigurationException;
 import com.itqianchen.agentdesign.search.EmbeddingUnavailableException;
 import com.itqianchen.agentdesign.search.SearchIndexException;
 import org.slf4j.Logger;
@@ -24,6 +25,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(EmbeddingUnavailableException.class)
     public ResponseEntity<ApiErrorResponse> handleEmbeddingUnavailable(EmbeddingUnavailableException ex) {
+        return ResponseEntity.badRequest().body(new ApiErrorResponse(ex.getMessage()));
+    }
+
+    @ExceptionHandler(ModelConfigurationException.class)
+    public ResponseEntity<ApiErrorResponse> handleModelConfiguration(ModelConfigurationException ex) {
         return ResponseEntity.badRequest().body(new ApiErrorResponse(ex.getMessage()));
     }
 

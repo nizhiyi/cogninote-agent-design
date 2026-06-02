@@ -1,26 +1,30 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 
-const modules = [
+const navItems = [
   {
+    id: 'chat',
     name: '对话',
-    description: 'RAG 问答入口，后续用于提问、流式回答和引用来源展示。',
-    state: '待实现'
+    state: '可用',
+    description: '基于知识库检索片段，流式生成带引用的回答。'
   },
   {
+    id: 'knowledge',
     name: '知识库',
-    description: '本地文件夹导入、文档解析、SQLite 保存、Lucene 索引和检索。',
-    state: '可检索'
+    state: '可检索',
+    description: '导入本地文档，管理 SQLite 记录和 Lucene 索引。'
   },
   {
+    id: 'model',
     name: '模型配置',
-    description: '后续通过 Spring AI 抽象配置对话模型和 Embedding 模型。',
-    state: '待实现'
+    state: 'DashScope',
+    description: '配置 Spring AI Alibaba DashScope 的 Chat 与 Embedding。'
   },
   {
+    id: 'settings',
     name: '系统设置',
-    description: '管理数据目录、索引目录、Top K 和混合检索权重。',
-    state: '待实现'
+    state: '基础',
+    description: '查看系统状态、数据目录和当前阶段能力边界。'
   }
 ]
 
@@ -30,27 +34,54 @@ const searchModes = [
   { label: '混合', value: 'HYBRID' }
 ]
 
+const activeView = ref('chat')
 const systemStatus = ref(null)
 const indexStatus = ref(null)
 const documents = ref([])
 const ingestResult = ref(null)
 const rebuildResult = ref(null)
 const searchResult = ref(null)
+const modelConfig = ref(null)
 const isLoadingStatus = ref(true)
 const isLoadingIndexStatus = ref(false)
 const isLoadingDocuments = ref(false)
+const isLoadingModelConfig = ref(false)
 const isIngesting = ref(false)
 const isRebuildingIndex = ref(false)
 const isSearching = ref(false)
+const isSavingModelConfig = ref(false)
+const isTestingModelConfig = ref(false)
+const isChatStreaming = ref(false)
 const statusError = ref('')
 const indexError = ref('')
 const documentError = ref('')
 const searchError = ref('')
+const modelConfigError = ref('')
+const modelConfigMessage = ref('')
+const chatError = ref('')
 const folderPath = ref('')
 const recursive = ref(true)
 const searchQuery = ref('')
 const searchMode = ref('KEYWORD')
 const searchTopK = ref(8)
+const chatQuestion = ref('')
+const chatMode = ref('HYBRID')
+const chatTopK = ref(8)
+const chatAnswer = ref('')
+const chatSources = ref([])
+const chatRetrievalMode = ref('')
+const chatConversationId = ref('')
+const chatAbortController = ref(null)
+const modelForm = ref({
+  apiKey: '',
+  chatModel: 'qwen-plus',
+  embeddingModel: 'text-embedding-v4',
+  embeddingDimensions: 1024,
+  temperature: 0.7,
+  topK: 8
+})
+
+const activeNavItem = computed(() => navItems.find((item) => item.id === activeView.value) || navItems[0])
 
 const connectionLabel = computed(() => {
   if (isLoadingStatus.value) {
@@ -75,6 +106,16 @@ const documentStats = computed(() => {
   return { parsed, failed, chunks }
 })
 
+const modelApiKeyPlaceholder = computed(() => {
+  if (modelConfig.value?.apiKeyConfigured) {
+    return '已保存，留空表示继续使用当前 Key'
+  }
+
+  return '请输入 DashScope API Key'
+})
+
+const chatCanSend = computed(() => chatQuestion.value.trim().length > 0 && !isChatStreaming.value)
+
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, options)
   const payload = await response.json().catch(() => null)
@@ -86,6 +127,16 @@ async function fetchJson(url, options = {}) {
   return payload
 }
 
+function jsonOptions(method, body) {
+  return {
+    method,
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  }
+}
+
 async function fetchSystemStatus() {
   isLoadingStatus.value = true
   statusError.value = ''
@@ -94,7 +145,6 @@ async function fetchSystemStatus() {
     systemStatus.value = await fetchJson('/api/system/status')
   } catch (error) {
     systemStatus.value = null
-    // Keep this text explicit so first-run users know the backend service is the missing piece.
     statusError.value = `后端服务暂不可用：${error.message}`
   } finally {
     isLoadingStatus.value = false
@@ -129,6 +179,76 @@ async function fetchIndexStatus() {
   }
 }
 
+async function fetchModelConfig() {
+  isLoadingModelConfig.value = true
+  modelConfigError.value = ''
+  modelConfigMessage.value = ''
+
+  try {
+    const config = await fetchJson('/api/model-config')
+    modelConfig.value = config
+    modelForm.value = {
+      apiKey: '',
+      chatModel: config.chatModel,
+      embeddingModel: config.embeddingModel,
+      embeddingDimensions: config.embeddingDimensions,
+      temperature: config.temperature,
+      topK: config.topK
+    }
+    chatTopK.value = config.topK
+  } catch (error) {
+    modelConfig.value = null
+    modelConfigError.value = `模型配置读取失败：${error.message}`
+  } finally {
+    isLoadingModelConfig.value = false
+  }
+}
+
+function modelRequestPayload() {
+  return {
+    apiKey: modelForm.value.apiKey,
+    chatModel: modelForm.value.chatModel.trim(),
+    embeddingModel: modelForm.value.embeddingModel.trim(),
+    embeddingDimensions: Number(modelForm.value.embeddingDimensions),
+    temperature: Number(modelForm.value.temperature),
+    topK: Number(modelForm.value.topK)
+  }
+}
+
+async function saveModelConfig() {
+  isSavingModelConfig.value = true
+  modelConfigError.value = ''
+  modelConfigMessage.value = ''
+
+  try {
+    const saved = await fetchJson('/api/model-config', jsonOptions('PUT', modelRequestPayload()))
+    modelConfig.value = saved
+    modelForm.value.apiKey = ''
+    chatTopK.value = saved.topK
+    modelConfigMessage.value = '模型配置已保存'
+    await fetchIndexStatus()
+  } catch (error) {
+    modelConfigError.value = `保存失败：${error.message}`
+  } finally {
+    isSavingModelConfig.value = false
+  }
+}
+
+async function testModelConfig() {
+  isTestingModelConfig.value = true
+  modelConfigError.value = ''
+  modelConfigMessage.value = ''
+
+  try {
+    const result = await fetchJson('/api/model-config/test', jsonOptions('POST', modelRequestPayload()))
+    modelConfigMessage.value = result.message || 'DashScope 连接测试成功'
+  } catch (error) {
+    modelConfigError.value = `连接测试失败：${error.message}`
+  } finally {
+    isTestingModelConfig.value = false
+  }
+}
+
 async function ingestDocuments() {
   const trimmedFolderPath = folderPath.value.trim()
   if (!trimmedFolderPath) {
@@ -141,16 +261,10 @@ async function ingestDocuments() {
   documentError.value = ''
 
   try {
-    ingestResult.value = await fetchJson('/api/documents/ingest', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        folderPath: trimmedFolderPath,
-        recursive: recursive.value
-      })
-    })
+    ingestResult.value = await fetchJson('/api/documents/ingest', jsonOptions('POST', {
+      folderPath: trimmedFolderPath,
+      recursive: recursive.value
+    }))
     await fetchDocuments()
     await fetchIndexStatus()
   } catch (error) {
@@ -203,22 +317,161 @@ async function searchKnowledge() {
   searchError.value = ''
 
   try {
-    searchResult.value = await fetchJson('/api/search', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        query,
-        mode: searchMode.value,
-        topK: Number(searchTopK.value)
-      })
-    })
+    searchResult.value = await fetchJson('/api/search', jsonOptions('POST', {
+      query,
+      mode: searchMode.value,
+      topK: Number(searchTopK.value)
+    }))
   } catch (error) {
     searchError.value = `检索失败：${error.message}`
   } finally {
     isSearching.value = false
   }
+}
+
+async function streamChat() {
+  const question = chatQuestion.value.trim()
+  if (!question) {
+    chatError.value = '请输入问题'
+    return
+  }
+
+  resetChatResponse()
+  isChatStreaming.value = true
+  chatAbortController.value = new AbortController()
+
+  try {
+    const response = await fetch('/api/chat/stream', {
+      ...jsonOptions('POST', {
+        question,
+        mode: chatMode.value,
+        topK: Number(chatTopK.value)
+      }),
+      signal: chatAbortController.value.signal
+    })
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null)
+      throw new Error(payload?.message || `HTTP ${response.status}`)
+    }
+
+    if (!response.body) {
+      throw new Error('当前浏览器不支持流式响应')
+    }
+
+    // EventSource does not support POST with JSON body, so the stream is parsed from fetch manually.
+    await readSseStream(response.body)
+  } catch (error) {
+    if (error.name !== 'AbortError') {
+      chatError.value = `对话失败：${error.message}`
+    }
+  } finally {
+    isChatStreaming.value = false
+    chatAbortController.value = null
+  }
+}
+
+function resetChatResponse() {
+  chatAnswer.value = ''
+  chatSources.value = []
+  chatRetrievalMode.value = ''
+  chatConversationId.value = ''
+  chatError.value = ''
+}
+
+function stopChat() {
+  chatAbortController.value?.abort()
+  isChatStreaming.value = false
+}
+
+async function readSseStream(body) {
+  const reader = body.getReader()
+  const decoder = new TextDecoder('utf-8')
+  let buffer = ''
+  let eventName = 'message'
+  let dataLines = []
+
+  const dispatchEvent = () => {
+    if (dataLines.length === 0) {
+      eventName = 'message'
+      return
+    }
+
+    const rawData = dataLines.join('\n')
+    const payload = parseSsePayload(rawData)
+    handleChatEvent(eventName, payload)
+    eventName = 'message'
+    dataLines = []
+  }
+
+  const handleLine = (line) => {
+    if (line === '') {
+      dispatchEvent()
+      return
+    }
+
+    if (line.startsWith('event:')) {
+      eventName = line.slice(6).trim()
+      return
+    }
+
+    if (line.startsWith('data:')) {
+      dataLines.push(line.slice(5).trimStart())
+    }
+  }
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) {
+      break
+    }
+
+    buffer += decoder.decode(value, { stream: true })
+    let newlineIndex = buffer.indexOf('\n')
+    while (newlineIndex >= 0) {
+      const line = buffer.slice(0, newlineIndex).replace(/\r$/, '')
+      buffer = buffer.slice(newlineIndex + 1)
+      handleLine(line)
+      newlineIndex = buffer.indexOf('\n')
+    }
+  }
+
+  buffer += decoder.decode()
+  if (buffer.length > 0) {
+    handleLine(buffer.replace(/\r$/, ''))
+  }
+  dispatchEvent()
+}
+
+function parseSsePayload(rawData) {
+  try {
+    return JSON.parse(rawData)
+  } catch {
+    return { text: rawData }
+  }
+}
+
+function handleChatEvent(eventName, payload) {
+  if (eventName === 'meta') {
+    chatConversationId.value = payload.conversationId || ''
+    chatRetrievalMode.value = payload.retrievalMode || ''
+    chatSources.value = payload.sources || []
+    return
+  }
+
+  if (eventName === 'delta') {
+    chatAnswer.value += payload.text || ''
+    return
+  }
+
+  if (eventName === 'error') {
+    chatError.value = payload.message || '模型返回错误'
+  }
+}
+
+function useSourceQuestion(source) {
+  chatQuestion.value = `请解释 ${source.fileName} 中和这段内容相关的要点。`
+  activeView.value = 'chat'
 }
 
 function formatFileSize(size) {
@@ -241,253 +494,464 @@ function formatTime(timestamp) {
   return new Date(timestamp).toLocaleString()
 }
 
+function formatScore(score) {
+  return typeof score === 'number' ? score.toFixed(3) : '-'
+}
+
 onMounted(() => {
   fetchSystemStatus()
   fetchDocuments()
   fetchIndexStatus()
+  fetchModelConfig()
 })
 </script>
 
 <template>
   <main class="app-shell">
-    <section class="hero-panel">
-      <div class="hero-copy">
+    <header class="topbar">
+      <div>
         <p class="eyebrow">本地个人知识库智能体</p>
         <h1>CogniNote Agent</h1>
         <p class="subtitle">
-          第三阶段进入 Lucene 检索闭环：SQLite 保存知识片段，Lucene 提供关键词、向量和混合检索。
+          第四阶段进入 RAG 对话闭环：配置 DashScope，检索知识片段，流式回答并展示引用来源。
         </p>
       </div>
 
-      <aside class="system-card" aria-label="系统状态">
+      <aside class="connection-panel" aria-label="后端连接状态">
         <div class="panel-header">
           <span>后端连接</span>
           <span :class="connectionClass">{{ connectionLabel }}</span>
         </div>
-
-        <dl v-if="systemStatus" class="status-list">
-          <div>
-            <dt>应用</dt>
-            <dd>{{ systemStatus.appName }}</dd>
-          </div>
-          <div>
-            <dt>版本</dt>
-            <dd>{{ systemStatus.version }}</dd>
-          </div>
-          <div>
-            <dt>状态</dt>
-            <dd>{{ systemStatus.status }}</dd>
-          </div>
-          <div>
-            <dt>数据目录</dt>
-            <dd class="path-text">{{ systemStatus.dataDir }}</dd>
-          </div>
-        </dl>
-
+        <p v-if="systemStatus" class="connection-summary">
+          {{ systemStatus.appName }} / {{ systemStatus.version }}
+        </p>
         <p v-else class="panel-message">
           {{ isLoadingStatus ? '正在读取系统状态...' : statusError }}
         </p>
-
-        <button class="primary-button" type="button" :disabled="isLoadingStatus" @click="fetchSystemStatus">
-          刷新状态
+        <button class="secondary-button" type="button" :disabled="isLoadingStatus" @click="fetchSystemStatus">
+          刷新
         </button>
       </aside>
-    </section>
+    </header>
 
-    <section class="module-grid" aria-label="功能入口">
-      <article v-for="module in modules" :key="module.name" class="module-card">
-        <div class="module-card__top">
-          <h2>{{ module.name }}</h2>
-          <span>{{ module.state }}</span>
-        </div>
-        <p>{{ module.description }}</p>
-      </article>
-    </section>
+    <nav class="module-nav" aria-label="功能入口">
+      <button
+        v-for="item in navItems"
+        :key="item.id"
+        type="button"
+        :class="['module-tab', { active: activeView === item.id }]"
+        @click="activeView = item.id"
+      >
+        <span class="module-tab__top">
+          <strong>{{ item.name }}</strong>
+          <em>{{ item.state }}</em>
+        </span>
+        <span>{{ item.description }}</span>
+      </button>
+    </nav>
 
-    <section class="knowledge-panel" aria-label="知识库管理">
-      <div class="knowledge-header">
+    <section class="workspace" :aria-label="activeNavItem.name">
+      <div class="workspace-header">
         <div>
-          <p class="eyebrow">知识库管理</p>
-          <h2>本地文档与检索索引</h2>
+          <p class="eyebrow">{{ activeNavItem.state }}</p>
+          <h2>{{ activeNavItem.name }}</h2>
         </div>
-        <div class="header-actions">
-          <button class="secondary-button" type="button" :disabled="isLoadingIndexStatus" @click="fetchIndexStatus">
-            刷新索引
-          </button>
-          <button class="secondary-button" type="button" :disabled="isLoadingDocuments" @click="fetchDocuments">
-            刷新列表
-          </button>
-        </div>
+        <p>{{ activeNavItem.description }}</p>
       </div>
 
-      <div class="index-status-grid" aria-label="索引状态">
-        <div>
-          <span>已索引文档</span>
-          <strong>{{ indexStatus?.indexedDocumentCount ?? '-' }}</strong>
-        </div>
-        <div>
-          <span>未索引文档</span>
-          <strong>{{ indexStatus?.unindexedDocumentCount ?? '-' }}</strong>
-        </div>
-        <div>
-          <span>索引 chunks</span>
-          <strong>{{ indexStatus?.indexedChunkCount ?? '-' }}</strong>
-        </div>
-        <div>
-          <span>Embedding</span>
-          <strong>{{ indexStatus?.embeddingConfigured ? '已启用' : '未启用' }}</strong>
-        </div>
-      </div>
+      <template v-if="activeView === 'chat'">
+        <section class="chat-layout">
+          <form class="chat-composer" @submit.prevent="streamChat">
+            <label class="field">
+              <span>问题</span>
+              <textarea
+                v-model="chatQuestion"
+                rows="6"
+                placeholder="例如：这个项目如何打包？"
+              ></textarea>
+            </label>
 
-      <div class="index-toolbar">
-        <div>
-          <p class="path-text">{{ indexStatus?.indexPath || '索引目录读取中...' }}</p>
-          <p class="muted-text">最后索引：{{ formatTime(indexStatus?.lastIndexedAt) }}</p>
-        </div>
-        <button class="primary-button" type="button" :disabled="isRebuildingIndex" @click="rebuildIndex">
-          {{ isRebuildingIndex ? '重建中...' : '重建索引' }}
-        </button>
-      </div>
+            <div class="inline-controls">
+              <div class="segmented-control" role="group" aria-label="RAG 检索模式">
+                <button
+                  v-for="mode in searchModes"
+                  :key="mode.value"
+                  type="button"
+                  :class="{ active: chatMode === mode.value }"
+                  @click="chatMode = mode.value"
+                >
+                  {{ mode.label }}
+                </button>
+              </div>
 
-      <p v-if="indexError" class="error-message">{{ indexError }}</p>
+              <label class="field field--small">
+                <span>Top K</span>
+                <input v-model="chatTopK" type="number" min="1" max="50" />
+              </label>
+            </div>
 
-      <div v-if="rebuildResult" class="result-strip result-strip--three">
-        <span>索引文档 {{ rebuildResult.indexedDocumentCount }}</span>
-        <span>索引 chunks {{ rebuildResult.indexedChunkCount }}</span>
-        <span>耗时 {{ rebuildResult.durationMs }} ms</span>
-      </div>
+            <div class="button-row">
+              <button class="primary-button" type="submit" :disabled="!chatCanSend">
+                {{ isChatStreaming ? '回答中...' : '发送问题' }}
+              </button>
+              <button
+                class="secondary-button"
+                type="button"
+                :disabled="!isChatStreaming"
+                @click="stopChat"
+              >
+                停止
+              </button>
+            </div>
 
-      <form class="ingest-form" @submit.prevent="ingestDocuments">
-        <label class="field">
-          <span>本地目录路径</span>
-          <input
-            v-model="folderPath"
-            type="text"
-            placeholder="例如 D:/notes 或 C:/Users/you/Documents/Notes"
-            autocomplete="off"
-          />
-        </label>
+            <p v-if="chatError" class="error-message">{{ chatError }}</p>
+            <p v-if="!modelConfig?.apiKeyConfigured" class="hint-message">
+              尚未保存 DashScope API Key。请先到“模型配置”页保存后再对话。
+            </p>
+          </form>
 
-        <label class="checkbox-field">
-          <input v-model="recursive" type="checkbox" />
-          <span>递归扫描子目录</span>
-        </label>
+          <article class="answer-panel" aria-live="polite">
+            <div class="section-title-line">
+              <h3>回答</h3>
+              <span>{{ chatRetrievalMode || '等待提问' }}</span>
+            </div>
+            <p v-if="!chatAnswer && !isChatStreaming" class="panel-message">
+              这里会显示模型的流式回答。回答中的 [1]、[2] 对应下方引用来源。
+            </p>
+            <p v-else-if="!chatAnswer && isChatStreaming" class="panel-message">正在等待模型返回...</p>
+            <div v-else class="answer-text">{{ chatAnswer }}</div>
+            <p v-if="chatConversationId" class="path-text">conversationId: {{ chatConversationId }}</p>
+          </article>
+        </section>
 
-        <button class="primary-button" type="submit" :disabled="isIngesting">
-          {{ isIngesting ? '导入中...' : '导入目录' }}
-        </button>
-      </form>
-
-      <form class="search-form" @submit.prevent="searchKnowledge">
-        <label class="field">
-          <span>检索内容</span>
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="输入关键词或问题片段"
-            autocomplete="off"
-          />
-        </label>
-
-        <div class="segmented-control" role="group" aria-label="检索模式">
-          <button
-            v-for="mode in searchModes"
-            :key="mode.value"
-            type="button"
-            :class="{ active: searchMode === mode.value }"
-            @click="searchMode = mode.value"
-          >
-            {{ mode.label }}
-          </button>
-        </div>
-
-        <label class="field field--small">
-          <span>Top K</span>
-          <input v-model="searchTopK" type="number" min="1" max="50" />
-        </label>
-
-        <button class="primary-button" type="submit" :disabled="isSearching">
-          {{ isSearching ? '检索中...' : '搜索' }}
-        </button>
-      </form>
-
-      <p v-if="documentError" class="error-message">{{ documentError }}</p>
-      <p v-if="searchError" class="error-message">{{ searchError }}</p>
-
-      <div v-if="ingestResult" class="result-strip">
-        <span>扫描 {{ ingestResult.scannedCount }}</span>
-        <span>解析 {{ ingestResult.parsedCount }}</span>
-        <span>跳过 {{ ingestResult.skippedCount }}</span>
-        <span>失败 {{ ingestResult.failedCount }}</span>
-      </div>
-
-      <div class="stats-row" aria-label="文档统计">
-        <div>
-          <strong>{{ documents.length }}</strong>
-          <span>文档记录</span>
-        </div>
-        <div>
-          <strong>{{ documentStats.parsed }}</strong>
-          <span>解析成功</span>
-        </div>
-        <div>
-          <strong>{{ documentStats.chunks }}</strong>
-          <span>文本块</span>
-        </div>
-        <div>
-          <strong>{{ documentStats.failed }}</strong>
-          <span>失败记录</span>
-        </div>
-      </div>
-
-      <div v-if="searchResult" class="search-results">
-        <div class="section-title-line">
-          <h3>检索结果</h3>
-          <span>{{ searchResult.mode }} / {{ searchResult.hits.length }} hits</span>
-        </div>
-
-        <p v-if="searchResult.hits.length === 0" class="panel-message">没有命中文档片段。</p>
-
-        <article v-for="hit in searchResult.hits" v-else :key="hit.chunkId" class="search-hit">
-          <div class="search-hit__top">
-            <h4>{{ hit.fileName }}</h4>
-            <span>{{ hit.score.toFixed(3) }}</span>
+        <section class="sources-panel" aria-label="引用来源">
+          <div class="section-title-line">
+            <h3>引用来源</h3>
+            <span>{{ chatSources.length }} sources</span>
           </div>
-          <p class="path-text">{{ hit.sourcePath }}</p>
-          <p class="hit-preview">{{ hit.preview }}</p>
-          <div class="document-meta">
-            <span v-if="hit.heading">标题：{{ hit.heading }}</span>
-            <span v-if="hit.pageNumber">页码：{{ hit.pageNumber }}</span>
-            <span v-if="hit.keywordScore !== null">BM25 {{ hit.keywordScore.toFixed(3) }}</span>
-            <span v-if="hit.vectorScore !== null">Vector {{ hit.vectorScore.toFixed(3) }}</span>
+          <p v-if="chatSources.length === 0" class="panel-message">发送问题后会列出本次检索命中的文档片段。</p>
+          <article v-for="source in chatSources" :key="source.chunkId" class="source-row">
+            <div class="source-index">[{{ source.index }}]</div>
+            <div class="source-main">
+              <div class="document-title-line">
+                <h4>{{ source.fileName }}</h4>
+                <span class="score-chip">{{ formatScore(source.score) }}</span>
+              </div>
+              <p class="path-text">{{ source.sourcePath }}</p>
+              <p class="hit-preview">{{ source.preview }}</p>
+              <div class="document-meta">
+                <span v-if="source.heading">标题：{{ source.heading }}</span>
+                <span v-if="source.pageNumber">页码：{{ source.pageNumber }}</span>
+                <span>chunk：{{ source.chunkId }}</span>
+              </div>
+            </div>
+            <button class="text-button" type="button" @click="useSourceQuestion(source)">追问</button>
+          </article>
+        </section>
+      </template>
+
+      <template v-else-if="activeView === 'knowledge'">
+        <section class="index-status-grid" aria-label="索引状态">
+          <div>
+            <span>已索引文档</span>
+            <strong>{{ indexStatus?.indexedDocumentCount ?? '-' }}</strong>
           </div>
-        </article>
-      </div>
+          <div>
+            <span>未索引文档</span>
+            <strong>{{ indexStatus?.unindexedDocumentCount ?? '-' }}</strong>
+          </div>
+          <div>
+            <span>索引 chunks</span>
+            <strong>{{ indexStatus?.indexedChunkCount ?? '-' }}</strong>
+          </div>
+          <div>
+            <span>Embedding</span>
+            <strong>{{ indexStatus?.embeddingConfigured ? '已启用' : '未启用' }}</strong>
+          </div>
+        </section>
 
-      <div class="document-list">
-        <p v-if="isLoadingDocuments" class="panel-message">正在读取文档列表...</p>
-        <p v-else-if="documents.length === 0" class="panel-message">还没有导入文档。</p>
+        <section class="index-toolbar">
+          <div>
+            <p class="path-text">{{ indexStatus?.indexPath || '索引目录读取中...' }}</p>
+            <p class="muted-text">最后索引：{{ formatTime(indexStatus?.lastIndexedAt) }}</p>
+          </div>
+          <div class="header-actions">
+            <button class="secondary-button" type="button" :disabled="isLoadingIndexStatus" @click="fetchIndexStatus">
+              刷新索引
+            </button>
+            <button class="primary-button" type="button" :disabled="isRebuildingIndex" @click="rebuildIndex">
+              {{ isRebuildingIndex ? '重建中...' : '重建索引' }}
+            </button>
+          </div>
+        </section>
 
-        <article v-for="document in documents" v-else :key="document.id" class="document-row">
-          <div class="document-main">
-            <div class="document-title-line">
-              <h3>{{ document.fileName }}</h3>
-              <span :class="['status-chip', `status-chip--${document.status.toLowerCase()}`]">
-                {{ document.status }}
+        <p v-if="indexError" class="error-message">{{ indexError }}</p>
+
+        <div v-if="rebuildResult" class="result-strip result-strip--three">
+          <span>索引文档 {{ rebuildResult.indexedDocumentCount }}</span>
+          <span>索引 chunks {{ rebuildResult.indexedChunkCount }}</span>
+          <span>耗时 {{ rebuildResult.durationMs }} ms</span>
+        </div>
+
+        <form class="ingest-form" @submit.prevent="ingestDocuments">
+          <label class="field">
+            <span>本地目录路径</span>
+            <input
+              v-model="folderPath"
+              type="text"
+              placeholder="例如 D:/notes 或 C:/Users/you/Documents/Notes"
+              autocomplete="off"
+            />
+          </label>
+
+          <label class="checkbox-field">
+            <input v-model="recursive" type="checkbox" />
+            <span>递归扫描子目录</span>
+          </label>
+
+          <button class="primary-button" type="submit" :disabled="isIngesting">
+            {{ isIngesting ? '导入中...' : '导入目录' }}
+          </button>
+        </form>
+
+        <form class="search-form" @submit.prevent="searchKnowledge">
+          <label class="field">
+            <span>检索内容</span>
+            <input
+              v-model="searchQuery"
+              type="text"
+              placeholder="输入关键词或问题片段"
+              autocomplete="off"
+            />
+          </label>
+
+          <div class="segmented-control" role="group" aria-label="检索模式">
+            <button
+              v-for="mode in searchModes"
+              :key="mode.value"
+              type="button"
+              :class="{ active: searchMode === mode.value }"
+              @click="searchMode = mode.value"
+            >
+              {{ mode.label }}
+            </button>
+          </div>
+
+          <label class="field field--small">
+            <span>Top K</span>
+            <input v-model="searchTopK" type="number" min="1" max="50" />
+          </label>
+
+          <button class="primary-button" type="submit" :disabled="isSearching">
+            {{ isSearching ? '检索中...' : '搜索' }}
+          </button>
+        </form>
+
+        <p v-if="documentError" class="error-message">{{ documentError }}</p>
+        <p v-if="searchError" class="error-message">{{ searchError }}</p>
+
+        <div v-if="ingestResult" class="result-strip">
+          <span>扫描 {{ ingestResult.scannedCount }}</span>
+          <span>解析 {{ ingestResult.parsedCount }}</span>
+          <span>跳过 {{ ingestResult.skippedCount }}</span>
+          <span>失败 {{ ingestResult.failedCount }}</span>
+        </div>
+
+        <section class="stats-row" aria-label="文档统计">
+          <div>
+            <strong>{{ documents.length }}</strong>
+            <span>文档记录</span>
+          </div>
+          <div>
+            <strong>{{ documentStats.parsed }}</strong>
+            <span>解析成功</span>
+          </div>
+          <div>
+            <strong>{{ documentStats.chunks }}</strong>
+            <span>文本块</span>
+          </div>
+          <div>
+            <strong>{{ documentStats.failed }}</strong>
+            <span>失败记录</span>
+          </div>
+        </section>
+
+        <section v-if="searchResult" class="search-results">
+          <div class="section-title-line">
+            <h3>检索结果</h3>
+            <span>{{ searchResult.mode }} / {{ searchResult.hits.length }} hits</span>
+          </div>
+
+          <p v-if="searchResult.hits.length === 0" class="panel-message">没有命中文档片段。</p>
+
+          <article v-for="hit in searchResult.hits" v-else :key="hit.chunkId" class="search-hit">
+            <div class="search-hit__top">
+              <h4>{{ hit.fileName }}</h4>
+              <span>{{ formatScore(hit.score) }}</span>
+            </div>
+            <p class="path-text">{{ hit.sourcePath }}</p>
+            <p class="hit-preview">{{ hit.preview }}</p>
+            <div class="document-meta">
+              <span v-if="hit.heading">标题：{{ hit.heading }}</span>
+              <span v-if="hit.pageNumber">页码：{{ hit.pageNumber }}</span>
+              <span v-if="hit.keywordScore !== null && hit.keywordScore !== undefined">
+                BM25 {{ formatScore(hit.keywordScore) }}
+              </span>
+              <span v-if="hit.vectorScore !== null && hit.vectorScore !== undefined">
+                Vector {{ formatScore(hit.vectorScore) }}
               </span>
             </div>
-            <p class="path-text">{{ document.sourcePath }}</p>
-            <div class="document-meta">
-              <span>{{ document.fileType }}</span>
-              <span>{{ formatFileSize(document.fileSize) }}</span>
-              <span>{{ document.chunkCount }} chunks</span>
-              <span>索引 {{ formatTime(document.indexedAt) }}</span>
-              <span>{{ formatTime(document.updatedAt) }}</span>
-            </div>
+          </article>
+        </section>
+
+        <section class="document-list">
+          <div class="section-title-line">
+            <h3>文档列表</h3>
+            <button class="secondary-button" type="button" :disabled="isLoadingDocuments" @click="fetchDocuments">
+              刷新列表
+            </button>
           </div>
-          <button class="text-button" type="button" @click="deleteDocument(document.id)">删除记录</button>
-        </article>
-      </div>
+          <p v-if="isLoadingDocuments" class="panel-message">正在读取文档列表...</p>
+          <p v-else-if="documents.length === 0" class="panel-message">还没有导入文档。</p>
+
+          <template v-else>
+            <article v-for="document in documents" :key="document.id" class="document-row">
+              <div class="document-main">
+                <div class="document-title-line">
+                  <h4>{{ document.fileName }}</h4>
+                  <span :class="['status-chip', `status-chip--${document.status.toLowerCase()}`]">
+                    {{ document.status }}
+                  </span>
+                </div>
+                <p class="path-text">{{ document.sourcePath }}</p>
+                <div class="document-meta">
+                  <span>{{ document.fileType }}</span>
+                  <span>{{ formatFileSize(document.fileSize) }}</span>
+                  <span>{{ document.chunkCount }} chunks</span>
+                  <span>索引 {{ formatTime(document.indexedAt) }}</span>
+                  <span>{{ formatTime(document.updatedAt) }}</span>
+                </div>
+              </div>
+              <button class="text-button" type="button" @click="deleteDocument(document.id)">删除记录</button>
+            </article>
+          </template>
+        </section>
+      </template>
+
+      <template v-else-if="activeView === 'model'">
+        <form class="model-form" @submit.prevent="saveModelConfig">
+          <label class="field field--full">
+            <span>DashScope API Key</span>
+            <input
+              v-model="modelForm.apiKey"
+              type="password"
+              :placeholder="modelApiKeyPlaceholder"
+              autocomplete="off"
+            />
+          </label>
+
+          <label class="field">
+            <span>Chat 模型</span>
+            <input v-model="modelForm.chatModel" type="text" autocomplete="off" />
+          </label>
+
+          <label class="field">
+            <span>Embedding 模型</span>
+            <input v-model="modelForm.embeddingModel" type="text" autocomplete="off" />
+          </label>
+
+          <label class="field">
+            <span>Embedding 维度</span>
+            <input v-model="modelForm.embeddingDimensions" type="number" min="1" max="8192" />
+          </label>
+
+          <label class="field">
+            <span>Temperature</span>
+            <input v-model="modelForm.temperature" type="number" min="0" max="2" step="0.1" />
+          </label>
+
+          <label class="field">
+            <span>默认 Top K</span>
+            <input v-model="modelForm.topK" type="number" min="1" max="50" />
+          </label>
+
+          <div class="model-form__actions">
+            <button class="primary-button" type="submit" :disabled="isSavingModelConfig">
+              {{ isSavingModelConfig ? '保存中...' : '保存配置' }}
+            </button>
+            <button class="secondary-button" type="button" :disabled="isTestingModelConfig" @click="testModelConfig">
+              {{ isTestingModelConfig ? '测试中...' : '测试连接' }}
+            </button>
+            <button class="secondary-button" type="button" :disabled="isLoadingModelConfig" @click="fetchModelConfig">
+              重新读取
+            </button>
+          </div>
+        </form>
+
+        <p v-if="modelConfigError" class="error-message">{{ modelConfigError }}</p>
+        <p v-if="modelConfigMessage" class="success-message">{{ modelConfigMessage }}</p>
+
+        <section class="config-summary">
+          <div>
+            <span>Provider</span>
+            <strong>{{ modelConfig?.provider || 'DASHSCOPE' }}</strong>
+          </div>
+          <div>
+            <span>API Key</span>
+            <strong>{{ modelConfig?.apiKeyConfigured ? '已保存' : '未配置' }}</strong>
+          </div>
+          <div>
+            <span>Chat</span>
+            <strong>{{ modelConfig?.chatModel || modelForm.chatModel }}</strong>
+          </div>
+          <div>
+            <span>Embedding</span>
+            <strong>{{ modelConfig?.embeddingModel || modelForm.embeddingModel }}</strong>
+          </div>
+          <div>
+            <span>更新于</span>
+            <strong>{{ formatTime(modelConfig?.updatedAt) }}</strong>
+          </div>
+        </section>
+
+        <p class="warning-message">
+          当前阶段 API Key 会以明文保存到本机 SQLite，仅用于开发态闭环；后续交付阶段再接入 Windows 本地加密或凭据管理。
+        </p>
+      </template>
+
+      <template v-else>
+        <section class="settings-grid">
+          <div>
+            <span>应用</span>
+            <strong>{{ systemStatus?.appName || '-' }}</strong>
+          </div>
+          <div>
+            <span>版本</span>
+            <strong>{{ systemStatus?.version || '-' }}</strong>
+          </div>
+          <div>
+            <span>状态</span>
+            <strong>{{ systemStatus?.status || '-' }}</strong>
+          </div>
+          <div>
+            <span>数据目录</span>
+            <strong class="path-text">{{ systemStatus?.dataDir || '-' }}</strong>
+          </div>
+          <div>
+            <span>索引目录</span>
+            <strong class="path-text">{{ indexStatus?.indexPath || '-' }}</strong>
+          </div>
+          <div>
+            <span>当前能力</span>
+            <strong>导入 / 检索 / RAG 对话</strong>
+          </div>
+        </section>
+
+        <div class="button-row">
+          <button class="secondary-button" type="button" @click="fetchSystemStatus">刷新系统状态</button>
+          <button class="secondary-button" type="button" @click="fetchIndexStatus">刷新索引状态</button>
+        </div>
+      </template>
     </section>
   </main>
 </template>
@@ -500,8 +964,8 @@ onMounted(() => {
 :global(body) {
   min-width: 320px;
   margin: 0;
-  color: #172033;
-  background: #f5f7fb;
+  color: #182230;
+  background: #f4f7f8;
   font-family:
     Inter,
     "Microsoft YaHei",
@@ -514,78 +978,83 @@ onMounted(() => {
 }
 
 :global(button),
-:global(input) {
+:global(input),
+:global(textarea) {
   font: inherit;
 }
 
 .app-shell {
-  width: min(1120px, calc(100% - 32px));
+  width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 40px 0;
+  padding: 32px 0 44px;
 }
 
-.hero-panel {
+.topbar {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
-  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 20px;
   align-items: stretch;
 }
 
-.hero-copy {
-  display: flex;
-  min-height: 320px;
-  flex-direction: column;
-  justify-content: center;
-  padding: 42px;
-  border: 1px solid #d9e1ef;
-  border-radius: 8px;
-  background: #ffffff;
+.eyebrow {
+  margin: 0 0 10px;
+  color: #2b6f61;
+  font-size: 13px;
+  font-weight: 800;
 }
 
-.eyebrow {
-  margin: 0 0 14px;
-  color: #2b6f61;
-  font-size: 14px;
-  font-weight: 700;
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  color: #101828;
+  letter-spacing: 0;
 }
 
 h1 {
-  max-width: 720px;
-  margin: 0;
-  color: #101828;
-  font-size: 48px;
-  line-height: 1.08;
+  font-size: 44px;
+  line-height: 1.1;
+}
+
+h2 {
+  font-size: 30px;
+}
+
+h3 {
+  font-size: 20px;
+}
+
+h4 {
+  font-size: 17px;
 }
 
 .subtitle {
-  max-width: 680px;
-  margin: 20px 0 0;
+  max-width: 820px;
+  margin: 14px 0 0;
   color: #526071;
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1.7;
 }
 
-.system-card,
-.module-card,
-.knowledge-panel {
-  border: 1px solid #d9e1ef;
+.connection-panel,
+.workspace {
+  border: 1px solid #d8e2e7;
   border-radius: 8px;
   background: #ffffff;
 }
 
-.system-card {
-  display: flex;
-  flex-direction: column;
-  min-height: 320px;
-  padding: 24px;
+.connection-panel {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  padding: 18px;
 }
 
 .panel-header,
-.module-card__top,
-.knowledge-header,
 .section-title-line,
-.search-hit__top,
-.document-title-line {
+.document-title-line,
+.search-hit__top {
   display: flex;
   gap: 12px;
   align-items: center;
@@ -593,9 +1062,23 @@ h1 {
 }
 
 .panel-header {
-  color: #101828;
-  font-size: 18px;
-  font-weight: 700;
+  font-weight: 800;
+}
+
+.connection-summary,
+.panel-message,
+.hint-message,
+.warning-message,
+.success-message,
+.error-message {
+  margin: 0;
+  line-height: 1.65;
+}
+
+.connection-summary,
+.panel-message,
+.hint-message {
+  color: #526071;
 }
 
 .status-pill {
@@ -603,7 +1086,7 @@ h1 {
   padding: 6px 10px;
   border-radius: 999px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
   text-align: center;
 }
 
@@ -622,43 +1105,187 @@ h1 {
   background: #f8d7da;
 }
 
-.status-list {
+.module-nav {
   display: grid;
-  gap: 16px;
-  margin: 24px 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 24px;
 }
 
-.status-list div {
+.module-tab {
+  display: grid;
+  min-height: 132px;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid #d8e2e7;
+  border-radius: 8px;
+  color: #526071;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.module-tab:hover,
+.module-tab:focus-visible,
+.module-tab.active {
+  border-color: #1f6f68;
+  background: #f1faf7;
+  color: #31514d;
+}
+
+.module-tab__top {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.module-tab strong {
+  color: #101828;
+  font-size: 19px;
+}
+
+.module-tab em {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #31514d;
+  background: #dff2ee;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.workspace {
+  margin-top: 18px;
+  padding: 24px;
+}
+
+.workspace-header {
+  display: grid;
+  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: end;
+  margin-bottom: 22px;
+}
+
+.workspace-header p:last-child {
+  margin: 0;
+  color: #526071;
+  line-height: 1.7;
+}
+
+.chat-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
+  gap: 18px;
+}
+
+.chat-composer,
+.answer-panel,
+.sources-panel,
+.search-hit,
+.document-row,
+.source-row {
+  border: 1px solid #e1e8ec;
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.chat-composer,
+.answer-panel,
+.sources-panel {
+  padding: 18px;
+}
+
+.chat-composer {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
   min-width: 0;
 }
 
-.status-list dt {
-  margin-bottom: 4px;
-  color: #667085;
-  font-size: 13px;
+.field span,
+.checkbox-field {
+  color: #475467;
+  font-size: 14px;
+  font-weight: 800;
 }
 
-.status-list dd {
-  margin: 0;
+.field input,
+.field textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #cfd8e6;
+  border-radius: 6px;
   color: #182230;
-  font-weight: 700;
-  line-height: 1.5;
+  background: #ffffff;
 }
 
-.path-text {
-  overflow-wrap: anywhere;
-  font-family:
-    "Cascadia Mono",
-    "SFMono-Regular",
-    Consolas,
-    monospace;
-  font-size: 13px;
-}
-
-.panel-message {
-  margin: 24px 0;
-  color: #526071;
+.field textarea {
+  min-height: 150px;
+  padding: 12px;
   line-height: 1.6;
+  resize: vertical;
+}
+
+.field--small {
+  width: 98px;
+}
+
+.field--small input {
+  text-align: center;
+}
+
+.field--full {
+  grid-column: 1 / -1;
+}
+
+.inline-controls,
+.button-row,
+.header-actions,
+.model-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+}
+
+.segmented-control {
+  display: flex;
+  min-height: 44px;
+  overflow: hidden;
+  border: 1px solid #bdd2ca;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.segmented-control button {
+  min-width: 72px;
+  border: 0;
+  border-right: 1px solid #d7e2de;
+  color: #31514d;
+  background: transparent;
+  cursor: pointer;
+}
+
+.segmented-control button:last-child {
+  border-right: 0;
+}
+
+.segmented-control button.active {
+  color: #ffffff;
+  background: #1f6f68;
 }
 
 .primary-button,
@@ -712,7 +1339,10 @@ h1 {
 .primary-button:focus-visible,
 .secondary-button:focus-visible,
 .text-button:focus-visible,
-input:focus-visible {
+.module-tab:focus-visible,
+.segmented-control button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
   outline: 3px solid #9ee6d8;
   outline-offset: 2px;
 }
@@ -723,74 +1353,114 @@ input:focus-visible {
   opacity: 0.65;
 }
 
-.system-card .primary-button {
-  width: 100%;
-  margin-top: auto;
-}
-
-.module-grid {
+.answer-panel {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
-  margin-top: 24px;
+  align-content: start;
+  min-height: 360px;
 }
 
-.module-card {
-  min-height: 168px;
-  padding: 20px;
+.answer-text {
+  white-space: pre-wrap;
+  color: #253041;
+  line-height: 1.8;
 }
 
-.module-card h2 {
-  margin: 0;
-  color: #101828;
-  font-size: 20px;
+.sources-panel,
+.search-results,
+.document-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
 }
 
-.module-card span,
-.status-chip {
-  flex: 0 0 auto;
-  padding: 4px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
+.source-row,
+.document-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
 }
 
-.module-card span {
-  color: #44546a;
-  background: #eef2f7;
+.source-index {
+  display: grid;
+  flex: 0 0 48px;
+  min-height: 48px;
+  place-items: center;
+  border-radius: 6px;
+  color: #18413d;
+  background: #dff2ee;
+  font-weight: 900;
 }
 
-.module-card p {
-  margin: 18px 0 0;
-  color: #526071;
-  line-height: 1.6;
+.source-main,
+.document-main {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
-.knowledge-panel {
-  margin-top: 24px;
-  padding: 24px;
+.path-text {
+  overflow-wrap: anywhere;
+  font-family:
+    "Cascadia Mono",
+    "SFMono-Regular",
+    Consolas,
+    monospace;
+  font-size: 13px;
 }
 
-.knowledge-header h2 {
-  margin: 0;
-  color: #101828;
-  font-size: 28px;
+.hit-preview {
+  margin: 10px 0;
+  color: #354152;
+  line-height: 1.7;
 }
 
-.header-actions {
+.document-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  color: #667085;
+  font-size: 13px;
 }
 
-.index-status-grid {
+.score-chip,
+.search-hit__top span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #18413d;
+  background: #dff2ee;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.index-status-grid,
+.stats-row,
+.config-summary,
+.settings-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
-  margin-top: 22px;
 }
 
-.index-status-grid div {
+.index-status-grid,
+.stats-row {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.config-summary {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-top: 18px;
+}
+
+.settings-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.index-status-grid div,
+.stats-row div,
+.config-summary div,
+.settings-grid div {
+  min-width: 0;
   padding: 16px;
   border: 1px solid #dfe8ee;
   border-radius: 8px;
@@ -798,16 +1468,28 @@ input:focus-visible {
 }
 
 .index-status-grid span,
+.stats-row span,
+.config-summary span,
+.settings-grid span,
 .muted-text {
   color: #526071;
   font-size: 13px;
 }
 
-.index-status-grid strong {
+.index-status-grid strong,
+.stats-row strong,
+.config-summary strong,
+.settings-grid strong {
   display: block;
   margin-top: 8px;
   color: #101828;
-  font-size: 24px;
+  font-size: 20px;
+  line-height: 1.35;
+}
+
+.index-status-grid strong,
+.stats-row strong {
+  font-size: 26px;
 }
 
 .index-toolbar {
@@ -848,33 +1530,6 @@ input:focus-visible {
   border-top: 1px solid #e1e7ef;
 }
 
-.field {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-}
-
-.field span,
-.checkbox-field {
-  color: #475467;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.field input {
-  width: 100%;
-  min-height: 44px;
-  padding: 0 12px;
-  border: 1px solid #cfd8e6;
-  border-radius: 6px;
-  color: #182230;
-  background: #ffffff;
-}
-
-.field--small input {
-  text-align: center;
-}
-
 .checkbox-field {
   display: flex;
   min-height: 44px;
@@ -890,19 +1545,28 @@ input:focus-visible {
 }
 
 .error-message {
-  margin: 16px 0 0;
+  margin-top: 16px;
   color: #842029;
-  line-height: 1.6;
 }
 
-.result-strip,
-.stats-row {
-  display: grid;
-  gap: 12px;
+.success-message {
+  margin-top: 16px;
+  color: #0f513f;
+}
+
+.warning-message {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid #f6d7a9;
+  border-radius: 8px;
+  color: #7a4a08;
+  background: #fff8e8;
 }
 
 .result-strip {
+  display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
   margin-top: 18px;
 }
 
@@ -915,151 +1579,30 @@ input:focus-visible {
   border-radius: 6px;
   color: #18413d;
   background: #e7f5f1;
-  font-weight: 700;
+  font-weight: 800;
   text-align: center;
-}
-
-.stats-row {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-top: 20px;
-}
-
-.stats-row div {
-  padding: 16px;
-  border: 1px solid #e1e7ef;
-  border-radius: 8px;
-  background: #f8fafc;
-}
-
-.stats-row strong {
-  display: block;
-  color: #101828;
-  font-size: 26px;
-}
-
-.stats-row span {
-  color: #526071;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.segmented-control {
-  display: flex;
-  min-height: 44px;
-  overflow: hidden;
-  border: 1px solid #bdd2ca;
-  border-radius: 6px;
-  background: #ffffff;
-}
-
-.segmented-control button {
-  min-width: 72px;
-  border: 0;
-  border-right: 1px solid #d7e2de;
-  color: #31514d;
-  background: transparent;
-  cursor: pointer;
-}
-
-.segmented-control button:last-child {
-  border-right: 0;
-}
-
-.segmented-control button.active {
-  color: #ffffff;
-  background: #1f6f68;
-}
-
-.search-results {
-  display: grid;
-  gap: 12px;
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid #e1e7ef;
-}
-
-.section-title-line h3 {
-  margin: 0;
-  color: #101828;
-  font-size: 20px;
-}
-
-.section-title-line span {
-  color: #526071;
-  font-size: 13px;
-  font-weight: 700;
 }
 
 .search-hit {
   padding: 16px;
-  border: 1px solid #e1e7ef;
-  border-radius: 8px;
-  background: #fbfcfe;
-}
-
-.search-hit__top h4 {
-  margin: 0;
-  color: #101828;
-  font-size: 17px;
-}
-
-.search-hit__top span {
-  padding: 4px 8px;
-  border-radius: 999px;
-  color: #18413d;
-  background: #dff2ee;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.hit-preview {
-  margin: 10px 0;
-  color: #354152;
-  line-height: 1.7;
-}
-
-.document-list {
-  display: grid;
-  gap: 12px;
-  margin-top: 20px;
-}
-
-.document-row {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px;
-  border: 1px solid #e1e7ef;
-  border-radius: 8px;
-  background: #ffffff;
-}
-
-.document-main {
-  min-width: 0;
 }
 
 .document-title-line {
   justify-content: flex-start;
 }
 
-.document-title-line h3 {
-  margin: 0;
-  color: #101828;
-  font-size: 17px;
-}
-
-.document-main p {
+.document-main p,
+.source-main p {
   margin: 8px 0;
   color: #526071;
 }
 
-.document-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  color: #667085;
-  font-size: 13px;
+.status-chip {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .status-chip--parsed {
@@ -1077,22 +1620,40 @@ input:focus-visible {
   background: #fff2bf;
 }
 
-@media (max-width: 900px) {
-  .hero-panel,
-  .module-grid,
+.model-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.model-form__actions {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 980px) {
+  .topbar,
+  .workspace-header,
+  .chat-layout,
+  .module-nav,
+  .index-status-grid,
+  .stats-row,
+  .config-summary,
+  .settings-grid,
   .ingest-form,
   .search-form,
-  .index-status-grid,
-  .result-strip,
-  .stats-row {
+  .model-form,
+  .result-strip {
     grid-template-columns: 1fr;
   }
 
-  .hero-copy {
-    min-height: auto;
+  .field--full,
+  .model-form__actions {
+    grid-column: auto;
   }
 
-  .document-row {
+  .source-row,
+  .document-row,
+  .index-toolbar {
     align-items: stretch;
     flex-direction: column;
   }
@@ -1100,37 +1661,33 @@ input:focus-visible {
 
 @media (max-width: 640px) {
   .app-shell {
-    width: min(100% - 24px, 1120px);
+    width: min(100% - 24px, 1180px);
     padding: 24px 0;
   }
 
-  .hero-copy,
-  .system-card,
-  .knowledge-panel {
-    padding: 22px;
+  .workspace,
+  .connection-panel {
+    padding: 18px;
   }
 
   h1 {
-    font-size: 36px;
+    font-size: 34px;
+  }
+
+  h2 {
+    font-size: 25px;
   }
 
   .subtitle {
     font-size: 16px;
   }
 
-  .knowledge-header {
+  .inline-controls,
+  .button-row,
+  .header-actions,
+  .model-form__actions {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .index-toolbar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .header-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
   }
 
   .segmented-control {
@@ -1139,6 +1696,11 @@ input:focus-visible {
 
   .segmented-control button {
     flex: 1;
+    min-width: 0;
+  }
+
+  .field--small {
+    width: 100%;
   }
 }
 </style>
