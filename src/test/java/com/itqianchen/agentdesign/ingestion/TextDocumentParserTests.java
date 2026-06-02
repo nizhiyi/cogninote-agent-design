@@ -1,12 +1,30 @@
 package com.itqianchen.agentdesign.ingestion;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import com.itqianchen.agentdesign.domain.ingestion.TextDocumentParser;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
+import com.itqianchen.agentdesign.domain.ingestion.TextDocumentParser;
 
-import com.itqianchen.agentdesign.document.FileType;
+import com.itqianchen.agentdesign.domain.document.FileType;
+import com.itqianchen.agentdesign.domain.ingestion.TextDocumentParser;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
+import com.itqianchen.agentdesign.domain.ingestion.TextDocumentParser;
 import java.nio.file.Files;
+import com.itqianchen.agentdesign.domain.ingestion.TextDocumentParser;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
+import com.itqianchen.agentdesign.domain.ingestion.TextDocumentParser;
 import java.nio.file.Path;
+import com.itqianchen.agentdesign.domain.ingestion.TextDocumentParser;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
+import com.itqianchen.agentdesign.domain.ingestion.TextDocumentParser;
 import org.junit.jupiter.api.Test;
+import com.itqianchen.agentdesign.domain.ingestion.TextDocumentParser;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
+import com.itqianchen.agentdesign.domain.ingestion.TextDocumentParser;
 import org.junit.jupiter.api.io.TempDir;
+import com.itqianchen.agentdesign.domain.ingestion.TextDocumentParser;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
+import com.itqianchen.agentdesign.domain.ingestion.TextDocumentParser;
 
 class TextDocumentParserTests {
 
@@ -30,3 +48,5 @@ class TextDocumentParserTests {
                 });
     }
 }
+
+

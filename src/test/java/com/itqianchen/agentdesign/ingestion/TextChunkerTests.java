@@ -1,10 +1,70 @@
 package com.itqianchen.agentdesign.ingestion;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.DocumentChunk;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
 
-import com.itqianchen.agentdesign.document.FileType;
+import com.itqianchen.agentdesign.domain.document.FileType;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.DocumentChunk;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
 import java.util.List;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.DocumentChunk;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
 import org.junit.jupiter.api.Test;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.DocumentChunk;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
+import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
 
 class TextChunkerTests {
 
@@ -33,3 +93,5 @@ class TextChunkerTests {
         assertThat(cleaned).isEqualTo("a\n\nb c");
     }
 }
+
+

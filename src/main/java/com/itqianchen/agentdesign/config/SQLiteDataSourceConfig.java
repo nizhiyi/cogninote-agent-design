@@ -1,6 +1,6 @@
 package com.itqianchen.agentdesign.config;
 
-import com.itqianchen.agentdesign.storage.AppStorageInitializer;
+import com.itqianchen.agentdesign.service.system.AppStorageInitializer;
 import com.zaxxer.hikari.HikariDataSource;
 import javax.sql.DataSource;
 import org.springframework.context.annotation.Bean;
@@ -19,7 +19,8 @@ public class SQLiteDataSourceConfig {
 
     @Bean
     public DataSource dataSource() {
-        // Hikari may open the SQLite file while creating the DataSource, before ApplicationReadyEvent fires.
+        // Hikari 创建 DataSource 时可能立刻打开 SQLite 文件，早于 ApplicationReadyEvent。
+        // 因此这里必须先确保 data 目录存在，避免首次启动因为数据库路径不存在失败。
         storageInitializer.ensureInitialized();
 
         HikariDataSource dataSource = new HikariDataSource();
@@ -31,3 +32,5 @@ public class SQLiteDataSourceConfig {
         return dataSource;
     }
 }
+
+

@@ -15,11 +15,11 @@ import org.springframework.test.context.TestPropertySource;
 class SystemStatusControllerTests {
 
     @Autowired
-    private SystemStatusController systemStatusController;
+    private com.itqianchen.agentdesign.service.system.SystemStatusService systemStatusService;
 
     @Test
     void statusReturnsApplicationHealthAndStoragePath() {
-        SystemStatusResponse response = systemStatusController.status();
+        com.itqianchen.agentdesign.dto.system.SystemStatusResponse response = systemStatusService.status();
 
         assertThat(response.appName()).isEqualTo("CogniNote Agent");
         assertThat(response.version()).isEqualTo("0.0.1-SNAPSHOT");
@@ -27,3 +27,5 @@ class SystemStatusControllerTests {
         assertThat(response.dataDir()).contains("target");
     }
 }
+
+

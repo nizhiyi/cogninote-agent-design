@@ -5,7 +5,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.itqianchen.agentdesign.document.DocumentIngestionService;
+import com.itqianchen.agentdesign.service.document.DocumentIngestionService;
+import com.itqianchen.agentdesign.domain.search.EmbeddingGateway;
+import com.itqianchen.agentdesign.domain.search.KnowledgeStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -62,7 +64,7 @@ class SearchVectorIntegrationTests {
 
         mockMvc.perform(get("/api/index/status"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.embeddingConfigured").value(true));
+                .andExpect(jsonPath("$.data.embeddingConfigured").value(true));
 
         mockMvc.perform(post("/api/search")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -74,7 +76,7 @@ class SearchVectorIntegrationTests {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.hits[0].fileName").value("alpha.txt"));
+                .andExpect(jsonPath("$.data.hits[0].fileName").value("alpha.txt"));
 
         mockMvc.perform(post("/api/search")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -86,7 +88,7 @@ class SearchVectorIntegrationTests {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.hits[0].fileName").value("alpha.txt"));
+                .andExpect(jsonPath("$.data.hits[0].fileName").value("alpha.txt"));
     }
 
     @TestConfiguration
@@ -127,3 +129,5 @@ class SearchVectorIntegrationTests {
         }
     }
 }
+
+

@@ -7,9 +7,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.itqianchen.agentdesign.document.DocumentIngestionService;
-import com.itqianchen.agentdesign.document.DocumentRepository;
-import com.itqianchen.agentdesign.document.KnowledgeDocument;
+import com.itqianchen.agentdesign.service.document.DocumentIngestionService;
+import com.itqianchen.agentdesign.repository.document.DocumentRepository;
+import com.itqianchen.agentdesign.domain.document.KnowledgeDocument;
+import com.itqianchen.agentdesign.domain.search.KnowledgeStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeEach;
@@ -73,8 +74,8 @@ class SearchIndexIntegrationTests {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.hits[0].fileName").value("packaging.md"))
-                .andExpect(jsonPath("$.hits[0].preview").value(org.hamcrest.Matchers.containsString("Launch4j")));
+                .andExpect(jsonPath("$.data.hits[0].fileName").value("packaging.md"))
+                .andExpect(jsonPath("$.data.hits[0].preview").value(org.hamcrest.Matchers.containsString("Launch4j")));
 
         assertThat(documentRepository.findAllOrderByUpdatedAtDesc())
                 .singleElement()
@@ -89,9 +90,9 @@ class SearchIndexIntegrationTests {
 
         mockMvc.perform(get("/api/index/status"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.indexedDocumentCount").value(1))
-                .andExpect(jsonPath("$.indexedChunkCount").value(1))
-                .andExpect(jsonPath("$.unindexedDocumentCount").value(0));
+                .andExpect(jsonPath("$.data.indexedDocumentCount").value(1))
+                .andExpect(jsonPath("$.data.indexedChunkCount").value(1))
+                .andExpect(jsonPath("$.data.unindexedDocumentCount").value(0));
     }
 
     @Test
@@ -113,7 +114,7 @@ class SearchIndexIntegrationTests {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.hits.length()").value(0));
+                .andExpect(jsonPath("$.data.hits.length()").value(0));
     }
 
     @Test
@@ -144,3 +145,5 @@ class SearchIndexIntegrationTests {
                 .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("hybrid search is unavailable")));
     }
 }
+
+

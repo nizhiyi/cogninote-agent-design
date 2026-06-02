@@ -91,6 +91,20 @@ $env:COGNINOTE_EMBEDDING_MODEL="text-embedding-v4"
 
 ## API
 
+普通 JSON API 统一返回 `ApiResponse<T>`：
+
+```json
+{
+  "success": true,
+  "code": "OK",
+  "message": "OK",
+  "data": {},
+  "timestamp": 1780000000000
+}
+```
+
+错误返回保持同形状，`success=false`，`data=null`。`POST /api/chat/stream` 是 `text/event-stream`，不包装；`DELETE /api/documents/{id}` 成功时仍返回 `204 No Content`。
+
 系统状态：
 
 ```text
@@ -156,3 +170,36 @@ java -jar target/cogninote-agent-design-0.0.1-SNAPSHOT.jar
 ```
 
 `with-frontend` profile 会执行前端构建，并把 `cogniNote-agent-front/dist` 复制到 Spring Boot Jar 的静态资源目录。
+
+## 工程结构
+
+后端按全局三层组织，每层下再按业务领域分包：
+
+```text
+src/main/java/com/itqianchen/agentdesign/
+  controller/{document,search,index,model,chat,system}
+  service/{document,search,index,model,chat,system}
+  repository/{document,model}
+  domain/{document,search,model,chat,storage,ingestion}
+  dto/{document,search,index,model,chat,system}
+  common/api
+```
+
+Controller 只处理 HTTP、校验和响应包装；Service 承担业务编排；Repository 只访问 SQLite/JDBC；领域对象和 DTO 分开，避免数据库记录、接口响应和业务编排互相污染。
+
+前端按 Vue Router + Pinia + API client 拆分：
+
+```text
+cogniNote-agent-front/src/
+  api/          # 统一 HTTP client、业务 API、POST SSE 解析
+  stores/       # system/documents/search/modelConfig/chat 状态
+  router/       # chat/knowledge/model-config/settings 路由
+  views/        # 页面级组件
+  components/   # 应用壳、导航、列表、统计、分段控件等复用组件
+  styles/       # 全局基础样式
+  utils/        # 时间、文件大小、分数格式化
+```
+
+## 注释规范
+
+代码注释只写有维护价值的内容：解释为什么这样做、这里有什么约束、修改时要注意什么。复杂事务边界、索引失败降级、RAG 检索降级、SSE 手动解析、API Key 复用和外部模型实例缓存等非显然逻辑必须保留简洁注释；简单自解释代码不逐行注释，避免噪音。
