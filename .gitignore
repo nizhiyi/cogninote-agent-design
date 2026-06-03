@@ -21,6 +21,7 @@ cogniNote-agent-front/node_modules/
 cogniNote-agent-front/dist/
 cogniNote-agent-front/.vite/
 cogniNote-agent-front/.cache/
+cogniNote-agent-front/src-tauri/target/
 cogniNote-agent-front/npm-debug.log*
 cogniNote-agent-front/yarn-debug.log*
 cogniNote-agent-front/yarn-error.log*

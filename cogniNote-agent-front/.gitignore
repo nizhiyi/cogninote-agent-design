@@ -12,6 +12,7 @@ node_modules
 dist
 dist-ssr
 coverage
+src-tauri/target
 *.local
 
 # Editor directories and files
