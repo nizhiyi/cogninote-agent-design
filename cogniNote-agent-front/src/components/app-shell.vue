@@ -1,92 +1,77 @@
 <script setup>
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
-import ModuleNav from './module-nav.vue'
+import { useRoute, useRouter } from 'vue-router'
 import StatusPill from './status-pill.vue'
+import { useChatStore } from '../stores/chat'
 import { useSystemStore } from '../stores/system'
 
 const route = useRoute()
+const router = useRouter()
+const chatStore = useChatStore()
 const systemStore = useSystemStore()
 
-const navItems = [
-  {
-    id: 'chat',
-    to: { name: 'chat' },
-    name: '对话',
-    state: '可用',
-    description: '基于知识库检索片段，流式生成带引用的回答。'
-  },
-  {
-    id: 'knowledge',
-    to: { name: 'knowledge' },
-    name: '知识库',
-    state: '可检索',
-    description: '导入本地文档，管理 SQLite 记录和 Lucene 索引。'
-  },
-  {
-    id: 'model-config',
-    to: { name: 'model-config' },
-    name: '模型配置',
-    state: 'Provider',
-    description: '配置阿里百炼默认通道，或使用 OpenAI-compatible 自定义 Base URL。'
-  },
-  {
-    id: 'settings',
-    to: { name: 'settings' },
-    name: '系统设置',
-    state: '基础',
-    description: '查看系统状态、数据目录和当前阶段能力边界。'
-  }
-]
-
-const activeNavItem = computed(() => navItems.find((item) => item.id === route.name) || navItems[0])
 const pillState = computed(() => {
   if (systemStore.isLoading) {
     return 'loading'
   }
   return systemStore.error ? 'error' : 'ok'
 })
+
+function createSession() {
+  chatStore.startNewSession()
+  router.push({ name: 'chat' })
+}
+
+function openSession(sessionId) {
+  chatStore.selectSession(sessionId)
+  router.push({ name: 'chat' })
+}
 </script>
 
 <template>
-  <main class="app-shell">
-    <header class="topbar">
-      <div>
-        <p class="eyebrow">本地个人知识库智能体</p>
-        <h1>CogniNote Agent</h1>
-        <p class="subtitle">
-          第五阶段完善模型配置：阿里百炼走默认 DashScope，自定义服务走 OpenAI-compatible 接口。
-        </p>
-      </div>
+  <main class="desktop-shell">
+    <aside class="chat-sidebar" aria-label="对话列表">
+      <section class="brand-panel">
+        <div class="brand-mark">CN</div>
+        <div>
+          <p class="eyebrow">本地知识库智能体</p>
+          <h1>CogniNote</h1>
+        </div>
+      </section>
 
-      <aside class="connection-panel" aria-label="后端连接状态">
-        <div class="panel-header">
-          <span>后端连接</span>
+      <button class="new-chat-button" type="button" :disabled="chatStore.isStreaming" @click="createSession">
+        新建对话
+      </button>
+
+      <section class="session-list" aria-label="临时会话">
+        <div class="sidebar-section-title">
+          <span>对话</span>
+          <em>{{ chatStore.sessions.length }}</em>
+        </div>
+        <button
+          v-for="session in chatStore.sessions"
+          :key="session.id"
+          class="session-item"
+          :class="{ active: session.id === chatStore.activeSessionId && route.name === 'chat' }"
+          type="button"
+          :disabled="chatStore.isStreaming && session.id !== chatStore.activeSessionId"
+          @click="openSession(session.id)"
+        >
+          <strong>{{ session.title }}</strong>
+          <span>{{ session.messages.length ? `${session.messages.length} 条消息` : '暂无消息' }}</span>
+        </button>
+      </section>
+
+      <footer class="sidebar-footer">
+        <div class="sidebar-status">
+          <span>后端</span>
           <StatusPill :label="systemStore.connectionLabel" :state="pillState" />
         </div>
-        <p v-if="systemStore.status" class="connection-summary">
-          {{ systemStore.status.appName }} / {{ systemStore.status.version }}
-        </p>
-        <p v-else class="panel-message">
-          {{ systemStore.isLoading ? '正在读取系统状态...' : systemStore.error }}
-        </p>
-        <button class="secondary-button" type="button" :disabled="systemStore.isLoading" @click="systemStore.fetchStatus">
-          刷新
-        </button>
-      </aside>
-    </header>
+        <RouterLink class="settings-link" :to="{ name: 'settings' }">设置</RouterLink>
+      </footer>
+    </aside>
 
-    <ModuleNav :items="navItems" />
-
-    <section class="workspace" :aria-label="activeNavItem.name">
-      <div class="workspace-header">
-        <div>
-          <p class="eyebrow">{{ activeNavItem.state }}</p>
-          <h2>{{ activeNavItem.name }}</h2>
-        </div>
-        <p>{{ activeNavItem.description }}</p>
-      </div>
-
+    <section class="desktop-workspace">
       <slot />
     </section>
   </main>
