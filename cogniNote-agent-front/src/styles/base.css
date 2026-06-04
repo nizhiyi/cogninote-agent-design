@@ -2,6 +2,7 @@
  * 样式入口只负责维护加载顺序。
  * 新增规则请放入对应模块，避免 base.css 再次膨胀成不可维护的大文件。
  */
+@import './tokens.css';
 @import './foundation.css';
 @import './workbench-layout.css';
 @import './controls.css';

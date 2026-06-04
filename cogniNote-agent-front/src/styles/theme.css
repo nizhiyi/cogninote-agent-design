@@ -1,213 +1,485 @@
-/* 主题覆盖：默认深色由各模块提供，日间主题只覆写桌面壳和高频聊天/设置控件。 */
+/*
+ * 第九阶段主题收敛层：最后加载，用 token 统一覆盖旧模块中的硬编码颜色。
+ * 这里专门处理运行截图中的可读性问题：字体过重、暗色强反差、白色卡片刺眼和长文本压迫。
+ */
 
-html.theme-light body {
-  color: #182230;
-  background: #eef4f6;
+body {
+  color: var(--color-text);
+  background: var(--color-bg);
 }
 
-html.theme-light .desktop-shell,
-html.theme-light .settings-shell {
-  color: #223040;
-  background:
-    radial-gradient(circle at 18% 12%, rgba(20, 184, 166, 0.14), transparent 28%),
-    linear-gradient(135deg, #f8fbfc 0%, #edf4f7 58%, #e7eef2 100%);
+.desktop-shell,
+.settings-shell {
+  color: var(--color-text);
+  background: var(--page-gradient);
 }
 
-html.theme-light .chat-sidebar {
-  border-right-color: rgba(15, 23, 42, 0.1);
-  background:
-    linear-gradient(180deg, rgba(245, 250, 251, 0.98), rgba(231, 239, 243, 0.98)),
-    #eef5f7;
+.chat-sidebar {
+  border-color: var(--color-border);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 94%, transparent), var(--color-bg-elevated));
 }
 
-html.theme-light .brand-panel h1,
-html.theme-light .conversation-header h2,
-html.theme-light .settings-header h2,
-html.theme-light .empty-chat h3,
-html.theme-light .settings-page,
-html.theme-light .markdown-content h1,
-html.theme-light .markdown-content h2,
-html.theme-light .markdown-content h3,
-html.theme-light .markdown-content h4,
-html.theme-light .markdown-content h5,
-html.theme-light .markdown-content h6 {
-  color: #102033;
+.desktop-workspace,
+.settings-page,
+.message-stream {
+  background: transparent;
 }
 
-html.theme-light .brand-panel .eyebrow,
-html.theme-light .conversation-header .eyebrow,
-html.theme-light .settings-header .eyebrow {
-  color: #0f766e;
+.conversation-header,
+.settings-header {
+  min-height: 76px;
+  padding: 14px 28px;
+  border-color: var(--color-border);
+  background: color-mix(in srgb, var(--color-bg-elevated) 88%, transparent);
+  box-shadow: none;
 }
 
-html.theme-light .new-chat-button {
-  border-color: rgba(15, 118, 110, 0.32);
-  color: #0f4f49;
-  background: rgba(20, 184, 166, 0.14);
+.conversation-header h2,
+.settings-header h2,
+.brand-panel h1,
+.empty-chat h3,
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  color: var(--color-text-strong);
 }
 
-html.theme-light .session-item {
-  color: #44566c;
+.brand-panel h1 {
+  font-size: 21px;
+  font-weight: 700;
 }
 
-html.theme-light .session-item span,
-html.theme-light .sidebar-section-title,
-html.theme-light .sidebar-status {
-  color: #66798f;
+.brand-mark {
+  border-color: var(--color-accent-border);
+  color: var(--color-text-strong);
+  background: linear-gradient(135deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 66%, #2b5c87));
 }
 
-html.theme-light .session-item:hover:not(:disabled),
-html.theme-light .session-item:focus-visible,
-html.theme-light .session-item.active,
-html.theme-light .settings-link,
-html.theme-light .back-link,
-html.theme-light .empty-chat,
-html.theme-light .composer-settings-popover,
-html.theme-light .sources-panel--compact {
-  border-color: rgba(15, 23, 42, 0.1);
-  color: #1d3044;
-  background: rgba(255, 255, 255, 0.78);
+.brand-panel .eyebrow,
+.conversation-header .eyebrow,
+.settings-header .eyebrow,
+.model-active-summary .eyebrow {
+  color: var(--color-accent-strong);
 }
 
-html.theme-light .desktop-workspace,
-html.theme-light .conversation-header,
-html.theme-light .settings-header {
-  border-color: rgba(15, 23, 42, 0.1);
-  background: rgba(247, 251, 252, 0.82);
+.sidebar-section-title,
+.sidebar-status,
+.session-item span,
+.message-label,
+.source-panel-actions span,
+.muted-text,
+.hint-message,
+.panel-message,
+.connection-summary {
+  color: var(--color-text-muted);
 }
 
-html.theme-light .message-stream {
-  background: linear-gradient(180deg, rgba(239, 247, 249, 0.82), rgba(247, 251, 252, 0.96));
+.new-chat-button,
+.settings-link,
+.back-link,
+.settings-tabs button,
+.theme-choice button,
+.model-role-tabs button,
+.collapse-button {
+  border-color: var(--color-border);
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-surface-muted) 58%, transparent);
+  font-weight: 700;
 }
 
-html.theme-light .message-label {
-  color: #637489;
+.new-chat-button {
+  color: var(--color-accent-strong);
+  background: var(--color-accent-soft);
 }
 
-html.theme-light .message-content {
-  color: #203044;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.1);
-}
-
-html.theme-light .message-bubble--user .message-content {
-  color: #ffffff;
-  background: linear-gradient(135deg, #0f766e, #0e7490);
-}
-
-html.theme-light .message-bubble--assistant .message-content {
-  border-color: rgba(15, 23, 42, 0.1);
-}
-
-html.theme-light .composer-bar {
-  border-color: rgba(15, 23, 42, 0.1);
-  background: linear-gradient(180deg, rgba(247, 251, 252, 0.72), rgba(247, 251, 252, 0.96));
-}
-
-html.theme-light .composer-input-row textarea,
-html.theme-light .composer-settings-popover {
-  border-color: rgba(15, 23, 42, 0.14);
-  color: #182230;
-  background: rgba(255, 255, 255, 0.86);
-}
-
-html.theme-light .composer-bar textarea::placeholder {
-  color: #8290a3;
-}
-
-html.theme-light .knowledge-toggle,
-html.theme-light .settings-tabs button,
-html.theme-light .desktop-shell .collapse-button,
-html.theme-light .source-panel-actions span,
-html.theme-light .sources-panel--compact h3,
-html.theme-light .sources-panel--compact .source-panel-actions span {
-  color: #31514d;
-}
-
-html.theme-light .settings-tabs button,
-html.theme-light .desktop-shell .collapse-button,
-html.theme-light .composer-settings-button {
-  border-color: rgba(15, 23, 42, 0.12);
-  background: rgba(255, 255, 255, 0.72);
-}
-
-html.theme-light .settings-tabs button.active,
-html.theme-light .settings-tabs button:hover,
-html.theme-light .settings-tabs button:focus-visible,
-html.theme-light .desktop-shell .collapse-button:hover,
-html.theme-light .desktop-shell .collapse-button:focus-visible,
-html.theme-light .composer-settings-button:hover,
-html.theme-light .composer-settings-button:focus-visible,
-html.theme-light .composer-settings-button[aria-expanded="true"] {
-  color: #0f4f49;
-  border-color: rgba(15, 118, 110, 0.3);
-  background: rgba(20, 184, 166, 0.15);
-}
-
-html.theme-light .markdown-content code {
-  color: #0f4f49;
-  background: rgba(20, 184, 166, 0.12);
-}
-
-html.theme-light .markdown-content pre {
-  border-color: rgba(15, 23, 42, 0.12);
-  background: #f3f7f9;
-}
-
-html.theme-light .markdown-content pre code {
-  color: #263446;
-}
-
-.settings-card {
-  display: grid;
-  gap: 16px;
-  margin-bottom: 18px;
-  padding: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.theme-choice {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.theme-choice button {
-  min-height: 42px;
-  padding: 0 16px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 999px;
-  color: #b8c5d5;
-  background: rgba(255, 255, 255, 0.05);
-  font-weight: 800;
-  cursor: pointer;
-}
-
+.new-chat-button:hover:not(:disabled),
+.new-chat-button:focus-visible,
+.settings-link:hover,
+.settings-link:focus-visible,
+.settings-link.router-link-active,
+.back-link:hover,
+.back-link:focus-visible,
+.settings-tabs button.active,
+.settings-tabs button:hover,
+.settings-tabs button:focus-visible,
 .theme-choice button.active,
 .theme-choice button:hover,
-.theme-choice button:focus-visible {
-  color: #ecfeff;
-  border-color: rgba(20, 184, 166, 0.48);
-  background: rgba(20, 184, 166, 0.16);
+.theme-choice button:focus-visible,
+.model-role-tabs button.active,
+.model-role-tabs button:hover,
+.model-role-tabs button:focus-visible,
+.collapse-button:hover,
+.collapse-button:focus-visible {
+  border-color: var(--color-accent-border);
+  color: var(--color-text-strong);
+  background: var(--color-accent-soft);
 }
 
-html.theme-light .settings-card {
-  border-color: rgba(15, 23, 42, 0.1);
-  background: rgba(255, 255, 255, 0.74);
+.session-item {
+  color: var(--color-text);
+  background: transparent;
 }
 
-html.theme-light .theme-choice button {
-  color: #31514d;
-  border-color: rgba(15, 23, 42, 0.12);
-  background: rgba(255, 255, 255, 0.74);
+.session-item:hover:not(:disabled),
+.session-item:focus-visible,
+.session-item.active {
+  border-color: var(--color-border);
+  color: var(--color-text-strong);
+  background: color-mix(in srgb, var(--color-surface-muted) 54%, transparent);
 }
 
-html.theme-light .theme-choice button.active,
-html.theme-light .theme-choice button:hover,
-html.theme-light .theme-choice button:focus-visible {
-  color: #0f4f49;
-  border-color: rgba(15, 118, 110, 0.3);
-  background: rgba(20, 184, 166, 0.15);
+.conversation-meta span,
+.message-label em,
+.composer-settings__summary span,
+.status-pill--ok,
+.status-chip--parsed {
+  color: var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.status-pill--loading,
+.status-chip--skipped {
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.status-pill--error,
+.status-chip--failed {
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.empty-chat,
+.settings-card,
+.connection-panel,
+.workspace,
+.chat-composer,
+.answer-panel,
+.sources-panel,
+.search-hit,
+.document-row,
+.source-row,
+.index-toolbar,
+.model-config-list,
+.model-config-editor,
+.model-active-summary article,
+.model-options-panel,
+.stat-grid div {
+  border-color: var(--color-border);
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  box-shadow: none;
+}
+
+.empty-chat {
+  width: min(640px, 100%);
+  padding: 28px;
+  box-shadow: var(--shadow-soft);
+}
+
+.empty-chat h3 {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.empty-chat p:last-child,
+.hit-preview,
+.document-main p,
+.source-main p {
+  color: var(--color-text-muted);
+}
+
+.message-content {
+  color: var(--color-text);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.message-bubble--assistant .message-content {
+  border-color: var(--color-border);
+}
+
+.message-bubble--user .message-content,
+.composer-icon-button:not(:disabled),
+.primary-button,
+.segmented-control button.active {
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 76%, #0e7490));
+}
+
+.message-bubble--error .message-content,
+.error-message {
+  color: var(--color-danger);
+}
+
+.message-bubble--stopped .message-content,
+.warning-message {
+  color: var(--color-warning);
+}
+
+.composer-bar {
+  border-color: var(--color-border);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-bg) 76%, transparent), var(--color-bg));
+}
+
+.composer-input-row textarea,
+.field input,
+.field select,
+.field textarea {
+  border-color: var(--color-border-strong);
+  color: var(--color-input-text);
+  background: var(--color-input);
+}
+
+.composer-input-row textarea::placeholder,
+.field input::placeholder,
+.field textarea::placeholder {
+  color: var(--color-text-faint);
+}
+
+.composer-settings-popover {
+  border-color: var(--color-border);
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-surface) 96%, transparent);
+  box-shadow: var(--shadow-panel);
+}
+
+.composer-settings-button,
+.composer-icon-button {
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+  background: color-mix(in srgb, var(--color-surface-muted) 70%, transparent);
+}
+
+.composer-settings-button:hover,
+.composer-settings-button:focus-visible,
+.composer-settings-button[aria-expanded="true"],
+.composer-icon-button:hover:not(:disabled),
+.composer-icon-button:focus-visible {
+  border-color: var(--color-accent-border);
+  color: var(--color-text-strong);
+}
+
+.field span,
+.checkbox-field,
+.knowledge-toggle {
+  color: var(--color-text-muted);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.primary-button,
+.secondary-button,
+.text-button {
+  border-radius: var(--radius-xs);
+  font-weight: 650;
+}
+
+.primary-button {
+  border: 1px solid var(--color-accent-border);
+}
+
+.primary-button:hover:not(:disabled),
+.primary-button:focus-visible {
+  background: linear-gradient(135deg, var(--color-accent-strong), var(--color-accent));
+}
+
+.secondary-button {
+  border-color: var(--color-border-strong);
+  color: var(--color-accent-strong);
+  background: color-mix(in srgb, var(--color-surface-strong) 90%, transparent);
+}
+
+.secondary-button:hover:not(:disabled),
+.secondary-button:focus-visible {
+  border-color: var(--color-accent-border);
+  background: var(--color-accent-soft);
+}
+
+.danger-button,
+.text-button {
+  color: var(--color-danger);
+}
+
+.danger-button:hover,
+.danger-button:focus-visible,
+.text-button:hover,
+.text-button:focus-visible {
+  border-color: color-mix(in srgb, var(--color-danger) 56%, transparent);
+  background: var(--color-danger-soft);
+}
+
+.segmented-control,
+.model-role-tabs {
+  border-color: var(--color-border);
+  background: color-mix(in srgb, var(--color-surface-muted) 62%, transparent);
+}
+
+.segmented-control button {
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+  font-weight: 650;
+}
+
+.stat-grid div {
+  padding: 16px 18px;
+}
+
+.stat-grid span {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.stat-grid strong {
+  color: var(--color-text-strong);
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.38;
+}
+
+.path-text,
+.model-active-summary small,
+.model-config-item small {
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.model-config-layout {
+  grid-template-columns: minmax(260px, 330px) minmax(0, 1fr);
+}
+
+.model-config-item {
+  border-color: transparent;
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-surface-muted) 52%, transparent);
+}
+
+.model-config-item:hover,
+.model-config-item:focus-visible,
+.model-config-item.active {
+  border-color: var(--color-accent-border);
+  color: var(--color-text-strong);
+  background: var(--color-accent-soft);
+}
+
+.model-config-item strong {
+  color: var(--color-text-strong);
+  font-weight: 700;
+}
+
+.model-config-item em {
+  color: var(--color-success);
+  background: var(--color-success-soft);
+  font-weight: 800;
+}
+
+.model-config-editor {
+  padding: 20px;
+}
+
+.model-form {
+  gap: 14px 18px;
+}
+
+.model-active-summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.model-active-summary article {
+  align-content: start;
+  min-height: 116px;
+}
+
+.model-active-summary h3,
+.model-active-summary p,
+.model-active-summary small {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.model-active-summary h3 {
+  color: var(--color-text-strong);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.model-active-summary p {
+  color: var(--color-accent-strong);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.model-active-summary small {
+  color: var(--color-text-muted);
+}
+
+.model-options-panel,
+.model-option-chip {
+  border-color: var(--color-border);
+  background: color-mix(in srgb, var(--color-surface-strong) 92%, transparent);
+}
+
+.model-option-chip strong {
+  color: var(--color-text-strong);
+  font-weight: 650;
+}
+
+.model-option-chip em {
+  color: var(--color-accent-strong);
+}
+
+.source-index,
+.score-chip,
+.search-hit__top span,
+.result-strip span {
+  color: var(--color-accent-strong);
+  background: var(--color-accent-soft);
+}
+
+.document-meta {
+  color: var(--color-text-muted);
+}
+
+.warning-message {
+  border-color: color-mix(in srgb, var(--color-warning) 40%, transparent);
+  background: var(--color-warning-soft);
+}
+
+.success-message {
+  color: var(--color-success);
+}
+
+.error-message {
+  color: var(--color-danger);
+}
+
+.primary-button:focus-visible,
+.secondary-button:focus-visible,
+.text-button:focus-visible,
+.module-tab:focus-visible,
+.segmented-control button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+.desktop-shell .session-item:focus-visible,
+.desktop-shell .new-chat-button:focus-visible,
+.desktop-shell .settings-link:focus-visible,
+.settings-tabs button:focus-visible,
+.collapse-button:focus-visible,
+.composer-settings-button:focus-visible,
+.composer-icon-button:focus-visible,
+.back-link:focus-visible {
+  outline: 0;
+  box-shadow: var(--shadow-focus);
+}
+
+@media (max-width: 980px) {
+  .model-config-layout,
+  .model-active-summary {
+    grid-template-columns: 1fr;
+  }
 }

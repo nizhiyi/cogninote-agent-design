@@ -42,6 +42,18 @@ function roleActiveConfig(role) {
       </button>
     </header>
 
+    <section class="model-active-summary">
+      <article
+        v-for="role in [modelConfigStore.ROLES.CHAT, modelConfigStore.ROLES.EMBEDDING]"
+        :key="role"
+      >
+        <p class="eyebrow">{{ role === modelConfigStore.ROLES.CHAT ? 'Active Chat' : 'Active Embedding' }}</p>
+        <h3>{{ roleActiveConfig(role)?.displayName || '-' }}</h3>
+        <p>{{ roleActiveConfig(role)?.modelName || '-' }}</p>
+        <small>{{ roleActiveConfig(role)?.baseUrl || '-' }}</small>
+      </article>
+    </section>
+
     <div class="model-config-layout">
       <aside class="model-config-list" aria-label="模型配置列表">
         <button
@@ -251,18 +263,6 @@ function roleActiveConfig(role) {
         </section>
       </section>
     </div>
-
-    <section class="model-active-summary">
-      <article
-        v-for="role in [modelConfigStore.ROLES.CHAT, modelConfigStore.ROLES.EMBEDDING]"
-        :key="role"
-      >
-        <p class="eyebrow">{{ role === modelConfigStore.ROLES.CHAT ? 'Active Chat' : 'Active Embedding' }}</p>
-        <h3>{{ roleActiveConfig(role)?.displayName || '-' }}</h3>
-        <p>{{ roleActiveConfig(role)?.modelName || '-' }}</p>
-        <small>{{ roleActiveConfig(role)?.baseUrl || '-' }}</small>
-      </article>
-    </section>
 
     <p class="warning-message">
       阿里百炼会使用默认 DashScope 地址；OpenAI-compatible 使用用户填写的 Base URL，并调用 Base URL + /chat/completions、/embeddings 和 /models。

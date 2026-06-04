@@ -184,6 +184,7 @@ mvn -Pwith-frontend package
 | [桌面构建指南](docs/desktop-build-guide.md) | PowerShell 脚本、Tauri 打包、产物和故障排查 |
 | [可维护性重构计划](docs/maintainability-refactor-plan.md) | 前后端分层、统一响应和注释规范 |
 | [Phase 6 计划](docs/phase-6-desktop-app-delivery-plan.md) | Windows 桌面交付阶段计划 |
+| [Phase 9 计划](docs/phase-9-ui-visual-readability-plan.md) | UI 视觉可读性与主题系统修正 |
 
 阶段计划文档保留在 `docs/phase-*.md`，用于追踪项目演进，不作为最终用户手册。
 
@@ -191,6 +192,7 @@ mvn -Pwith-frontend package
 
 当前项目已完成文档摄入、Lucene 搜索、模型配置、RAG 对话和 Windows 桌面打包的主要闭环。仍需重点补齐：
 
+- UI 视觉可读性与深色/日间主题一致性。
 - API Key 本地加密或凭据管理。
 - 桌面会话令牌保护。
 - SQLite 聊天记忆和纯模型对话。

@@ -2,6 +2,7 @@
 
 .model-config-center {
   display: grid;
+  min-height: 0;
   gap: 18px;
 }
 
@@ -42,8 +43,9 @@
 .model-config-layout {
   display: grid;
   grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  min-height: 0;
   gap: 18px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .model-config-list,
@@ -56,8 +58,15 @@
 
 .model-config-list {
   display: grid;
+  /* 左侧配置列表必须有高度上限，否则配置过多时会把设置页整体撑开。 */
+  max-height: min(560px, calc(100vh - 338px));
+  min-height: 0;
+  align-content: start;
   gap: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 12px;
+  scrollbar-gutter: stable;
 }
 
 .model-config-item {

@@ -54,7 +54,7 @@ export const useChatStore = defineStore('chat', () => {
   const hasMessages = computed(() => activeMessages.value.length > 0)
   const canSend = computed(() => draft.value.trim().length > 0 && !isStreaming.value)
   const knowledgeDisabledHint = computed(() =>
-    useKnowledgeBase.value ? '' : '纯对话将在第八阶段接入后端聊天记忆后启用。'
+    useKnowledgeBase.value ? '' : '纯对话将在第十阶段接入后端聊天记忆后启用。'
   )
 
   function startNewSession() {
@@ -150,7 +150,7 @@ export const useChatStore = defineStore('chat', () => {
 
   function handleEvent(eventName, payload) {
     // SSE 的 meta/delta/error 在 store 中归档，页面只消费消息状态，
-    // 第八阶段接入 SQLite 会话时可以复用同一套前端消息模型。
+    // 第十阶段接入 SQLite 会话时可以复用同一套前端消息模型。
     if (eventName === 'meta') {
       updateAssistantMessage((message) => {
         message.conversationId = payload.conversationId || ''
