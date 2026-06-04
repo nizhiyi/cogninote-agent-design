@@ -1,14 +1,14 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import {
-  activateModelConfig as requestActivateModelConfig,
-  createModelConfig as requestCreateModelConfig,
-  deleteModelConfig as requestDeleteModelConfig,
+  activateSettingsModelConfig,
+  createSettingsModelConfig,
+  deleteSettingsModelConfig,
   fetchModelOptions as requestFetchModelOptions,
   getActiveModelConfigs,
-  listModelConfigs,
+  getModelConfigSettings,
   testModelConfig as requestTestModelConfig,
-  updateModelConfig as requestUpdateModelConfig
+  updateSettingsModelConfig
 } from '../api/model-config-api'
 import { useSearchStore } from './search'
 
@@ -34,54 +34,48 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
   ]
 
   const activeRole = ref(ROLES.CHAT)
-  const chatConfigs = ref([])
-  const embeddingConfigs = ref([])
-  const activeChatConfig = ref(null)
-  const activeEmbeddingConfig = ref(null)
-  const isLoadingModelConfig = ref(false)
-  const isSavingModelConfig = ref(false)
-  const isTestingModelConfig = ref(false)
-  const isFetchingModels = ref(false)
-  const isActivating = ref(false)
-  const isDeleting = ref(false)
+  const activeSummary = ref({ chat: null, embedding: null })
+  const roleState = ref({
+    CHAT: emptyRoleState(ROLES.CHAT),
+    EMBEDDING: emptyRoleState(ROLES.EMBEDDING)
+  })
   const modelOptionsByRole = ref({ CHAT: [], EMBEDDING: [] })
   const modelsFetchedAtByRole = ref({ CHAT: null, EMBEDDING: null })
-  const error = ref('')
-  const message = ref('')
-  const draftByRole = ref({
-    CHAT: defaultForm(ROLES.CHAT),
-    EMBEDDING: defaultForm(ROLES.EMBEDDING)
-  })
-  const editingIdByRole = ref({ CHAT: null, EMBEDDING: null })
-  const touchedByRole = ref({ CHAT: false, EMBEDDING: false })
   const visibleApiKeyByRole = ref({ CHAT: false, EMBEDDING: false })
+  const isFetchingModels = ref(false)
+  const isTestingModelConfig = ref(false)
+  const message = ref('')
+  const form = ref(defaultForm(ROLES.CHAT))
 
-  const form = computed(() => draftByRole.value[activeRole.value])
+  const activeChatConfig = computed(() => activeSummary.value.chat)
+  const activeEmbeddingConfig = computed(() => activeSummary.value.embedding)
+  const chatConfigs = computed(() => roleState.value.CHAT.configs)
+  const embeddingConfigs = computed(() => roleState.value.EMBEDDING.configs)
   const activeConfigs = computed(() => ({
     chat: activeChatConfig.value,
     embedding: activeEmbeddingConfig.value
   }))
   const modelConfig = computed(() => activeChatConfig.value)
-  const activeList = computed(() => configsByRole(activeRole.value).value)
-  const selectedConfig = computed(() => {
-    const selectedId = editingIdByRole.value[activeRole.value]
-    return activeList.value.find(config => config.id === selectedId) || null
-  })
+  const currentState = computed(() => roleState.value[activeRole.value])
+  const activeList = computed(() => currentState.value.configs)
+  const selectedConfig = computed(() => currentState.value.selectedConfig)
   const activeConfigForRole = computed(() => activeRole.value === ROLES.CHAT
     ? activeChatConfig.value
     : activeEmbeddingConfig.value)
-  const isEditingExisting = computed(() => Boolean(editingIdByRole.value[activeRole.value]))
+  const editingIdByRole = computed(() => ({
+    CHAT: roleState.value.CHAT.selectedConfig?.id || null,
+    EMBEDDING: roleState.value.EMBEDDING.selectedConfig?.id || null
+  }))
+  const isEditingExisting = computed(() => Boolean(selectedConfig.value?.id))
   const roleLabel = computed(() => activeRole.value === ROLES.CHAT ? '对话模型' : 'Embedding 模型')
   const isOpenAiCompatible = computed(() => form.value.provider === 'OPENAI_COMPATIBLE')
   const providerLabel = computed(() => {
     return providerOptions.find(option => option.value === form.value.provider)?.label || form.value.provider
   })
   const apiKeyPlaceholder = computed(() => {
-    const current = activeList.value.find(config => config.id === editingIdByRole.value[activeRole.value])
-    if (current?.apiKeyConfigured) {
-      return '已保存，留空表示继续使用当前 Key'
-    }
-    return '请输入 API Key'
+    return selectedConfig.value?.apiKeyConfigured
+      ? '已保存，留空表示继续使用当前 Key'
+      : '请输入 API Key'
   })
   const modelOptions = computed(() => modelOptionsByRole.value[activeRole.value] || [])
   const modelsFetchedAt = computed(() => modelsFetchedAtByRole.value[activeRole.value])
@@ -93,146 +87,165 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     return (modelOptionsByRole.value.EMBEDDING || [])
       .filter(model => model.capability === 'EMBEDDING' || model.capability === 'UNKNOWN')
   })
+  const isLoadingModelConfig = computed(() => currentState.value.loading)
+  const isSavingModelConfig = computed(() => currentState.value.saving)
+  const isActivating = computed(() => currentState.value.activating)
+  const isDeleting = computed(() => currentState.value.deleting)
+  const error = computed(() => currentState.value.error)
 
-  async function fetchModelConfig({ force = true } = {}) {
-    if (!force && (activeChatConfig.value || isLoadingModelConfig.value)) {
-      return
-    }
+  async function fetchModelConfig() {
+    await refreshActiveSummary()
+  }
 
-    isLoadingModelConfig.value = true
-    error.value = ''
-    message.value = ''
-
-    try {
-      const [active, chats, embeddings] = await Promise.all([
-        getActiveModelConfigs(),
-        listModelConfigs(ROLES.CHAT),
-        listModelConfigs(ROLES.EMBEDDING)
-      ])
-      activeChatConfig.value = active.chat
-      activeEmbeddingConfig.value = active.embedding
-      chatConfigs.value = chats || []
-      embeddingConfigs.value = embeddings || []
-      syncPristineDrafts()
-    } catch (err) {
-      error.value = `模型配置读取失败：${err.message}`
-    } finally {
-      isLoadingModelConfig.value = false
+  async function ensureModelConfigLoaded() {
+    if (!activeSummary.value.chat || !activeSummary.value.embedding) {
+      await refreshActiveSummary()
     }
   }
 
-  function ensureModelConfigLoaded() {
-    if (activeChatConfig.value && activeEmbeddingConfig.value) {
-      syncPristineDrafts()
-      return Promise.resolve()
-    }
-    return fetchModelConfig({ force: false })
+  async function enterModelSettings() {
+    activeRole.value = ROLES.CHAT
+    return await loadRoleSettings(ROLES.CHAT, { showMask: true })
   }
 
-  function switchRole(role) {
+  async function initializeEditor() {
+    if (!currentState.value.loaded) {
+      return await loadRoleSettings(activeRole.value, { showMask: true })
+    }
+    return roleSnapshot(activeRole.value)
+  }
+
+  async function reloadEditor() {
+    return await loadRoleSettings(activeRole.value, { showMask: true })
+  }
+
+  async function switchRole(role) {
     activeRole.value = role
-    error.value = ''
+    form.value = roleState.value[role].form
     message.value = ''
-    if (!touchedByRole.value[role]) {
-      syncDraftFromConfig(activeConfigForRole.value || configsByRole(role).value[0] || defaultForm(role))
-    }
+    return await loadRoleSettings(role, { showMask: true })
+  }
+
+  function selectActiveConfig(role = activeRole.value) {
+    activeRole.value = role
+    applySelectedConfig(role, activeConfigFor(role))
   }
 
   function startCreate(role = activeRole.value) {
     activeRole.value = role
-    editingIdByRole.value[role] = null
-    draftByRole.value[role] = defaultForm(role)
-    touchedByRole.value[role] = true
+    const state = roleState.value[role]
+    state.selectedConfig = null
+    replaceRoleForm(role, defaultForm(role))
+    state.error = ''
+    state.revision += 1
     visibleApiKeyByRole.value[role] = false
-    error.value = ''
     message.value = ''
   }
 
   function editConfig(config) {
+    if (!config) {
+      return
+    }
     activeRole.value = config.role
-    editingIdByRole.value[config.role] = config.id
-    syncDraftFromConfig(config)
-    touchedByRole.value[config.role] = false
+    applySelectedConfig(config.role, config)
+    roleState.value[config.role].error = ''
     visibleApiKeyByRole.value[config.role] = false
-    error.value = ''
     message.value = ''
   }
 
-  async function saveModelConfig() {
-    const searchStore = useSearchStore()
+  function markFormTouched() {
+    // 新 store 不再依赖 touched 状态。保留此方法是为了兼容模板事件绑定。
+  }
+
+  async function saveModelConfig(formOverride = null) {
     const role = activeRole.value
-    isSavingModelConfig.value = true
-    error.value = ''
+    const state = roleState.value[role]
+    const searchStore = useSearchStore()
+    state.saving = true
+    state.error = ''
     message.value = ''
 
     try {
-      const id = editingIdByRole.value[role]
-      const saved = id
-        ? await requestUpdateModelConfig(id, payload(role))
-        : await requestCreateModelConfig(payload(role))
-      await refreshRole(role)
-      editConfig(saved)
+      const payload = formPayload(role, formOverride)
+      const snapshot = state.selectedConfig?.id
+        ? await updateSettingsModelConfig(state.selectedConfig.id, payload)
+        : await createSettingsModelConfig(payload)
+      applySnapshot(snapshot)
       message.value = `${roleLabel.value}配置已保存`
       if (role === ROLES.EMBEDDING) {
         message.value += '。Embedding 维度或模型变化后，请按需重建索引。'
         await searchStore.fetchIndexStatus()
       }
+      return snapshot
     } catch (err) {
-      error.value = `保存失败：${err.message}`
+      state.error = `保存失败：${err.message}`
+      return null
     } finally {
-      isSavingModelConfig.value = false
+      state.saving = false
     }
   }
 
   async function activateConfig(config) {
+    if (!config) {
+      return
+    }
+    const role = config.role
+    const state = roleState.value[role]
     const searchStore = useSearchStore()
-    isActivating.value = true
-    error.value = ''
+    state.activating = true
+    state.error = ''
     message.value = ''
 
     try {
-      const activated = await requestActivateModelConfig(config.id)
-      await refreshRole(activated.role)
-      if (activated.role === ROLES.EMBEDDING) {
+      const snapshot = await activateSettingsModelConfig(config.id)
+      applySnapshot(snapshot)
+      if (role === ROLES.EMBEDDING) {
         await searchStore.fetchIndexStatus()
-        message.value = 'Embedding 配置已激活。模型或维度变化后，请按需重建索引。'
+        message.value = 'Embedding 配置已启用。模型或维度变化后，请按需重建索引。'
       } else {
-        message.value = '对话模型配置已激活'
+        message.value = '对话模型配置已启用'
       }
+      return snapshot
     } catch (err) {
-      error.value = `激活失败：${err.message}`
+      state.error = `启用失败：${err.message}`
+      return null
     } finally {
-      isActivating.value = false
+      state.activating = false
     }
   }
 
   async function removeConfig(config) {
-    isDeleting.value = true
-    error.value = ''
+    if (!config) {
+      return
+    }
+    const role = config.role
+    const state = roleState.value[role]
+    state.deleting = true
+    state.error = ''
     message.value = ''
 
     try {
-      await requestDeleteModelConfig(config.id)
-      await refreshRole(config.role)
-      if (editingIdByRole.value[config.role] === config.id) {
-        startCreate(config.role)
-      }
+      const snapshot = await deleteSettingsModelConfig(config.id)
+      applySnapshot(snapshot)
       message.value = '模型配置已删除'
+      return snapshot
     } catch (err) {
-      error.value = `删除失败：${err.message}`
+      state.error = `删除失败：${err.message}`
+      return null
     } finally {
-      isDeleting.value = false
+      state.deleting = false
     }
   }
 
-  async function fetchModels() {
+  async function fetchModels(formOverride = null) {
     const role = activeRole.value
+    const state = roleState.value[role]
     isFetchingModels.value = true
-    error.value = ''
+    state.error = ''
     message.value = ''
 
     try {
-      const result = await requestFetchModelOptions(payload(role))
+      const result = await requestFetchModelOptions(formPayload(role, formOverride))
       modelOptionsByRole.value[role] = result.models || []
       modelsFetchedAtByRole.value[role] = result.fetchedAt || Date.now()
       autoSelectModel(role)
@@ -240,22 +253,24 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
         ? `已获取 ${modelOptionsByRole.value[role].length} 个模型`
         : '模型列表为空，可继续手动输入模型 ID'
     } catch (err) {
-      error.value = `获取模型失败：${err.message}`
+      state.error = `获取模型失败：${err.message}`
     } finally {
       isFetchingModels.value = false
     }
   }
 
-  async function testModelConfig() {
+  async function testModelConfig(formOverride = null) {
+    const role = activeRole.value
+    const state = roleState.value[role]
     isTestingModelConfig.value = true
-    error.value = ''
+    state.error = ''
     message.value = ''
 
     try {
-      const result = await requestTestModelConfig(payload(activeRole.value))
+      const result = await requestTestModelConfig(formPayload(role, formOverride))
       message.value = result.message || '模型连接测试成功'
     } catch (err) {
-      error.value = `连接测试失败：${err.message}`
+      state.error = `连接测试失败：${err.message}`
     } finally {
       isTestingModelConfig.value = false
     }
@@ -266,20 +281,101 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     if (!option) {
       return
     }
-
-    form.value.provider = option.value
-    form.value.displayName = option.displayName
-    form.value.baseUrl = option.baseUrl
-    modelOptionsByRole.value[activeRole.value] = []
-    markFormTouched()
-
-    form.value.modelName = activeRole.value === ROLES.CHAT ? 'qwen-plus' : 'text-embedding-v4'
+    const role = activeRole.value
+    const state = roleState.value[role]
+    replaceRoleForm(role, {
+      ...form.value,
+      provider: option.value,
+      displayName: option.displayName,
+      baseUrl: option.baseUrl,
+      modelName: role === ROLES.CHAT ? 'qwen-plus' : 'text-embedding-v4'
+    })
+    modelOptionsByRole.value[role] = []
+    state.error = ''
     message.value = ''
-    error.value = ''
   }
 
-  function payload(role = activeRole.value) {
-    const current = draftByRole.value[role]
+  function toggleApiKeyVisible(role = activeRole.value) {
+    visibleApiKeyByRole.value[role] = !visibleApiKeyByRole.value[role]
+  }
+
+  async function copyApiKey(formOverride = null, role = activeRole.value) {
+    const apiKey = formOverride
+      ? formOverride.apiKey
+      : role === activeRole.value
+        ? form.value.apiKey
+        : roleState.value[role].form.apiKey
+    if (!apiKey) {
+      roleState.value[role].error = '当前没有可复制的 API Key'
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(apiKey)
+      message.value = 'API Key 已复制'
+      roleState.value[role].error = ''
+    } catch (err) {
+      roleState.value[role].error = `复制失败：${err.message}`
+    }
+  }
+
+  async function refreshActiveSummary() {
+    const active = await getActiveModelConfigs()
+    activeSummary.value = {
+      chat: active?.chat || null,
+      embedding: active?.embedding || null
+    }
+  }
+
+  async function loadRoleSettings(role, { showMask = false } = {}) {
+    const state = roleState.value[role]
+    if (showMask) {
+      state.loading = true
+    }
+    state.error = ''
+    message.value = ''
+
+    try {
+      const snapshot = await getModelConfigSettings(role)
+      applySnapshot(snapshot)
+      return snapshot
+    } catch (err) {
+      state.error = `模型配置读取失败：${err.message}`
+      return null
+    } finally {
+      state.loading = false
+    }
+  }
+
+  function applySnapshot(snapshot) {
+    if (!snapshot) {
+      return
+    }
+    activeSummary.value = {
+      chat: snapshot.active?.chat || null,
+      embedding: snapshot.active?.embedding || null
+    }
+    const role = snapshot.role || activeRole.value
+    activeRole.value = role
+    const state = roleState.value[role]
+    state.configs = snapshot.configs || []
+    state.selectedConfig = snapshot.selectedConfig || null
+    replaceRoleForm(role, snapshot.selectedConfig
+      ? formFromConfig(snapshot.selectedConfig)
+      : defaultForm(role))
+    state.loaded = true
+    state.error = ''
+    state.revision += 1
+  }
+
+  function applySelectedConfig(role, config) {
+    const state = roleState.value[role]
+    state.selectedConfig = config || null
+    replaceRoleForm(role, config ? formFromConfig(config) : defaultForm(role))
+    state.revision += 1
+  }
+
+  function formPayload(role = activeRole.value, formOverride = null) {
+    const current = formOverride || (role === activeRole.value ? form.value : roleState.value[role].form)
     return {
       role,
       provider: current.provider,
@@ -287,12 +383,9 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
       baseUrl: current.baseUrl.trim(),
       apiKey: current.apiKey,
       modelName: current.modelName.trim(),
-      chatModel: role === ROLES.CHAT ? current.modelName.trim() : undefined,
-      embeddingModel: role === ROLES.EMBEDDING ? current.modelName.trim() : undefined,
       embeddingDimensions: role === ROLES.EMBEDDING ? Number(current.embeddingDimensions) : undefined,
       temperature: role === ROLES.CHAT ? Number(current.temperature) : undefined,
-      defaultTopK: role === ROLES.CHAT ? Number(current.defaultTopK) : undefined,
-      topK: role === ROLES.CHAT ? Number(current.defaultTopK) : undefined
+      defaultTopK: role === ROLES.CHAT ? Number(current.defaultTopK) : undefined
     }
   }
 
@@ -301,84 +394,43 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
       return
     }
     const options = chatModelOptions.value
-    if (options.length && !options.some(model => model.id === draftByRole.value[role].modelName)) {
-      draftByRole.value[role].modelName = options[0].id
-      touchedByRole.value[role] = true
+    const state = roleState.value[role]
+    if (options.length && !options.some(model => model.id === state.form.modelName)) {
+      replaceRoleForm(role, {
+        ...state.form,
+        modelName: options[0].id
+      })
     }
   }
 
-  function markFormTouched() {
-    touchedByRole.value[activeRole.value] = true
+  function activeConfigFor(role) {
+    return role === ROLES.CHAT ? activeSummary.value.chat : activeSummary.value.embedding
   }
 
-  function toggleApiKeyVisible(role = activeRole.value) {
-    visibleApiKeyByRole.value[role] = !visibleApiKeyByRole.value[role]
-  }
-
-  async function copyApiKey(role = activeRole.value) {
-    const apiKey = draftByRole.value[role].apiKey
-    if (!apiKey) {
-      error.value = '当前没有可复制的 API Key'
-      return
-    }
-    try {
-      await navigator.clipboard.writeText(apiKey)
-      message.value = 'API Key 已复制'
-      error.value = ''
-    } catch (err) {
-      error.value = `复制失败：${err.message}`
+  function replaceRoleForm(role, nextForm) {
+    // 模型设置页右侧表单必须只有一个当前编辑对象。Pinia setup store 中
+    // computed 对象再接 v-model 容易出现“列表有数据但表单空”的响应式错位。
+    roleState.value[role].form = nextForm
+    if (role === activeRole.value) {
+      form.value = nextForm
     }
   }
 
-  async function refreshRole(role) {
-    const [active, configs] = await Promise.all([
-      getActiveModelConfigs(),
-      listModelConfigs(role)
-    ])
-    activeChatConfig.value = active.chat
-    activeEmbeddingConfig.value = active.embedding
-    if (role === ROLES.CHAT) {
-      chatConfigs.value = configs || []
-    } else {
-      embeddingConfigs.value = configs || []
+  function roleSnapshot(role) {
+    const state = roleState.value[role]
+    return {
+      active: activeSummary.value,
+      role,
+      configs: state.configs,
+      selectedConfig: state.selectedConfig
     }
-    syncPristineDrafts()
-  }
-
-  function syncPristineDrafts() {
-    for (const role of Object.values(ROLES)) {
-      if (!touchedByRole.value[role]) {
-        syncDraftFromConfig(activeConfig(role) || configsByRole(role).value[0] || defaultForm(role))
-      }
-    }
-  }
-
-  function syncDraftFromConfig(config) {
-    const role = config.role || activeRole.value
-    draftByRole.value[role] = {
-      provider: config.provider || 'DASHSCOPE',
-      displayName: config.displayName || (role === ROLES.CHAT ? 'DashScope Chat' : 'DashScope Embedding'),
-      baseUrl: config.baseUrl || 'https://dashscope.aliyuncs.com/api/v1',
-      apiKey: config.apiKey || '',
-      modelName: config.modelName || (role === ROLES.CHAT ? 'qwen-plus' : 'text-embedding-v4'),
-      embeddingDimensions: config.embeddingDimensions || 1024,
-      temperature: config.temperature ?? 0.7,
-      defaultTopK: config.defaultTopK || 8
-    }
-    editingIdByRole.value[role] = config.id || null
-  }
-
-  function configsByRole(role) {
-    return role === ROLES.CHAT ? chatConfigs : embeddingConfigs
-  }
-
-  function activeConfig(role) {
-    return role === ROLES.CHAT ? activeChatConfig.value : activeEmbeddingConfig.value
   }
 
   return {
     ROLES,
     activeRole,
+    activeSummary,
+    roleState,
     chatConfigs,
     embeddingConfigs,
     activeChatConfig,
@@ -398,7 +450,6 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     error,
     message,
     form,
-    draftByRole,
     editingIdByRole,
     visibleApiKeyByRole,
     providerOptions,
@@ -414,6 +465,10 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     embeddingModelOptions,
     fetchModelConfig,
     ensureModelConfigLoaded,
+    enterModelSettings,
+    initializeEditor,
+    reloadEditor,
+    selectActiveConfig,
     switchRole,
     startCreate,
     editConfig,
@@ -429,6 +484,21 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
   }
 })
 
+function emptyRoleState(role) {
+  return {
+    configs: [],
+    selectedConfig: null,
+    form: defaultForm(role),
+    loaded: false,
+    loading: false,
+    saving: false,
+    deleting: false,
+    activating: false,
+    error: '',
+    revision: 0
+  }
+}
+
 function defaultForm(role) {
   return {
     role,
@@ -437,8 +507,30 @@ function defaultForm(role) {
     baseUrl: 'https://dashscope.aliyuncs.com/api/v1',
     apiKey: '',
     modelName: role === ROLES.CHAT ? 'qwen-plus' : 'text-embedding-v4',
-    embeddingDimensions: 1024,
-    temperature: 0.7,
-    defaultTopK: 8
+    embeddingDimensions: role === ROLES.EMBEDDING ? 1024 : null,
+    temperature: role === ROLES.CHAT ? 0.7 : null,
+    defaultTopK: role === ROLES.CHAT ? 8 : null
+  }
+}
+
+function formFromConfig(config) {
+  const role = config.role || ROLES.CHAT
+  const defaults = defaultForm(role)
+  return {
+    role,
+    provider: config.provider || defaults.provider,
+    displayName: config.displayName || defaults.displayName,
+    baseUrl: config.baseUrl || defaults.baseUrl,
+    apiKey: config.apiKey || '',
+    modelName: config.modelName || defaults.modelName,
+    embeddingDimensions: role === ROLES.EMBEDDING
+      ? (config.embeddingDimensions ?? defaults.embeddingDimensions)
+      : null,
+    temperature: role === ROLES.CHAT
+      ? (config.temperature ?? defaults.temperature)
+      : null,
+    defaultTopK: role === ROLES.CHAT
+      ? (config.defaultTopK ?? defaults.defaultTopK)
+      : null
   }
 }

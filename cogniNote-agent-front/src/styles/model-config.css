@@ -124,6 +124,7 @@
 }
 
 .model-config-editor {
+  position: relative;
   padding: 18px;
 }
 
@@ -131,6 +132,40 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
+}
+
+.field-heading {
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.enable-config-button {
+  min-height: 26px;
+  padding: 0 10px;
+  border: 1px solid rgba(20, 184, 166, 0.42);
+  border-radius: 999px;
+  color: #dffdf9;
+  background: rgba(20, 184, 166, 0.14);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.enable-config-button:hover:not(:disabled),
+.enable-config-button:focus-visible:not(:disabled) {
+  border-color: rgba(94, 234, 212, 0.7);
+  background: rgba(20, 184, 166, 0.22);
+}
+
+.enable-config-button:disabled {
+  border-color: rgba(148, 163, 184, 0.2);
+  color: #8796a8;
+  background: rgba(148, 163, 184, 0.12);
+  cursor: not-allowed;
 }
 
 .model-form__actions {

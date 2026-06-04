@@ -129,7 +129,7 @@ class ModelConfigServiceTests {
     }
 
     @Test
-    void deleteRejectsOnlyActiveConfig() {
+    void deleteOnlyActiveConfigCreatesDefaultFallback() {
         ModelConfig chat = modelConfigService.create(chatRequest(
                 "DASHSCOPE",
                 "Chat A",
@@ -140,9 +140,13 @@ class ModelConfigServiceTests {
                 8
         ));
 
-        assertThatThrownBy(() -> modelConfigService.delete(chat.id()))
-                .isInstanceOf(ModelConfigurationException.class)
-                .hasMessageContaining("Cannot delete");
+        modelConfigService.delete(chat.id());
+
+        ModelConfig fallback = modelConfigService.activeChatOrDefault();
+        assertThat(fallback.active()).isTrue();
+        assertThat(fallback.role()).isEqualTo(ModelConfigRole.CHAT);
+        assertThat(fallback.modelName()).isEqualTo(ModelConfigDefaults.CHAT_MODEL);
+        assertThat(fallback.hasApiKey()).isFalse();
     }
 
     @Test

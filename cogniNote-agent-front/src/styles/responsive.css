@@ -5,6 +5,7 @@
   .workspace-header,
   .chat-layout,
   .module-nav,
+  .knowledge-split,
   .ingest-form,
   .knowledge-folder-import,
   .search-form,
@@ -30,6 +31,22 @@
 
   .knowledge-folder-import {
     grid-template-columns: 1fr;
+  }
+
+  .knowledge-split {
+    height: auto;
+    min-height: 0;
+  }
+
+  .knowledge-pane {
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .knowledge-folder-import__actions,
+  .search-form__controls {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .folder-actions {

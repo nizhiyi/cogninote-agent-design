@@ -5,9 +5,14 @@ import com.itqianchen.agentdesign.domain.model.ModelConfigDefaults;
 import com.itqianchen.agentdesign.domain.model.ModelConfigRole;
 import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
 import com.itqianchen.agentdesign.domain.model.ModelProvider;
+import com.itqianchen.agentdesign.dto.model.ActiveModelConfigsResponse;
 import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
+import com.itqianchen.agentdesign.dto.model.ModelConfigResponse;
+import com.itqianchen.agentdesign.dto.model.ModelConfigSettingsResponse;
+import com.itqianchen.agentdesign.dto.model.ModelConfigUpsertRequest;
 import com.itqianchen.agentdesign.repository.model.ModelConfigRepository;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +30,13 @@ public class ModelConfigService {
         return modelConfigRepository.findAll(role).stream()
                 .map(ModelConfigService::normalizeLoadedConfig)
                 .toList();
+    }
+
+    @Transactional
+    public ModelConfigSettingsResponse settingsSnapshot(ModelConfigRole role) {
+        ensureRoleHasActiveConfig(ModelConfigRole.CHAT);
+        ensureRoleHasActiveConfig(ModelConfigRole.EMBEDDING);
+        return settingsSnapshot(role, Optional.empty());
     }
 
     public ModelConfig activeChatOrDefault() {
@@ -83,6 +95,12 @@ public class ModelConfigService {
     }
 
     @Transactional
+    public ModelConfigSettingsResponse createSettings(ModelConfigUpsertRequest request) {
+        ModelConfig created = create(request.toModelConfigRequest());
+        return settingsSnapshot(created.role(), Optional.of(created.id()));
+    }
+
+    @Transactional
     public ModelConfig update(String id, ModelConfigRequest request) {
         ModelConfig existing = modelConfigRepository.findById(id)
                 .orElseThrow(() -> new ModelConfigurationException("Model config not found: " + id));
@@ -103,26 +121,43 @@ public class ModelConfigService {
     }
 
     @Transactional
+    public ModelConfigSettingsResponse updateSettings(String id, ModelConfigUpsertRequest request) {
+        ModelConfig updated = update(id, request.toModelConfigRequest());
+        return settingsSnapshot(updated.role(), Optional.of(updated.id()));
+    }
+
+    @Transactional
     public ModelConfig activate(String id) {
         return modelConfigRepository.activate(id, System.currentTimeMillis());
+    }
+
+    @Transactional
+    public ModelConfigSettingsResponse activateSettings(String id) {
+        ModelConfig activated = activate(id);
+        return settingsSnapshot(activated.role(), Optional.of(activated.id()));
     }
 
     @Transactional
     public void delete(String id) {
         ModelConfig config = modelConfigRepository.findById(id)
                 .orElseThrow(() -> new ModelConfigurationException("Model config not found: " + id));
-        if (config.active() && modelConfigRepository.countByRole(config.role()) <= 1) {
-            throw new ModelConfigurationException("Cannot delete the only active " + roleLabel(config.role()) + " config");
-        }
         modelConfigRepository.delete(id);
         ensureRoleHasActiveConfig(config.role());
+    }
+
+    @Transactional
+    public ModelConfigSettingsResponse deleteSettings(String id) {
+        ModelConfig config = modelConfigRepository.findById(id)
+                .orElseThrow(() -> new ModelConfigurationException("Model config not found: " + id));
+        delete(id);
+        return settingsSnapshot(config.role(), Optional.empty());
     }
 
     private void ensureRoleHasActiveConfig(ModelConfigRole role) {
         List<ModelConfig> remaining = modelConfigRepository.findAll(role);
         if (remaining.isEmpty()) {
-            // 并发删除可能绕过“删除前计数”检查。这里兜底创建默认配置，
-            // 保证 Chat/Embedding 任一角色都不会进入无配置、无 active 的坏状态。
+            // 模型设置页不能进入“无配置、无 active”的坏状态。删除某个角色最后一条配置时，
+            // 立即补一条默认 active 草稿，让前端永远能拿到可显示的 selectedConfig。
             modelConfigRepository.save(defaultConfig(role, true));
             return;
         }
@@ -154,6 +189,28 @@ public class ModelConfigService {
         ModelConfig chat = modelConfigRepository.save(mergeLegacyChatRequest(request, activeChatOrDefault(), now));
         modelConfigRepository.save(mergeLegacyEmbeddingRequest(request, activeEmbeddingOrDefault(), now));
         return chat;
+    }
+
+    private ModelConfigSettingsResponse settingsSnapshot(ModelConfigRole role, Optional<String> preferredSelectedId) {
+        List<ModelConfig> configs = list(role);
+        ModelConfig selected = preferredSelectedId
+                .flatMap(id -> configs.stream().filter(config -> config.id().equals(id)).findFirst())
+                .or(() -> configs.stream().filter(ModelConfig::active).findFirst())
+                .or(() -> configs.stream().findFirst())
+                .orElse(null);
+        return new ModelConfigSettingsResponse(
+                activeConfigsResponse(),
+                role.name(),
+                configs.stream().map(ModelConfigResponse::from).toList(),
+                selected == null ? null : ModelConfigResponse.from(selected)
+        );
+    }
+
+    private ActiveModelConfigsResponse activeConfigsResponse() {
+        return new ActiveModelConfigsResponse(
+                ModelConfigResponse.from(activeChatOrDefault()),
+                ModelConfigResponse.from(activeEmbeddingOrDefault())
+        );
     }
 
     private static ModelConfig mergeRequest(

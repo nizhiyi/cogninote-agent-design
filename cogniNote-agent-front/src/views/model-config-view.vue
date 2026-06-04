@@ -1,20 +1,59 @@
 <script setup>
+import { onMounted } from 'vue'
 import StatGrid from '../components/stat-grid.vue'
 import { useModelConfigStore } from '../stores/model-config'
 import { formatTime } from '../utils/formatters'
 
 const modelConfigStore = useModelConfigStore()
 
-function roleConfigs(role) {
-  return role === modelConfigStore.ROLES.CHAT
-    ? modelConfigStore.chatConfigs
-    : modelConfigStore.embeddingConfigs
-}
+onMounted(() => {
+  loadInitialSettings()
+})
 
 function roleActiveConfig(role) {
   return role === modelConfigStore.ROLES.CHAT
     ? modelConfigStore.activeChatConfig
     : modelConfigStore.activeEmbeddingConfig
+}
+
+async function loadInitialSettings() {
+  await modelConfigStore.initializeEditor()
+}
+
+async function handleSwitchRole(role) {
+  await modelConfigStore.switchRole(role)
+}
+
+function handleStartCreate() {
+  modelConfigStore.startCreate()
+}
+
+function handleEditConfig(config) {
+  modelConfigStore.editConfig(config)
+}
+
+async function handleReload() {
+  await modelConfigStore.reloadEditor()
+}
+
+async function handleSave() {
+  await modelConfigStore.saveModelConfig()
+}
+
+async function handleActivate() {
+  await modelConfigStore.activateConfig(modelConfigStore.selectedConfig)
+}
+
+async function handleRemove() {
+  await modelConfigStore.removeConfig(modelConfigStore.selectedConfig)
+}
+
+function providerLabel(provider) {
+  return modelConfigStore.providerOptions.find(option => option.value === provider)?.label || provider
+}
+
+function handleProviderChange() {
+  modelConfigStore.changeProvider(modelConfigStore.form.provider)
 }
 </script>
 
@@ -25,19 +64,19 @@ function roleActiveConfig(role) {
         <button
           type="button"
           :class="{ active: modelConfigStore.activeRole === modelConfigStore.ROLES.CHAT }"
-          @click="modelConfigStore.switchRole(modelConfigStore.ROLES.CHAT)"
+          @click="handleSwitchRole(modelConfigStore.ROLES.CHAT)"
         >
           对话模型
         </button>
         <button
           type="button"
           :class="{ active: modelConfigStore.activeRole === modelConfigStore.ROLES.EMBEDDING }"
-          @click="modelConfigStore.switchRole(modelConfigStore.ROLES.EMBEDDING)"
+          @click="handleSwitchRole(modelConfigStore.ROLES.EMBEDDING)"
         >
           Embedding 模型
         </button>
       </div>
-      <button class="primary-button" type="button" @click="modelConfigStore.startCreate()">
+      <button class="primary-button" type="button" @click="handleStartCreate">
         新建{{ modelConfigStore.roleLabel }}
       </button>
     </header>
@@ -62,7 +101,7 @@ function roleActiveConfig(role) {
           class="model-config-item"
           :class="{ active: modelConfigStore.editingIdByRole[config.role] === config.id }"
           type="button"
-          @click="modelConfigStore.editConfig(config)"
+          @click="handleEditConfig(config)"
         >
           <span class="model-config-item__title">
             <strong>{{ config.displayName }}</strong>
@@ -81,7 +120,7 @@ function roleActiveConfig(role) {
           class="model-form"
           @input="modelConfigStore.markFormTouched"
           @change="modelConfigStore.markFormTouched"
-          @submit.prevent="modelConfigStore.saveModelConfig"
+          @submit.prevent="handleSave"
         >
           <label class="field">
             <span>配置名称</span>
@@ -89,10 +128,21 @@ function roleActiveConfig(role) {
           </label>
 
           <label class="field">
-            <span>Provider</span>
+            <span class="field-heading">
+              <span>Provider</span>
+              <button
+                v-if="modelConfigStore.isEditingExisting"
+                class="enable-config-button"
+                type="button"
+                :disabled="modelConfigStore.selectedConfig?.active || modelConfigStore.isActivating"
+                @click="handleActivate"
+              >
+                {{ modelConfigStore.selectedConfig?.active ? '已启用' : (modelConfigStore.isActivating ? '启用中...' : '启用') }}
+              </button>
+            </span>
             <select
               v-model="modelConfigStore.form.provider"
-              @change="modelConfigStore.changeProvider(modelConfigStore.form.provider)"
+              @change="handleProviderChange"
             >
               <option
                 v-for="provider in modelConfigStore.providerOptions"
@@ -110,8 +160,8 @@ function roleActiveConfig(role) {
               v-model="modelConfigStore.form.baseUrl"
               type="url"
               autocomplete="off"
-              :readonly="!modelConfigStore.isOpenAiCompatible"
-              :placeholder="modelConfigStore.isOpenAiCompatible
+              :readonly="modelConfigStore.form.provider !== 'OPENAI_COMPATIBLE'"
+              :placeholder="modelConfigStore.form.provider === 'OPENAI_COMPATIBLE'
                 ? 'https://api.example.com/v1'
                 : 'https://dashscope.aliyuncs.com/api/v1'"
             />
@@ -167,17 +217,17 @@ function roleActiveConfig(role) {
 
           <label v-if="modelConfigStore.activeRole === modelConfigStore.ROLES.EMBEDDING" class="field">
             <span>Embedding 维度</span>
-            <input v-model="modelConfigStore.form.embeddingDimensions" type="number" min="1" max="8192" />
+            <input v-model.number="modelConfigStore.form.embeddingDimensions" type="number" min="1" max="8192" />
           </label>
 
           <label v-if="modelConfigStore.activeRole === modelConfigStore.ROLES.CHAT" class="field">
             <span>Temperature</span>
-            <input v-model="modelConfigStore.form.temperature" type="number" min="0" max="2" step="0.1" />
+            <input v-model.number="modelConfigStore.form.temperature" type="number" min="0" max="2" step="0.1" />
           </label>
 
           <label v-if="modelConfigStore.activeRole === modelConfigStore.ROLES.CHAT" class="field">
             <span>默认 Top K</span>
-            <input v-model="modelConfigStore.form.defaultTopK" type="number" min="1" max="50" />
+            <input v-model.number="modelConfigStore.form.defaultTopK" type="number" min="1" max="50" />
           </label>
 
           <div class="model-form__actions">
@@ -185,7 +235,7 @@ function roleActiveConfig(role) {
               class="secondary-button"
               type="button"
               :disabled="modelConfigStore.isFetchingModels"
-              @click="modelConfigStore.fetchModels"
+              @click="modelConfigStore.fetchModels()"
             >
               {{ modelConfigStore.isFetchingModels ? '获取中...' : '获取模型' }}
             </button>
@@ -196,25 +246,16 @@ function roleActiveConfig(role) {
               class="secondary-button"
               type="button"
               :disabled="modelConfigStore.isTestingModelConfig"
-              @click="modelConfigStore.testModelConfig"
+              @click="modelConfigStore.testModelConfig()"
             >
               {{ modelConfigStore.isTestingModelConfig ? '测试中...' : '测试连接' }}
-            </button>
-            <button
-              v-if="modelConfigStore.isEditingExisting && !modelConfigStore.selectedConfig?.active"
-              class="secondary-button"
-              type="button"
-              :disabled="modelConfigStore.isActivating"
-              @click="modelConfigStore.activateConfig(modelConfigStore.selectedConfig)"
-            >
-              激活
             </button>
             <button
               v-if="modelConfigStore.isEditingExisting"
               class="secondary-button danger-button"
               type="button"
               :disabled="modelConfigStore.isDeleting"
-              @click="modelConfigStore.removeConfig(modelConfigStore.selectedConfig)"
+              @click="handleRemove"
             >
               删除
             </button>
@@ -222,7 +263,7 @@ function roleActiveConfig(role) {
               class="secondary-button"
               type="button"
               :disabled="modelConfigStore.isLoadingModelConfig"
-              @click="modelConfigStore.fetchModelConfig"
+              @click="handleReload"
             >
               重新读取
             </button>
@@ -237,7 +278,7 @@ function roleActiveConfig(role) {
           :columns="6"
           :items="[
             { label: '当前类型', value: modelConfigStore.roleLabel },
-            { label: 'Provider', value: modelConfigStore.providerLabel },
+            { label: 'Provider', value: providerLabel(modelConfigStore.form.provider) },
             { label: 'Base URL', value: modelConfigStore.form.baseUrl, mono: true },
             { label: 'API Key', value: modelConfigStore.form.apiKey ? '已填写' : '未配置' },
             { label: '模型', value: modelConfigStore.form.modelName },

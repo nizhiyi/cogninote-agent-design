@@ -24,6 +24,26 @@ export function activateModelConfig(id) {
   return requestJson(`/api/model-configs/${encodeURIComponent(id)}/activate`, jsonOptions('POST', {}))
 }
 
+export function getModelConfigSettings(role) {
+  return requestJson(`/api/model-configs/settings?role=${encodeURIComponent(role)}`)
+}
+
+export function createSettingsModelConfig(payload) {
+  return requestJson('/api/model-configs/settings/configs', jsonOptions('POST', payload))
+}
+
+export function updateSettingsModelConfig(id, payload) {
+  return requestJson(`/api/model-configs/settings/configs/${encodeURIComponent(id)}`, jsonOptions('PUT', payload))
+}
+
+export function deleteSettingsModelConfig(id) {
+  return requestJson(`/api/model-configs/settings/configs/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
+export function activateSettingsModelConfig(id) {
+  return requestJson(`/api/model-configs/settings/configs/${encodeURIComponent(id)}/activate`, jsonOptions('POST', {}))
+}
+
 export function testModelConfig(payload) {
   return requestJson('/api/model-configs/test', jsonOptions('POST', payload))
 }

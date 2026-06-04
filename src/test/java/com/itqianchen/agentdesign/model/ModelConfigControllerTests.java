@@ -1,15 +1,18 @@
 package com.itqianchen.agentdesign.model;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -24,6 +27,15 @@ class ModelConfigControllerTests {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @BeforeEach
+    void clearDatabase() {
+        jdbcTemplate.update("DELETE FROM model_configs");
+        jdbcTemplate.update("DELETE FROM model_config");
+    }
 
     @Test
     void fetchModelsRequiresApiKeyAndReturnsUnifiedError() throws Exception {
@@ -58,6 +70,69 @@ class ModelConfigControllerTests {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.chat.role").value("CHAT"))
                 .andExpect(jsonPath("$.data.embedding.role").value("EMBEDDING"));
+    }
+
+    @Test
+    void settingsSnapshotReturnsActiveSummaryAndSelectedConfig() throws Exception {
+        mockMvc.perform(get("/api/model-configs/settings").param("role", "CHAT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.role").value("CHAT"))
+                .andExpect(jsonPath("$.data.active.chat.role").value("CHAT"))
+                .andExpect(jsonPath("$.data.active.embedding.role").value("EMBEDDING"))
+                .andExpect(jsonPath("$.data.selectedConfig.role").value("CHAT"));
+    }
+
+    @Test
+    void settingsCreateReturnsCreatedConfigAsSelected() throws Exception {
+        mockMvc.perform(post("/api/model-configs/settings/configs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "role": "CHAT",
+                                  "provider": "OPENAI_COMPATIBLE",
+                                  "displayName": "Chat Settings",
+                                  "baseUrl": "https://api.example.test/v1",
+                                  "apiKey": "sk-test",
+                                  "modelName": "gpt-test",
+                                  "temperature": 0.4,
+                                  "defaultTopK": 6
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.role").value("CHAT"))
+                .andExpect(jsonPath("$.data.selectedConfig.displayName").value("Chat Settings"))
+                .andExpect(jsonPath("$.data.selectedConfig.temperature").value(0.4))
+                .andExpect(jsonPath("$.data.selectedConfig.defaultTopK").value(6));
+    }
+
+    @Test
+    void settingsDeleteOnlyConfigReturnsFallbackSelectedConfig() throws Exception {
+        String body = mockMvc.perform(post("/api/model-configs/settings/configs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "role": "EMBEDDING",
+                                  "provider": "DASHSCOPE",
+                                  "displayName": "Embedding Settings",
+                                  "baseUrl": "https://dashscope.aliyuncs.com/api/v1",
+                                  "apiKey": "",
+                                  "modelName": "text-embedding-v4",
+                                  "embeddingDimensions": 1024
+                                }
+                                """))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String id = com.jayway.jsonpath.JsonPath.read(body, "$.data.selectedConfig.id");
+
+        mockMvc.perform(delete("/api/model-configs/settings/configs/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.role").value("EMBEDDING"))
+                .andExpect(jsonPath("$.data.selectedConfig.role").value("EMBEDDING"))
+                .andExpect(jsonPath("$.data.selectedConfig.active").value(true));
     }
 
     @Test

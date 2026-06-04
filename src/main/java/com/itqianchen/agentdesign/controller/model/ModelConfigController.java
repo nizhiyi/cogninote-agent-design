@@ -9,7 +9,9 @@ import com.itqianchen.agentdesign.dto.model.ActiveModelConfigsResponse;
 import com.itqianchen.agentdesign.dto.model.LegacyModelConfigResponse;
 import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
 import com.itqianchen.agentdesign.dto.model.ModelConfigResponse;
+import com.itqianchen.agentdesign.dto.model.ModelConfigSettingsResponse;
 import com.itqianchen.agentdesign.dto.model.ModelConfigTestResponse;
+import com.itqianchen.agentdesign.dto.model.ModelConfigUpsertRequest;
 import com.itqianchen.agentdesign.dto.model.ModelOptionsResponse;
 import com.itqianchen.agentdesign.service.model.ModelCatalogService;
 import com.itqianchen.agentdesign.service.model.ModelConfigService;
@@ -55,6 +57,36 @@ public class ModelConfigController {
                 ModelConfigResponse.from(modelConfigService.activeChatOrDefault()),
                 ModelConfigResponse.from(modelConfigService.activeEmbeddingOrDefault())
         ));
+    }
+
+    @GetMapping("/api/model-configs/settings")
+    public ApiResponse<ModelConfigSettingsResponse> settingsSnapshot(@RequestParam String role) {
+        return ApiResponse.ok(modelConfigService.settingsSnapshot(parseRole(role)));
+    }
+
+    @PostMapping("/api/model-configs/settings/configs")
+    public ApiResponse<ModelConfigSettingsResponse> createSettingsConfig(
+            @Valid @RequestBody ModelConfigUpsertRequest request
+    ) {
+        return ApiResponse.ok(modelConfigService.createSettings(request));
+    }
+
+    @PutMapping("/api/model-configs/settings/configs/{id}")
+    public ApiResponse<ModelConfigSettingsResponse> updateSettingsConfig(
+            @PathVariable String id,
+            @Valid @RequestBody ModelConfigUpsertRequest request
+    ) {
+        return ApiResponse.ok(modelConfigService.updateSettings(id, request));
+    }
+
+    @DeleteMapping("/api/model-configs/settings/configs/{id}")
+    public ApiResponse<ModelConfigSettingsResponse> deleteSettingsConfig(@PathVariable String id) {
+        return ApiResponse.ok(modelConfigService.deleteSettings(id));
+    }
+
+    @PostMapping("/api/model-configs/settings/configs/{id}/activate")
+    public ApiResponse<ModelConfigSettingsResponse> activateSettingsConfig(@PathVariable String id) {
+        return ApiResponse.ok(modelConfigService.activateSettings(id));
     }
 
     @PostMapping("/api/model-configs")

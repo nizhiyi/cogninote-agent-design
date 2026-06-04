@@ -45,8 +45,14 @@
   - `POST /api/model-configs/{id}/activate`
   - `POST /api/model-configs/test`
   - `POST /api/model-configs/models`
+- 设置页专用快照 API：
+  - `GET /api/model-configs/settings?role=CHAT|EMBEDDING`
+  - `POST /api/model-configs/settings/configs`
+  - `PUT /api/model-configs/settings/configs/{id}`
+  - `DELETE /api/model-configs/settings/configs/{id}`
+  - `POST /api/model-configs/settings/configs/{id}/activate`
 - 旧 `/api/model-config` 暂时保留为 deprecated 兼容接口，前端本阶段切到新 API。
-- 删除规则：不能删除某个 role 的唯一 active 配置；删除 active 配置时必须保证同 role 仍有可激活配置。
+- 删除规则：settings 删除接口允许删除唯一配置，但会自动补一条默认 active 草稿，保证设置页始终能拿到 `selectedConfig`；旧 CRUD 删除后也会确保该 role 仍有 active 配置。
 - 对迁移逻辑、active 唯一性、API Key 复用、DashScope/OpenAI-compatible URL 规范、Embedding 降级路径添加中文维护注释。
 
 ## Frontend Changes
@@ -58,13 +64,12 @@
   - 对话模型不显示 Embedding 维度。
   - Embedding 模型不显示 Temperature 和默认 Top K。
   - Embedding 模型使用用户输入模型 ID，不强制下拉选择。
-- Pinia `model-config` store 重构为：
-  - `chatConfigs`
-  - `embeddingConfigs`
-  - `activeChatConfig`
-  - `activeEmbeddingConfig`
-  - `draftByRole`
-  - `modelOptionsByRole`
+- Pinia `model-config` store 重构为设置页快照模型：
+  - `activeSummary` 保存顶部 Active Chat / Active Embedding。
+  - `roleState.CHAT` 和 `roleState.EMBEDDING` 分别保存 `configs/selectedConfig/form/loading/saving/deleting/activating/error`。
+  - 右侧表单直接绑定单一 `form`，不在组件内再维护第二份编辑表单。
+  - 设置页切到“模型”时加载 `CHAT` 快照，点击 “Embedding 模型” 时加载 `EMBEDDING` 快照。
+  - 模型页不使用整块 loading 遮罩，避免页签切换闪烁；请求失败保留旧表单并显示错误。
 - 聊天页展示 active Chat / active Embedding 摘要，不再认为只有一个模型配置。
 - 保存或激活 Embedding 配置后刷新索引状态，并提示用户如维度或模型变化，建议重建索引。
 
@@ -94,10 +99,15 @@
   - 激活 Embedding 模型不会覆盖对话配置。
   - API Key 显示、隐藏、复制可用。
   - 刷新设置页后 active 配置和列表正常回显。
-- 整包：
-  - `mvn -Pwith-frontend package` 通过。
-  - `.\scripts\build-desktop-app.ps1 -SkipTests` 通过。
-  - 桌面应用中设置页、聊天页、RAG 流程可用。
+- 本阶段不做桌面整包打包验收；桌面打包属于单独交付验证。
+
+## Validation Status
+
+- 2026-06-04：模型设置页在 Vue dev server + Spring Boot 后端的浏览器环境中已由用户手测通过。
+- 已验证进入模型设置页时 Active Chat / Active Embedding、左侧配置列表、右侧表单能正常回显。
+- 已验证切换 `对话模型` 与 `Embedding 模型` 后，Temperature、默认 Top K、Embedding 维度等 role-specific 字段能按当前启用配置显示。
+- 已移除模型设置区的整块加载遮罩，避免切换设置页时闪烁。
+- 本阶段不执行桌面整包打包验证。
 
 ## Assumptions
 
@@ -106,4 +116,4 @@
 - 每条模型配置独立保存 API Key，不做共享凭据表。
 - Top K 保留为对话模型默认值；聊天输入区仍可临时覆盖。
 - Embedding 模型切换后不自动重建索引，只提示用户手动重建。
-- 旧 `/api/model-config` 保留一个阶段作为兼容接口，但新前端全部使用 `/api/model-configs`。
+- 旧 `/api/model-config` 保留一个阶段作为兼容接口；模型设置页使用 `/api/model-configs/settings...` 快照接口。

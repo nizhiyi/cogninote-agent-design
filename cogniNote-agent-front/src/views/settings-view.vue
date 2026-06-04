@@ -41,7 +41,8 @@ function loadActiveSectionData(section) {
   }
 
   if (section === 'model') {
-    modelConfigStore.fetchModelConfig()
+    modelConfigStore.enterModelSettings()
+    return
   }
 }
 </script>

@@ -283,11 +283,19 @@ DELETE /api/model-configs/{id}
 POST   /api/model-configs/{id}/activate
 POST   /api/model-configs/test
 POST   /api/model-configs/models
+
+GET    /api/model-configs/settings?role=CHAT|EMBEDDING
+POST   /api/model-configs/settings/configs
+PUT    /api/model-configs/settings/configs/{id}
+DELETE /api/model-configs/settings/configs/{id}
+POST   /api/model-configs/settings/configs/{id}/activate
 ```
 
 第五阶段先把模型配置页做扎实：用户选择 `DASHSCOPE` 时使用默认百炼通道，配置页展示 `https://dashscope.aliyuncs.com/api/v1`；选择 `OPENAI_COMPATIBLE` 时输入自定义 Base URL，后端按 `Base URL + /models`、`Base URL + /chat/completions`、`Base URL + /embeddings` 调用通用接口。
 
 第八阶段把单个 active 模型配置拆成多配置中心：`CHAT` 和 `EMBEDDING` 独立维护、独立激活。RAG 回答读取 active Chat 配置；文档向量化、向量检索和混合检索读取 active Embedding 配置。旧 `/api/model-config` 只作为过渡兼容接口保留。
+
+模型设置页使用 settings 快照接口作为页面事实来源：顶部 Active 卡片、左侧配置列表和右侧编辑表单由同一份 `ModelConfigSettingsResponse` 驱动。前端 `model-config` store 只保留一个当前编辑 `form`，不要在组件内再复制第二份表单状态；否则容易出现“列表和 Active 有数据，但右侧表单没有回显”的状态分叉。设置页切到“模型”时默认加载 `CHAT` 快照，点击 “Embedding 模型” 时再加载 `EMBEDDING` 快照。模型页不显示整块加载遮罩，避免页签切换时闪烁刺眼。
 
 API Key 第四、五阶段仍以开发态明文保存到 SQLite；本地加密或 Windows 凭据管理放到安全加固阶段，不能在最终交付版本继续明文保存。
 
@@ -368,6 +376,14 @@ Lucene 混合检索
 - 自动拉取模型列表
 - 为对话模型配置 Temperature 和默认 Top K
 - 为 Embedding 模型配置维度
+
+模型配置页的数据流：
+
+- `settings-view` 切到“模型”页签时调用 `enterModelSettings()`，默认读取 `CHAT` 快照。
+- `model-config-view` 挂载时调用 `initializeEditor()` 兜底，避免直接刷新 `/model-config` 时没有数据。
+- 点击 `对话模型` / `Embedding 模型` 页签时分别请求对应 role 的 settings 快照。
+- 点击左侧配置时只把该配置复制进当前 `form`，不请求后端。
+- 保存、启用、删除后用后端返回的 settings 快照刷新 Active 卡片、配置列表和右侧表单。
 
 ### 6.5 前端工程结构
 

@@ -71,6 +71,18 @@ Base URL + /embeddings
 
 保存或激活 Embedding 配置后，如果模型或维度发生变化，需要在知识库中手动重建索引。系统不会自动重建旧向量，避免用户不知情地产生大量外部模型调用。
 
+## 前端回显规则
+
+模型设置页使用后端 settings 快照作为页面事实来源：
+
+- 进入“设置 -> 模型”时加载 `GET /api/model-configs/settings?role=CHAT`。
+- 点击“Embedding 模型”时加载 `GET /api/model-configs/settings?role=EMBEDDING`。
+- 顶部 Active 卡片来自快照里的 `active.chat` 和 `active.embedding`。
+- 左侧配置列表来自快照里的 `configs`。
+- 右侧表单来自快照里的 `selectedConfig`，并直接绑定前端 store 的单一 `form`。
+
+如果请求失败，页面不会清空已有表单，只显示错误并允许用户重新读取。模型页不显示整块加载遮罩，避免切换设置页时出现闪烁。
+
 ## API Key 处理
 
 当前开发阶段 API Key 明文保存到：
