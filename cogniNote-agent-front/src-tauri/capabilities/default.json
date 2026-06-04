@@ -3,6 +3,5 @@
   "identifier": "default",
   "description": "Default desktop capability for CogniNote.",
   "windows": ["main"],
-  "permissions": []
+  "permissions": ["dialog:default", "core:default"]
 }
-

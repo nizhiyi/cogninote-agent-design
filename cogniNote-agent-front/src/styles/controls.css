@@ -152,9 +152,16 @@ textarea:focus-visible {
 }
 
 .primary-button:disabled,
-.secondary-button:disabled {
+.secondary-button:disabled,
+.text-button:disabled {
   cursor: not-allowed;
   opacity: 0.65;
+}
+
+.text-button:disabled:hover,
+.text-button:disabled:focus-visible {
+  color: #9a3412;
+  background: transparent;
 }
 
 .collapse-button {

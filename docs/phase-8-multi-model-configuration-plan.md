@@ -2,7 +2,7 @@
 
 ## Summary
 
-第八阶段聚焦“多模型配置中心”。当前单条 `active model_config` 会被重构为多条模型配置，且对话模型和 Embedding 模型独立维护、独立激活、独立测试。原计划中的 SQLite 聊天记忆已继续顺延为第十阶段；第九阶段先处理运行截图暴露出的 UI 视觉可读性与主题系统问题。
+第八阶段聚焦“多模型配置中心”。当前单条 `active model_config` 会被重构为多条模型配置，且对话模型和 Embedding 模型独立维护、独立激活、独立测试。原计划中的 SQLite 聊天记忆已继续顺延为第十一阶段；第九阶段先处理运行截图暴露出的 UI 视觉可读性与主题系统问题，第十阶段改做知识库目录管理与局部索引重建。
 
 本阶段计划文件落地路径：`docs/phase-8-multi-model-configuration-plan.md`。
 
@@ -71,7 +71,7 @@
 ## Documentation Changes
 
 - 新增本计划文件：`docs/phase-8-multi-model-configuration-plan.md`。
-- 原 SQLite 聊天记忆调整为 Phase 10，Phase 9 改为 UI 视觉可读性与主题系统修正。
+- 原 SQLite 聊天记忆调整为 Phase 11，Phase 9 改为 UI 视觉可读性与主题系统修正，Phase 10 改为知识库目录管理与局部索引重建。
 - 更新 `docs/phase-7-chat-ui-refactor-plan.md` 中关于第八阶段的描述。
 - 更新 `docs/cogninote-agent-design.md` 里程碑顺序、API、表结构和模型配置说明。
 - 更新 `docs/model-configuration-guide.md` 和 `docs/api-reference.md`。
@@ -102,7 +102,7 @@
 ## Assumptions
 
 - 第八阶段只做多模型配置，不做 SQLite 聊天记忆。
-- 原计划 SQLite 聊天记忆顺延为第十阶段。
+- 原计划 SQLite 聊天记忆顺延为第十一阶段。
 - 每条模型配置独立保存 API Key，不做共享凭据表。
 - Top K 保留为对话模型默认值；聊天输入区仍可临时覆盖。
 - Embedding 模型切换后不自动重建索引，只提示用户手动重建。

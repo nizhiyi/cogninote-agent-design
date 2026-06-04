@@ -48,6 +48,7 @@ impl Drop for BackendProcess {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![pick_knowledge_folder])
         .setup(setup_desktop)
         .on_window_event(|window, event| {
             if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
@@ -56,6 +57,14 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("failed to run CogniNote desktop shell");
+}
+
+#[tauri::command]
+fn pick_knowledge_folder(app: AppHandle) -> Option<String> {
+    app.dialog()
+        .file()
+        .blocking_pick_folder()
+        .map(|path| path.to_string())
 }
 
 fn setup_desktop(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {

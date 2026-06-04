@@ -21,8 +21,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,6 +59,37 @@ public class DocumentIngestionService {
     }
 
     public IngestDocumentsResponse ingestFolder(String folderPath, boolean recursive) {
+        return ingestFolder(folderPath, recursive, null);
+    }
+
+    public IngestDocumentsResponse ingestKnowledgeFolder(String knowledgeFolderId, String folderPath, boolean recursive) {
+        if (knowledgeFolderId == null || knowledgeFolderId.isBlank()) {
+            throw new DocumentParseException("Knowledge folder id is required");
+        }
+        return ingestFolder(folderPath, recursive, knowledgeFolderId, FailedDocumentPolicy.REPLACE_WITH_FAILED_RECORD);
+    }
+
+    public IngestDocumentsResponse rebuildKnowledgeFolder(String knowledgeFolderId, String folderPath, boolean recursive) {
+        if (knowledgeFolderId == null || knowledgeFolderId.isBlank()) {
+            throw new DocumentParseException("Knowledge folder id is required");
+        }
+        /*
+         * 目录重建是维护动作，不能因为某个文件临时不可读就覆盖旧的 PARSED/chunks。
+         * SQLite 是事实来源，失败文件会返回给调用方并写日志，旧解析结果继续保留。
+         */
+        return ingestFolder(folderPath, recursive, knowledgeFolderId, FailedDocumentPolicy.PRESERVE_EXISTING_RECORD);
+    }
+
+    private IngestDocumentsResponse ingestFolder(String folderPath, boolean recursive, String knowledgeFolderId) {
+        return ingestFolder(folderPath, recursive, knowledgeFolderId, FailedDocumentPolicy.REPLACE_WITH_FAILED_RECORD);
+    }
+
+    private IngestDocumentsResponse ingestFolder(
+            String folderPath,
+            boolean recursive,
+            String knowledgeFolderId,
+            FailedDocumentPolicy failedDocumentPolicy
+    ) {
         Path folder = Path.of(folderPath).toAbsolutePath().normalize();
         if (!Files.isDirectory(folder)) {
             throw new DocumentParseException("Folder does not exist or is not a directory: " + folder);
@@ -65,10 +98,23 @@ public class DocumentIngestionService {
         List<Path> files = scanSupportedFiles(folder, recursive);
         IngestAccumulator accumulator = new IngestAccumulator(files.size());
         for (Path file : files) {
-            ingestFile(file, accumulator);
+            ingestFile(file, accumulator, knowledgeFolderId, failedDocumentPolicy);
         }
 
         return accumulator.toResponse();
+    }
+
+    public Set<String> scanDocumentIds(String folderPath, boolean recursive) {
+        Path folder = Path.of(folderPath).toAbsolutePath().normalize();
+        if (!Files.isDirectory(folder)) {
+            throw new DocumentParseException("Folder does not exist or is not a directory: " + folder);
+        }
+
+        Set<String> documentIds = new LinkedHashSet<>();
+        for (Path file : scanSupportedFiles(folder, recursive)) {
+            documentIds.add(documentIdentity.idForPath(file.toAbsolutePath().normalize().toString()));
+        }
+        return documentIds;
     }
 
     private List<Path> scanSupportedFiles(Path folder, boolean recursive) {
@@ -84,7 +130,12 @@ public class DocumentIngestionService {
         }
     }
 
-    private void ingestFile(Path file, IngestAccumulator accumulator) {
+    private void ingestFile(
+            Path file,
+            IngestAccumulator accumulator,
+            String knowledgeFolderId,
+            FailedDocumentPolicy failedDocumentPolicy
+    ) {
         Path normalizedFile = file.toAbsolutePath().normalize();
         Optional<FileType> optionalFileType = FileType.fromFileName(normalizedFile.getFileName().toString());
         if (optionalFileType.isEmpty()) {
@@ -99,6 +150,7 @@ public class DocumentIngestionService {
             Optional<KnowledgeDocument> existing = documentRepository.findById(documentId);
 
             if (existing.isPresent() && isUnchanged(existing.get(), metadata)) {
+                assignKnowledgeFolderIfNeeded(existing.get(), knowledgeFolderId, now);
                 if (existing.get().indexedAt() == null) {
                     // SQLite 已有解析结果但索引缺失时，跳过重新解析，只补 Lucene 索引。
                     indexExistingDocument(documentId);
@@ -115,6 +167,7 @@ public class DocumentIngestionService {
 
             KnowledgeDocument document = new KnowledgeDocument(
                     documentId,
+                    knowledgeFolderId,
                     normalizedFile.toString(),
                     normalizedFile.getFileName().toString(),
                     fileType,
@@ -132,8 +185,20 @@ public class DocumentIngestionService {
             indexParsedDocument(toIndexedDocument(document, chunks));
             accumulator.parsedCount++;
         } catch (RuntimeException ex) {
-            recordFailure(normalizedFile, fileType, now, ex, accumulator);
+            recordFailure(normalizedFile, fileType, knowledgeFolderId, now, ex, accumulator, failedDocumentPolicy);
         }
+    }
+
+    private void assignKnowledgeFolderIfNeeded(KnowledgeDocument existing, String knowledgeFolderId, long now) {
+        if (knowledgeFolderId == null || knowledgeFolderId.isBlank() || knowledgeFolderId.equals(existing.knowledgeFolderId())) {
+            return;
+        }
+
+        /*
+         * 用户把历史导入过的目录重新作为“知识库文件夹”导入时，文件内容通常没变。
+         * 这类文件会走 skip 分支，所以必须在这里补目录归属，否则页面目录下会缺少这些旧文档。
+         */
+        documentRepository.updateKnowledgeFolderId(existing.id(), knowledgeFolderId, now);
     }
 
     private FileMetadata readMetadata(Path path) {
@@ -176,42 +241,54 @@ public class DocumentIngestionService {
     private void recordFailure(
             Path normalizedFile,
             FileType fileType,
+            String knowledgeFolderId,
             long now,
             RuntimeException ex,
-            IngestAccumulator accumulator
+            IngestAccumulator accumulator,
+            FailedDocumentPolicy failedDocumentPolicy
     ) {
         String documentId = documentIdentity.idForPath(normalizedFile.toString());
-        long fileSize = safeFileSize(normalizedFile);
-        long lastModified = safeLastModified(normalizedFile);
-        String contentHash = safeContentHash(normalizedFile);
 
-        KnowledgeDocument failedDocument = new KnowledgeDocument(
-                documentId,
-                normalizedFile.toString(),
-                normalizedFile.getFileName().toString(),
-                fileType,
-                fileSize,
-                lastModified,
-                contentHash,
-                DocumentStatus.FAILED,
-                null,
-                existingCreatedAtOrNow(documentId, now),
-                now,
-                0
-        );
+        if (failedDocumentPolicy == FailedDocumentPolicy.REPLACE_WITH_FAILED_RECORD) {
+            long fileSize = safeFileSize(normalizedFile);
+            long lastModified = safeLastModified(normalizedFile);
+            String contentHash = safeContentHash(normalizedFile);
 
-        try {
-            ingestionPersistence.replaceFailedDocument(failedDocument);
-        } catch (RuntimeException persistenceEx) {
-            // 即使 SQLite 无法写入 FAILED 标记，也要把解析失败反馈给调用方。
-            // 批量导入不能因为单个失败记录持久化异常而整体中断。
-            log.warn("document_failure_record_failed documentId={} fileName={}",
+            KnowledgeDocument failedDocument = new KnowledgeDocument(
+                    documentId,
+                    knowledgeFolderId,
+                    normalizedFile.toString(),
+                    normalizedFile.getFileName().toString(),
+                    fileType,
+                    fileSize,
+                    lastModified,
+                    contentHash,
+                    DocumentStatus.FAILED,
+                    null,
+                    existingCreatedAtOrNow(documentId, now),
+                    now,
+                    0
+            );
+
+            try {
+                ingestionPersistence.replaceFailedDocument(failedDocument);
+            } catch (RuntimeException persistenceEx) {
+                // 即使 SQLite 无法写入 FAILED 标记，也要把解析失败反馈给调用方。
+                // 批量导入不能因为单个失败记录持久化异常而整体中断。
+                log.warn("document_failure_record_failed documentId={} fileName={}",
+                        documentId,
+                        normalizedFile.getFileName(),
+                        persistenceEx
+                );
+            }
+            deleteDocumentIndex(documentId);
+        } else {
+            log.warn("document_rebuild_parse_failed_preserve_existing documentId={} fileName={}",
                     documentId,
                     normalizedFile.getFileName(),
-                    persistenceEx
+                    ex
             );
         }
-        deleteDocumentIndex(documentId);
         accumulator.failedCount++;
         accumulator.failures.add(new IngestFailureResponse(normalizedFile.toString(), ex.getMessage()));
     }
@@ -298,6 +375,11 @@ public class DocumentIngestionService {
     }
 
     private record FileMetadata(long fileSize, long lastModified, String contentHash) {
+    }
+
+    private enum FailedDocumentPolicy {
+        REPLACE_WITH_FAILED_RECORD,
+        PRESERVE_EXISTING_RECORD
     }
 
     private static class IngestAccumulator {

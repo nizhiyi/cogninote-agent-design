@@ -326,10 +326,10 @@ Lucene 混合检索
 - 输入区右侧放置对话设置按钮和发送/停止图标按钮，避免设置项挤压文本框。
 - 对话设置通过右侧浮层展开，包含“使用知识库”、关键词/向量/混合检索模式和 Top K。
 - 对话设置浮层由独立 `chat-settings-popover.vue` 维护，只通过 `props -> emit -> chat store setter` 更新状态；不要让原生 checkbox / number input 直接 `v-model` 到 Pinia store，避免浮层摘要、表单控件和当前会话设置分叉。
-- “使用知识库”在界面上使用受控 switch 表达。关闭后第七至第九阶段不发送纯对话请求，只提示纯模型对话会在第十阶段接入。
+- “使用知识库”在界面上使用受控 switch 表达。关闭后第七至第十阶段不发送纯对话请求，只提示纯模型对话会在第十一阶段接入。
 - `conversationId` 只作为 SSE 协议内部字段，不在前端界面显示。
 
-第七阶段的会话是前端运行期临时状态，刷新页面后不承诺恢复。真正跨重启聊天记忆顺延到第十阶段，通过 SQLite 会话表和消息表实现。
+第七阶段的会话是前端运行期临时状态，刷新页面后不承诺恢复。真正跨重启聊天记忆顺延到第十一阶段，通过 SQLite 会话表和消息表实现。
 
 ### 6.2 设置页
 
@@ -347,11 +347,13 @@ Lucene 混合检索
 
 核心功能：
 
-- 添加本地文件夹
-- 查看已索引文档
-- 查看索引状态
-- 手动重新索引
-- 删除文档索引
+- 通过桌面文件夹选择器或手动路径导入本地目录
+- SQLite 保存知识库目录记录，文档按目录分组展示
+- 文件夹支持展开/收起，查看该目录下的文档、chunks 和索引状态
+- 文件夹支持启用/停用；停用后清理 Lucene 条目但保留 SQLite 解析结果
+- 文件夹支持局部重建，只重新扫描和重建该目录索引
+- 删除文件夹只删除应用内目录、文档、chunks 和索引记录，不删除用户本机原始文件
+- 旧版本散落文档显示在“未归属文档”区域，不自动猜测归属目录
 
 ### 6.4 模型配置
 
@@ -433,6 +435,7 @@ SQLite 保存结构化业务数据和 RAG 需要回读的 Chunk 内容。
 ```sql
 CREATE TABLE documents (
     id TEXT PRIMARY KEY,
+    knowledge_folder_id TEXT,
     source_path TEXT NOT NULL,
     file_name TEXT NOT NULL,
     file_type TEXT NOT NULL,
@@ -443,6 +446,18 @@ CREATE TABLE documents (
     indexed_at INTEGER,
     created_at INTEGER,
     updated_at INTEGER
+);
+
+CREATE TABLE knowledge_folders (
+    id TEXT PRIMARY KEY,
+    folder_path TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    recursive INTEGER NOT NULL DEFAULT 1,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    last_ingested_at INTEGER,
+    last_indexed_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
 );
 
 CREATE TABLE chunks (
@@ -474,6 +489,8 @@ CREATE TABLE model_configs (
     updated_at INTEGER NOT NULL
 );
 ```
+
+`knowledge_folders` 是第十阶段新增的知识库目录表。`documents.knowledge_folder_id` 只记录明确通过目录导入产生的归属；历史散落文档不自动猜测目录，继续作为未归属文档保留。
 
 `chunks.content` 会额外占用一份解析后的文本空间，这是有意设计。
 
@@ -579,6 +596,12 @@ GET    /api/documents
 POST   /api/documents/ingest
 DELETE /api/documents/{id}
 
+GET    /api/knowledge-folders
+POST   /api/knowledge-folders/import
+POST   /api/knowledge-folders/{id}/rebuild
+PATCH  /api/knowledge-folders/{id}/enabled
+DELETE /api/knowledge-folders/{id}
+
 GET    /api/index/status
 POST   /api/index/rebuild
 POST   /api/search
@@ -595,7 +618,7 @@ POST   /api/model-configs/models
 POST   /api/chat/stream
 ```
 
-普通 JSON API 统一返回 `ApiResponse<T>`。`POST /api/chat/stream` 使用 SSE 流式返回，不做 JSON 响应包装；`DELETE /api/documents/{id}` 成功时返回 `204 No Content`。
+普通 JSON API 统一返回 `ApiResponse<T>`。`POST /api/chat/stream` 使用 SSE 流式返回，不做 JSON 响应包装；`DELETE /api/documents/{id}`、`PATCH /api/knowledge-folders/{id}/enabled` 和 `DELETE /api/knowledge-folders/{id}` 成功时返回 `204 No Content`。
 
 ## 11. 开发里程碑
 
@@ -675,7 +698,16 @@ POST   /api/chat/stream
 - 重构对话设置浮层视觉和状态绑定，避免开关、Top K 输入与摘要状态不一致
 - 通过截图验收主要页面在日间/夜间主题下的可读性
 
-### Milestone 10：SQLite 聊天记忆
+### Milestone 10：知识库目录管理与局部索引重建
+
+- 新增 `knowledge_folders` 表，保存导入目录、递归扫描和启用状态
+- 文档按知识库目录分组展示，保留未归属文档区域
+- 支持目录导入、启用/停用、删除和单目录重建
+- 停用目录立即从搜索/RAG 中消失，但保留 SQLite 解析数据
+- 删除目录不删除用户本机原始文件
+- 桌面环境接入系统文件夹选择器，浏览器开发态保留手动路径输入
+
+### Milestone 11：SQLite 聊天记忆
 
 - SQLite 保存会话和消息
 - 支持纯模型对话与 RAG 对话切换

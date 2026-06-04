@@ -6,6 +6,7 @@
   .chat-layout,
   .module-nav,
   .ingest-form,
+  .knowledge-folder-import,
   .search-form,
   .model-form,
   .model-options-grid,
@@ -21,9 +22,18 @@
 
   .source-row,
   .document-row,
+  .knowledge-folder-header,
   .index-toolbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .knowledge-folder-import {
+    grid-template-columns: 1fr;
+  }
+
+  .folder-actions {
+    justify-content: flex-start;
   }
 
   .desktop-shell {

@@ -49,6 +49,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.FSDirectory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -57,6 +59,7 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
 
     private static final int PREVIEW_LIMIT = 260;
     private static final int MIN_HYBRID_CANDIDATES = 20;
+    private static final Logger log = LoggerFactory.getLogger(LuceneKnowledgeStore.class);
 
     private final DocumentRepository documentRepository;
     private final EmbeddingGateway embeddingGateway;
@@ -100,6 +103,44 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
         } catch (IOException ex) {
             throw new SearchIndexException("Failed to delete document from search index: " + documentId, ex);
         }
+    }
+
+    @Override
+    public synchronized RebuildIndexResponse rebuildByDocumentIds(List<IndexedDocument> documents) {
+        long startedAt = System.currentTimeMillis();
+        long indexedDocumentCount = 0;
+        long indexedChunkCount = 0;
+        long failedDocumentCount = 0;
+        List<String> indexedDocumentIds = new ArrayList<>();
+
+        try {
+            ensureIndexDirectory();
+            try (IndexWriter writer = newWriter()) {
+                for (IndexedDocument document : documents) {
+                    writer.deleteDocuments(new Term(SearchFieldNames.DOCUMENT_ID, document.id()));
+                    try {
+                        addDocumentChunks(writer, document);
+                        indexedDocumentCount++;
+                        indexedChunkCount += document.chunks().size();
+                        indexedDocumentIds.add(document.id());
+                    } catch (RuntimeException ex) {
+                        failedDocumentCount++;
+                        documentRepository.clearIndexed(document.id());
+                        logDocumentRebuildFailure(document, ex);
+                    }
+                }
+                writer.commit();
+            }
+            long indexedAt = System.currentTimeMillis();
+            for (String documentId : indexedDocumentIds) {
+                documentRepository.markIndexed(documentId, indexedAt);
+            }
+        } catch (IOException ex) {
+            throw new SearchIndexException("Failed to rebuild selected documents", ex);
+        }
+
+        long durationMs = System.currentTimeMillis() - startedAt;
+        return new RebuildIndexResponse(indexedDocumentCount, indexedChunkCount, failedDocumentCount, durationMs);
     }
 
     @Override
@@ -161,6 +202,7 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
                     } catch (RuntimeException ex) {
                         failedDocumentCount++;
                         documentRepository.clearIndexed(document.id());
+                        logDocumentRebuildFailure(document, ex);
                     }
                 }
                 writer.commit();
@@ -175,6 +217,11 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
 
         long durationMs = System.currentTimeMillis() - startedAt;
         return new RebuildIndexResponse(indexedDocumentCount, indexedChunkCount, failedDocumentCount, durationMs);
+    }
+
+    private void logDocumentRebuildFailure(IndexedDocument document, RuntimeException ex) {
+        // 单个文档重建失败不应阻断整批索引；SQLite chunks 仍在，后续可再次重建。
+        log.warn("document_rebuild_failed documentId={} fileName={}", document.id(), document.fileName(), ex);
     }
 
     private void replaceDocument(IndexWriter writer, IndexedDocument document) throws IOException {

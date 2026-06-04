@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -23,6 +24,8 @@ public class DocumentRepository {
 
     private static final int CHUNK_INSERT_BATCH_SIZE = 200;
     private static final int MAX_STORED_CHUNK_LOOKUP_SIZE = 500;
+    private static final ResultSetExtractor<List<IndexedDocument>> INDEXED_DOCUMENT_EXTRACTOR =
+            rs -> mapIndexedDocuments(rs);
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -57,25 +60,57 @@ public class DocumentRepository {
     }
 
     public Optional<IndexedDocument> findParsedDocumentForIndexing(String documentId) {
-        return findById(documentId)
-                .filter(document -> document.status() == DocumentStatus.PARSED)
-                .map(document -> new IndexedDocument(
-                        document.id(),
-                        document.sourcePath(),
-                        document.fileName(),
-                        document.fileType(),
-                        findChunksByDocumentId(document.id()).stream()
-                                .map(chunk -> new IndexedChunk(
-                                        chunk.id(),
-                                        chunk.documentId(),
-                                        chunk.chunkIndex(),
-                                        chunk.content(),
-                                        chunk.contentHash(),
-                                        chunk.pageNumber(),
-                                        chunk.heading()
-                                ))
-                                .toList()
-                ));
+        return jdbcTemplate.query("""
+                        SELECT
+                            d.id AS document_id,
+                            d.source_path,
+                            d.file_name,
+                            d.file_type,
+                            c.id AS chunk_id,
+                            c.chunk_index,
+                            c.content,
+                            c.content_hash,
+                            c.page_number,
+                            c.heading
+                        FROM documents d
+                        JOIN chunks c ON c.document_id = d.id
+                        LEFT JOIN knowledge_folders f ON f.id = d.knowledge_folder_id
+                        WHERE d.id = ?
+                          AND d.status = ?
+                          AND (d.knowledge_folder_id IS NULL OR f.enabled = 1)
+                        ORDER BY c.chunk_index ASC
+                        """,
+                INDEXED_DOCUMENT_EXTRACTOR,
+                documentId,
+                DocumentStatus.PARSED.name()
+        ).stream().findFirst();
+    }
+
+    public List<KnowledgeDocument> findByKnowledgeFolderIdOrderByUpdatedAtDesc(String knowledgeFolderId) {
+        return jdbcTemplate.query("""
+                        SELECT d.*, COUNT(c.id) AS chunk_count
+                        FROM documents d
+                        LEFT JOIN chunks c ON c.document_id = d.id
+                        WHERE d.knowledge_folder_id = ?
+                        GROUP BY d.id
+                        ORDER BY d.updated_at DESC
+                        """,
+                (rs, rowNum) -> mapDocument(rs),
+                knowledgeFolderId
+        );
+    }
+
+    public List<KnowledgeDocument> findUnassignedOrderByUpdatedAtDesc() {
+        return jdbcTemplate.query("""
+                        SELECT d.*, COUNT(c.id) AS chunk_count
+                        FROM documents d
+                        LEFT JOIN chunks c ON c.document_id = d.id
+                        WHERE d.knowledge_folder_id IS NULL
+                        GROUP BY d.id
+                        ORDER BY d.updated_at DESC
+                        """,
+                (rs, rowNum) -> mapDocument(rs)
+        );
     }
 
     public List<IndexedDocument> findAllParsedDocumentsForIndexing() {
@@ -93,38 +128,38 @@ public class DocumentRepository {
                             c.heading
                         FROM documents d
                         JOIN chunks c ON c.document_id = d.id
+                        LEFT JOIN knowledge_folders f ON f.id = d.knowledge_folder_id
                         WHERE d.status = ?
+                          AND (d.knowledge_folder_id IS NULL OR f.enabled = 1)
                         ORDER BY d.updated_at DESC, c.chunk_index ASC
                         """,
-                rs -> {
-                    Map<String, IndexedDocumentBuilder> documents = new LinkedHashMap<>();
-                    while (rs.next()) {
-                        String documentId = rs.getString("document_id");
-                        IndexedDocumentBuilder builder = documents.computeIfAbsent(
-                                documentId,
-                                ignored -> new IndexedDocumentBuilder(
-                                        documentId,
-                                        getString(rs, "source_path"),
-                                        getString(rs, "file_name"),
-                                        FileType.valueOf(getString(rs, "file_type"))
-                                )
-                        );
-                        builder.chunks.add(new IndexedChunk(
-                                rs.getString("chunk_id"),
-                                documentId,
-                                rs.getInt("chunk_index"),
-                                rs.getString("content"),
-                                rs.getString("content_hash"),
-                                getNullableInt(rs, "page_number"),
-                                rs.getString("heading")
-                        ));
-                    }
-
-                    return documents.values().stream()
-                            .map(IndexedDocumentBuilder::build)
-                            .toList();
-                },
+                INDEXED_DOCUMENT_EXTRACTOR,
                 DocumentStatus.PARSED.name()
+        );
+    }
+
+    public List<IndexedDocument> findParsedDocumentsForIndexingByKnowledgeFolderId(String knowledgeFolderId) {
+        return jdbcTemplate.query("""
+                        SELECT
+                            d.id AS document_id,
+                            d.source_path,
+                            d.file_name,
+                            d.file_type,
+                            c.id AS chunk_id,
+                            c.chunk_index,
+                            c.content,
+                            c.content_hash,
+                            c.page_number,
+                            c.heading
+                        FROM documents d
+                        JOIN chunks c ON c.document_id = d.id
+                        WHERE d.status = ?
+                          AND d.knowledge_folder_id = ?
+                        ORDER BY d.updated_at DESC, c.chunk_index ASC
+                        """,
+                INDEXED_DOCUMENT_EXTRACTOR,
+                DocumentStatus.PARSED.name(),
+                knowledgeFolderId
         );
     }
 
@@ -163,7 +198,9 @@ public class DocumentRepository {
                             d.source_path
                         FROM chunks c
                         JOIN documents d ON d.id = c.document_id
+                        LEFT JOIN knowledge_folders f ON f.id = d.knowledge_folder_id
                         WHERE c.id IN (%s)
+                          AND (d.knowledge_folder_id IS NULL OR f.enabled = 1)
                         """.formatted(placeholders),
                 (rs, rowNum) -> new StoredChunk(
                         rs.getString("chunk_id"),
@@ -193,11 +230,12 @@ public class DocumentRepository {
     public void upsertDocument(KnowledgeDocument document) {
         jdbcTemplate.update("""
                         INSERT INTO documents (
-                            id, source_path, file_name, file_type, file_size, last_modified,
+                            id, knowledge_folder_id, source_path, file_name, file_type, file_size, last_modified,
                             content_hash, status, indexed_at, created_at, updated_at
                         )
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(id) DO UPDATE SET
+                            knowledge_folder_id = COALESCE(excluded.knowledge_folder_id, documents.knowledge_folder_id),
                             source_path = excluded.source_path,
                             file_name = excluded.file_name,
                             file_type = excluded.file_type,
@@ -209,6 +247,7 @@ public class DocumentRepository {
                             updated_at = excluded.updated_at
                         """,
                 document.id(),
+                document.knowledgeFolderId(),
                 document.sourcePath(),
                 document.fileName(),
                 document.fileType().name(),
@@ -222,12 +261,40 @@ public class DocumentRepository {
         );
     }
 
+    public void updateKnowledgeFolderId(String documentId, String knowledgeFolderId, long updatedAt) {
+        jdbcTemplate.update("""
+                        UPDATE documents
+                        SET knowledge_folder_id = ?, updated_at = ?
+                        WHERE id = ?
+                        """,
+                knowledgeFolderId,
+                updatedAt,
+                documentId
+        );
+    }
+
+    public List<String> findDocumentIdsByKnowledgeFolderId(String knowledgeFolderId) {
+        return jdbcTemplate.query("""
+                        SELECT id
+                        FROM documents
+                        WHERE knowledge_folder_id = ?
+                        ORDER BY updated_at DESC
+                        """,
+                (rs, rowNum) -> rs.getString("id"),
+                knowledgeFolderId
+        );
+    }
+
     public void markIndexed(String documentId, long indexedAt) {
         jdbcTemplate.update("UPDATE documents SET indexed_at = ? WHERE id = ?", indexedAt, documentId);
     }
 
     public void clearIndexed(String documentId) {
         jdbcTemplate.update("UPDATE documents SET indexed_at = NULL WHERE id = ?", documentId);
+    }
+
+    public void clearIndexedByKnowledgeFolderId(String knowledgeFolderId) {
+        jdbcTemplate.update("UPDATE documents SET indexed_at = NULL WHERE knowledge_folder_id = ?", knowledgeFolderId);
     }
 
     public IndexStatistics indexStatistics() {
@@ -237,6 +304,8 @@ public class DocumentRepository {
                             SUM(CASE WHEN status = 'PARSED' AND indexed_at IS NULL THEN 1 ELSE 0 END) AS unindexed_document_count,
                             MAX(indexed_at) AS last_indexed_at
                         FROM documents
+                        LEFT JOIN knowledge_folders f ON f.id = documents.knowledge_folder_id
+                        WHERE documents.knowledge_folder_id IS NULL OR f.enabled = 1
                         """,
                 (rs, rowNum) -> new IndexStatistics(
                         rs.getLong("parsed_document_count"),
@@ -281,9 +350,18 @@ public class DocumentRepository {
         return jdbcTemplate.update("DELETE FROM documents WHERE id = ?", id) > 0;
     }
 
+    public int deleteByKnowledgeFolderId(String knowledgeFolderId) {
+        List<String> documentIds = findDocumentIdsByKnowledgeFolderId(knowledgeFolderId);
+        for (String documentId : documentIds) {
+            jdbcTemplate.update("DELETE FROM chunks WHERE document_id = ?", documentId);
+        }
+        return jdbcTemplate.update("DELETE FROM documents WHERE knowledge_folder_id = ?", knowledgeFolderId);
+    }
+
     private KnowledgeDocument mapDocument(ResultSet rs) throws SQLException {
         return new KnowledgeDocument(
                 rs.getString("id"),
+                rs.getString("knowledge_folder_id"),
                 rs.getString("source_path"),
                 rs.getString("file_name"),
                 FileType.valueOf(rs.getString("file_type")),
@@ -328,6 +406,35 @@ public class DocumentRepository {
         } catch (SQLException ex) {
             throw new IllegalStateException("Failed to read column: " + columnName, ex);
         }
+    }
+
+    private static List<IndexedDocument> mapIndexedDocuments(ResultSet rs) throws SQLException {
+        Map<String, IndexedDocumentBuilder> documents = new LinkedHashMap<>();
+        while (rs.next()) {
+            String documentId = rs.getString("document_id");
+            IndexedDocumentBuilder builder = documents.computeIfAbsent(
+                    documentId,
+                    ignored -> new IndexedDocumentBuilder(
+                            documentId,
+                            getString(rs, "source_path"),
+                            getString(rs, "file_name"),
+                            FileType.valueOf(getString(rs, "file_type"))
+                    )
+            );
+            builder.chunks.add(new IndexedChunk(
+                    rs.getString("chunk_id"),
+                    documentId,
+                    rs.getInt("chunk_index"),
+                    rs.getString("content"),
+                    rs.getString("content_hash"),
+                    getNullableInt(rs, "page_number"),
+                    rs.getString("heading")
+            ));
+        }
+
+        return documents.values().stream()
+                .map(IndexedDocumentBuilder::build)
+                .toList();
     }
 
     private static class IndexedDocumentBuilder {

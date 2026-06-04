@@ -4,6 +4,7 @@ import com.itqianchen.agentdesign.domain.document.KnowledgeDocument;
 
 public record DocumentSummaryResponse(
         String id,
+        String knowledgeFolderId,
         String sourcePath,
         String fileName,
         String fileType,
@@ -19,6 +20,7 @@ public record DocumentSummaryResponse(
     public static DocumentSummaryResponse from(KnowledgeDocument document) {
         return new DocumentSummaryResponse(
                 document.id(),
+                document.knowledgeFolderId(),
                 document.sourcePath(),
                 document.fileName(),
                 document.fileType().name(),

@@ -24,8 +24,22 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
 
     public void initialize() {
         jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS knowledge_folders (
+                    id TEXT PRIMARY KEY,
+                    folder_path TEXT NOT NULL,
+                    display_name TEXT NOT NULL,
+                    recursive INTEGER NOT NULL DEFAULT 1,
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    last_ingested_at INTEGER,
+                    last_indexed_at INTEGER,
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL
+                )
+                """);
+        jdbcTemplate.execute("""
                 CREATE TABLE IF NOT EXISTS documents (
                     id TEXT PRIMARY KEY,
+                    knowledge_folder_id TEXT,
                     source_path TEXT NOT NULL,
                     file_name TEXT NOT NULL,
                     file_type TEXT NOT NULL,
@@ -70,6 +84,7 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
                 """);
         // 旧版本数据库中已经存在 model_config 时，CREATE TABLE 不会补列。
         // 这里显式做轻量迁移，保证用户本地 SQLite 能跟随阶段升级继续使用。
+        addColumnIfMissing("documents", "knowledge_folder_id", "TEXT");
         addColumnIfMissing("model_config", "display_name", "TEXT NOT NULL DEFAULT 'DashScope'");
         addColumnIfMissing("model_config", "base_url",
                 "TEXT NOT NULL DEFAULT 'https://dashscope.aliyuncs.com/api/v1'");
@@ -90,6 +105,9 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
                     updated_at INTEGER NOT NULL
                 )
                 """);
+        jdbcTemplate.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_folders_path ON knowledge_folders(folder_path)");
+        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_folders_enabled ON knowledge_folders(enabled)");
+        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_documents_knowledge_folder_id ON documents(knowledge_folder_id)");
         jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_documents_updated_at ON documents(updated_at DESC)");
         jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_chunks_document_id ON chunks(document_id)");
         jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_model_configs_role ON model_configs(role)");

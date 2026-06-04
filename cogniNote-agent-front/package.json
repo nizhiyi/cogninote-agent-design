@@ -12,6 +12,7 @@
     "desktop:build": "tauri build"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.9.0",
     "lucide-vue-next": "^0.577.0",
     "markdown-it": "^14.2.0",
     "pinia": "^3.0.4",

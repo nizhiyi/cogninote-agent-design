@@ -175,6 +175,11 @@ class RagChatServiceTests {
         }
 
         @Override
+        public RebuildIndexResponse rebuildByDocumentIds(List<IndexedDocument> documents) {
+            return null;
+        }
+
+        @Override
         public SearchResponse search(SearchRequest request) {
             seenModes.add(request.modeOrDefault());
             if (failHybrid && request.modeOrDefault() == SearchMode.HYBRID) {

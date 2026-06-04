@@ -43,7 +43,7 @@ function handleComposerAction() {
       <div v-if="!chatStore.hasMessages" class="empty-chat">
         <p class="eyebrow">开始一次检索增强对话</p>
         <h3>导入资料后，直接问它。</h3>
-        <p>第七阶段先完成对话式前端。左侧会话是临时状态；跨重启聊天记忆会在第十阶段用 SQLite 接上。</p>
+        <p>第七阶段先完成对话式前端。左侧会话是临时状态；跨重启聊天记忆会在第十一阶段用 SQLite 接上。</p>
       </div>
 
       <article
@@ -79,7 +79,7 @@ function handleComposerAction() {
         <textarea
           v-model="chatStore.draft"
           rows="3"
-          :placeholder="chatStore.useKnowledgeBase ? '向知识库提问...' : '纯对话将在第十阶段启用'"
+          :placeholder="chatStore.useKnowledgeBase ? '向知识库提问...' : '纯对话将在第十一阶段启用'"
           :disabled="chatStore.isStreaming"
         ></textarea>
 

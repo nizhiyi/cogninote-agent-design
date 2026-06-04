@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-vue-next'
 import KnowledgeView from './knowledge-view.vue'
 import ModelConfigView from './model-config-view.vue'
 import StatGrid from '../components/stat-grid.vue'
-import { useDocumentsStore } from '../stores/documents'
+import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
 import { useModelConfigStore } from '../stores/model-config'
 import { useSearchStore } from '../stores/search'
 import { useSystemStore } from '../stores/system'
@@ -12,7 +12,7 @@ import { THEME_OPTIONS, useThemeStore } from '../stores/theme'
 
 const systemStore = useSystemStore()
 const searchStore = useSearchStore()
-const documentsStore = useDocumentsStore()
+const knowledgeFoldersStore = useKnowledgeFoldersStore()
 const modelConfigStore = useModelConfigStore()
 const themeStore = useThemeStore()
 const activeSection = ref('system')
@@ -36,7 +36,7 @@ function loadActiveSectionData(section) {
 
   if (section === 'knowledge') {
     searchStore.fetchIndexStatus()
-    documentsStore.fetchDocuments()
+    knowledgeFoldersStore.fetchFolders()
     return
   }
 

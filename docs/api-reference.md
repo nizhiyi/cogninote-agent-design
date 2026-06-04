@@ -32,6 +32,7 @@
 
 - `POST /api/chat/stream` 返回 `text/event-stream`，不包装。
 - `DELETE /api/documents/{id}` 删除成功时返回 `204 No Content`。
+- `PATCH /api/knowledge-folders/{id}/enabled` 和 `DELETE /api/knowledge-folders/{id}` 成功时返回 `204 No Content`。
 
 ## 系统状态
 
@@ -68,6 +69,8 @@ POST /api/documents/ingest
 
 导入成功后会写入 SQLite，并同步更新 Lucene 索引。导入失败的文件会返回失败摘要，不删除用户原始文件。
 
+旧前端或临时脚本仍可使用该接口；当前知识库页面优先使用 `/api/knowledge-folders` 目录管理接口。
+
 ### 删除文档
 
 ```text
@@ -75,6 +78,88 @@ DELETE /api/documents/{id}
 ```
 
 删除 SQLite 中的文档记录和 chunks，并清理 Lucene 中对应索引。不会删除用户原始文件。
+
+## 知识库目录
+
+第十阶段开始，前端知识库页以“知识库目录”为主。SQLite 保存目录记录和文档归属，Lucene 只作为可重建索引。
+
+### 查询知识库目录
+
+```text
+GET /api/knowledge-folders
+```
+
+返回目录列表、每个目录的启用状态、统计信息和文档摘要。历史散落文档会返回在 `unassignedDocuments` 中。
+
+### 导入知识库目录
+
+```text
+POST /api/knowledge-folders/import
+```
+
+请求体：
+
+```json
+{
+  "folderPath": "D:/notes",
+  "recursive": true
+}
+```
+
+后端会创建或更新目录记录，扫描支持的文件，写入/更新 `documents` 和 `chunks`，并同步写入 Lucene。重复导入同一路径会复用已有目录记录。
+
+### 重建单个目录索引
+
+```text
+POST /api/knowledge-folders/{id}/rebuild
+```
+
+只重新扫描该目录并重建该目录下的 Lucene 条目，不影响其他目录。目录重建失败的文件会返回失败摘要并写日志；已有 SQLite 解析结果尽量保留，避免一次重建破坏旧知识库数据。若本地目录中某个旧文件已被删除，重建会删除应用内对应文档/chunks/索引记录，但不触碰用户文件系统。
+
+响应体 `data` 同时包含扫描和索引统计：
+
+```json
+{
+  "scannedCount": 3,
+  "parsedCount": 1,
+  "skippedCount": 1,
+  "failedCount": 1,
+  "failures": [
+    {
+      "sourcePath": "D:/notes/broken.pdf",
+      "message": "Parsed document contains no usable text"
+    }
+  ],
+  "indexedDocumentCount": 2,
+  "indexedChunkCount": 18,
+  "failedDocumentCount": 0,
+  "durationMs": 120
+}
+```
+
+### 启用或停用目录
+
+```text
+PATCH /api/knowledge-folders/{id}/enabled
+```
+
+请求体：
+
+```json
+{
+  "enabled": false
+}
+```
+
+停用目录会清理该目录的 Lucene 条目并把相关文档标记为未索引，使搜索/RAG 立即不再命中该目录；SQLite 目录、文档和 chunks 会保留。重新启用时，后端会从 SQLite chunks 恢复该目录索引。
+
+### 删除目录
+
+```text
+DELETE /api/knowledge-folders/{id}
+```
+
+删除目录记录、关联文档、chunks 和 Lucene 条目。不会删除用户本机原始文件。
 
 ## 检索与索引
 
@@ -92,7 +177,7 @@ GET /api/index/status
 POST /api/index/rebuild
 ```
 
-从 SQLite 中已解析的 chunks 全量重建 Lucene 索引。Lucene 是可重建索引，不是业务事实来源。
+从 SQLite 中已解析的 chunks 全量重建 Lucene 索引。全量重建只处理启用目录和未归属文档；停用目录不会重新进入索引。Lucene 是可重建索引，不是业务事实来源。
 
 ### 搜索
 

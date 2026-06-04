@@ -161,6 +161,7 @@ body {
 .sources-panel,
 .search-hit,
 .document-row,
+.knowledge-folder-card,
 .source-row,
 .index-toolbar,
 .model-config-list,
@@ -361,12 +362,30 @@ body {
 }
 
 .path-text,
+.path-text--index,
 .model-active-summary small,
 .model-config-item small {
   overflow-wrap: anywhere;
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.45;
+}
+
+.index-path-panel > span,
+.folder-toggle-button {
+  color: var(--color-text-strong);
+}
+
+.folder-meta {
+  color: var(--color-text-muted);
+}
+
+.folder-documents {
+  border-color: var(--color-border);
+}
+
+.document-row--nested {
+  background: color-mix(in srgb, var(--color-surface-muted) 48%, transparent);
 }
 
 .model-config-layout {

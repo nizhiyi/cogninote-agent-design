@@ -1,14 +1,19 @@
 <script setup>
-import DocumentList from '../components/document-list.vue'
+import { ChevronDown, ChevronRight, FolderOpen, FolderPlus, RefreshCw, Trash2 } from 'lucide-vue-next'
 import SearchResults from '../components/search-results.vue'
 import SegmentedControl from '../components/segmented-control.vue'
 import StatGrid from '../components/stat-grid.vue'
-import { useDocumentsStore } from '../stores/documents'
+import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
 import { SEARCH_MODES, useSearchStore } from '../stores/search'
-import { formatTime } from '../utils/formatters'
+import { formatFileSize, formatTime } from '../utils/formatters'
 
-const documentsStore = useDocumentsStore()
+const knowledgeStore = useKnowledgeFoldersStore()
 const searchStore = useSearchStore()
+
+async function rebuildAll() {
+  await searchStore.rebuildIndex()
+  await knowledgeStore.fetchFolders()
+}
 </script>
 
 <template>
@@ -22,21 +27,17 @@ const searchStore = useSearchStore()
   />
 
   <section class="index-toolbar">
-    <div>
-      <p class="path-text">{{ searchStore.indexStatus?.indexPath || '索引目录读取中...' }}</p>
+    <div class="index-path-panel">
+      <span>索引目录</span>
+      <p class="path-text path-text--index">{{ searchStore.indexStatus?.indexPath || '索引目录读取中...' }}</p>
       <p class="muted-text">最后索引：{{ formatTime(searchStore.indexStatus?.lastIndexedAt) }}</p>
     </div>
     <div class="header-actions">
       <button class="secondary-button" type="button" :disabled="searchStore.isLoadingIndexStatus" @click="searchStore.fetchIndexStatus">
         刷新索引
       </button>
-      <button
-        class="primary-button"
-        type="button"
-        :disabled="searchStore.isRebuildingIndex"
-        @click="async () => { await searchStore.rebuildIndex(); await documentsStore.fetchDocuments() }"
-      >
-        {{ searchStore.isRebuildingIndex ? '重建中...' : '重建索引' }}
+      <button class="primary-button" type="button" :disabled="searchStore.isRebuildingIndex" @click="rebuildAll">
+        {{ searchStore.isRebuildingIndex ? '重建中...' : '全量重建索引' }}
       </button>
     </div>
   </section>
@@ -49,24 +50,29 @@ const searchStore = useSearchStore()
     <span>耗时 {{ searchStore.rebuildResult.durationMs }} ms</span>
   </div>
 
-  <form class="ingest-form" @submit.prevent="documentsStore.ingestDocuments">
+  <form class="ingest-form knowledge-folder-import" @submit.prevent="knowledgeStore.importFolder">
     <label class="field">
-      <span>本地目录路径</span>
+      <span>本地知识库目录</span>
       <input
-        v-model="documentsStore.folderPath"
+        v-model="knowledgeStore.folderPath"
         type="text"
-        placeholder="例如 D:/notes 或 C:/Users/you/Documents/Notes"
+        placeholder="点击选择文件夹，或手动输入 D:/notes"
         autocomplete="off"
       />
     </label>
 
+    <button class="secondary-button" type="button" @click="knowledgeStore.chooseFolder">
+      <FolderPlus aria-hidden="true" />
+      <span>选择文件夹</span>
+    </button>
+
     <label class="checkbox-field">
-      <input v-model="documentsStore.recursive" type="checkbox" />
-      <span>递归扫描子目录</span>
+      <input v-model="knowledgeStore.recursive" type="checkbox" />
+      <span>递归扫描</span>
     </label>
 
-    <button class="primary-button" type="submit" :disabled="documentsStore.isIngesting">
-      {{ documentsStore.isIngesting ? '导入中...' : '导入目录' }}
+    <button class="primary-button" type="submit" :disabled="knowledgeStore.isImporting">
+      {{ knowledgeStore.isImporting ? '导入中...' : '导入目录' }}
     </button>
   </form>
 
@@ -88,32 +94,158 @@ const searchStore = useSearchStore()
     </button>
   </form>
 
-  <p v-if="documentsStore.documentError" class="error-message">{{ documentsStore.documentError }}</p>
+  <p v-if="knowledgeStore.error" class="error-message">{{ knowledgeStore.error }}</p>
   <p v-if="searchStore.searchError" class="error-message">{{ searchStore.searchError }}</p>
 
-  <div v-if="documentsStore.ingestResult" class="result-strip">
-    <span>扫描 {{ documentsStore.ingestResult.scannedCount }}</span>
-    <span>解析 {{ documentsStore.ingestResult.parsedCount }}</span>
-    <span>跳过 {{ documentsStore.ingestResult.skippedCount }}</span>
-    <span>失败 {{ documentsStore.ingestResult.failedCount }}</span>
+  <div v-if="knowledgeStore.ingestResult" class="result-strip">
+    <span>扫描 {{ knowledgeStore.ingestResult.scannedCount }}</span>
+    <span>解析 {{ knowledgeStore.ingestResult.parsedCount }}</span>
+    <span>跳过 {{ knowledgeStore.ingestResult.skippedCount }}</span>
+    <span>失败 {{ knowledgeStore.ingestResult.failedCount }}</span>
   </div>
+
+  <div v-if="knowledgeStore.rebuildResult" class="result-strip result-strip--three">
+    <span>扫描 {{ knowledgeStore.rebuildResult.scannedCount }}</span>
+    <span>索引文档 {{ knowledgeStore.rebuildResult.indexedDocumentCount }}</span>
+    <span>失败 {{ knowledgeStore.rebuildResult.failedCount + knowledgeStore.rebuildResult.failedDocumentCount }}</span>
+  </div>
+
+  <ul v-if="knowledgeStore.rebuildResult?.failures?.length" class="failure-list">
+    <li v-for="failure in knowledgeStore.rebuildResult.failures" :key="failure.sourcePath">
+      <strong>{{ failure.sourcePath }}</strong>
+      <span>{{ failure.message }}</span>
+    </li>
+  </ul>
 
   <StatGrid
     class="stats-row"
     :items="[
-      { label: '文档记录', value: documentsStore.documents.length },
-      { label: '解析成功', value: documentsStore.stats.parsed },
-      { label: '文本块', value: documentsStore.stats.chunks },
-      { label: '失败记录', value: documentsStore.stats.failed }
+      { label: '知识库目录', value: knowledgeStore.stats.folderCount },
+      { label: '文档记录', value: knowledgeStore.stats.documentCount },
+      { label: '解析成功', value: knowledgeStore.stats.parsed },
+      { label: '文本块', value: knowledgeStore.stats.chunks }
     ]"
   />
 
   <SearchResults :result="searchStore.searchResult" />
 
-  <DocumentList
-    :documents="documentsStore.documents"
-    :is-loading="documentsStore.isLoadingDocuments"
-    @refresh="documentsStore.fetchDocuments"
-    @delete="documentsStore.deleteDocument"
-  />
+  <section class="knowledge-folder-list">
+    <div class="section-title-line">
+      <h3>知识库目录</h3>
+      <button class="secondary-button" type="button" :disabled="knowledgeStore.isLoading" @click="knowledgeStore.fetchFolders">
+        刷新目录
+      </button>
+    </div>
+
+    <p v-if="knowledgeStore.isLoading" class="panel-message">正在读取知识库目录...</p>
+    <p v-else-if="knowledgeStore.folders.length === 0 && knowledgeStore.unassignedDocuments.length === 0" class="panel-message">
+      还没有导入知识库目录。
+    </p>
+
+    <article v-for="folder in knowledgeStore.folders" :key="folder.id" class="knowledge-folder-card">
+      <header class="knowledge-folder-header">
+        <button class="folder-toggle-button" type="button" @click="knowledgeStore.toggleExpanded(folder.id)">
+          <ChevronDown v-if="knowledgeStore.isExpanded(folder.id)" aria-hidden="true" />
+          <ChevronRight v-else aria-hidden="true" />
+          <FolderOpen aria-hidden="true" />
+          <span>{{ folder.displayName }}</span>
+        </button>
+
+        <div class="folder-actions">
+          <button
+            class="secondary-button"
+            type="button"
+            :disabled="knowledgeStore.isFolderBusy(folder.id)"
+            @click="knowledgeStore.toggleFolderEnabled(folder)"
+          >
+            {{ folder.enabled ? '停用' : '启用' }}
+          </button>
+          <button
+            class="secondary-button"
+            type="button"
+            :disabled="knowledgeStore.isFolderBusy(folder.id) || !folder.enabled"
+            @click="knowledgeStore.rebuildFolder(folder.id)"
+          >
+            <RefreshCw aria-hidden="true" />
+            <span>重建</span>
+          </button>
+          <button
+            class="text-button"
+            type="button"
+            :disabled="knowledgeStore.isFolderBusy(folder.id)"
+            @click="knowledgeStore.deleteFolder(folder.id)"
+          >
+            <Trash2 aria-hidden="true" />
+            <span>删除</span>
+          </button>
+        </div>
+      </header>
+
+      <p class="path-text">{{ folder.folderPath }}</p>
+
+      <div class="folder-meta">
+        <span :class="['status-chip', folder.enabled ? 'status-chip--parsed' : 'status-chip--skipped']">
+          {{ folder.enabled ? '已启用' : '已停用' }}
+        </span>
+        <span>{{ folder.documentCount }} 文档</span>
+        <span>{{ folder.chunkCount }} chunks</span>
+        <span>{{ folder.unindexedCount }} 未索引</span>
+        <span>导入 {{ formatTime(folder.lastIngestedAt) }}</span>
+        <span>索引 {{ formatTime(folder.lastIndexedAt) }}</span>
+      </div>
+
+      <div v-if="knowledgeStore.isExpanded(folder.id)" class="folder-documents">
+        <p v-if="folder.documents.length === 0" class="panel-message">该目录下还没有文档记录。</p>
+        <article v-for="document in folder.documents" :key="document.id" class="document-row document-row--nested">
+          <div class="document-main">
+            <div class="document-title-line">
+              <h4>{{ document.fileName }}</h4>
+              <span :class="['status-chip', `status-chip--${document.status.toLowerCase()}`]">
+                {{ document.status }}
+              </span>
+            </div>
+            <p class="path-text">{{ document.sourcePath }}</p>
+            <div class="document-meta">
+              <span>{{ document.fileType }}</span>
+              <span>{{ formatFileSize(document.fileSize) }}</span>
+              <span>{{ document.chunkCount }} chunks</span>
+              <span>索引 {{ formatTime(document.indexedAt) }}</span>
+              <span>{{ formatTime(document.updatedAt) }}</span>
+            </div>
+          </div>
+        </article>
+      </div>
+    </article>
+
+    <article v-if="knowledgeStore.unassignedDocuments.length" class="knowledge-folder-card">
+      <header class="knowledge-folder-header">
+        <button class="folder-toggle-button" type="button" @click="knowledgeStore.toggleExpanded('unassigned')">
+          <ChevronDown v-if="knowledgeStore.isExpanded('unassigned')" aria-hidden="true" />
+          <ChevronRight v-else aria-hidden="true" />
+          <FolderOpen aria-hidden="true" />
+          <span>未归属文档</span>
+        </button>
+      </header>
+      <p class="hint-message">这些是旧版本导入的散落文档。重新导入对应本地目录后，会自动归属到知识库文件夹。</p>
+      <div v-if="knowledgeStore.isExpanded('unassigned')" class="folder-documents">
+        <article v-for="document in knowledgeStore.unassignedDocuments" :key="document.id" class="document-row document-row--nested">
+          <div class="document-main">
+            <div class="document-title-line">
+              <h4>{{ document.fileName }}</h4>
+              <span :class="['status-chip', `status-chip--${document.status.toLowerCase()}`]">
+                {{ document.status }}
+              </span>
+            </div>
+            <p class="path-text">{{ document.sourcePath }}</p>
+            <div class="document-meta">
+              <span>{{ document.fileType }}</span>
+              <span>{{ formatFileSize(document.fileSize) }}</span>
+              <span>{{ document.chunkCount }} chunks</span>
+              <span>索引 {{ formatTime(document.indexedAt) }}</span>
+            </div>
+          </div>
+        </article>
+      </div>
+    </article>
+  </section>
 </template>
