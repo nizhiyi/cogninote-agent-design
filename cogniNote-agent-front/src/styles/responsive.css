@@ -99,9 +99,13 @@
   }
 
   .composer-settings__body {
+    grid-template-columns: 1fr;
     align-items: stretch;
-    flex-direction: column;
     justify-content: flex-start;
+  }
+
+  .topk-field {
+    width: 100%;
   }
 }
 

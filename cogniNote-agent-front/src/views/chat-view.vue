@@ -1,8 +1,8 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { LoaderCircle, Send, SlidersHorizontal } from 'lucide-vue-next'
+import ChatSettingsPopover from '../components/chat-settings-popover.vue'
 import MarkdownRenderer from '../components/markdown-renderer.vue'
-import SegmentedControl from '../components/segmented-control.vue'
 import SourceList from '../components/source-list.vue'
 import { useChatStore } from '../stores/chat'
 import { useModelConfigStore } from '../stores/model-config'
@@ -11,7 +11,6 @@ import { SEARCH_MODES } from '../stores/search'
 const chatStore = useChatStore()
 const modelConfigStore = useModelConfigStore()
 const isComposerSettingsOpen = ref(false)
-const activeModeLabel = computed(() => SEARCH_MODES.find((item) => item.value === chatStore.mode)?.label || chatStore.mode)
 const composerActionTitle = computed(() => (chatStore.isStreaming ? '停止对话' : '发送信息'))
 const activeModelSummary = computed(() => {
   const chat = modelConfigStore.activeChatConfig?.modelName || '未配置对话模型'
@@ -109,26 +108,16 @@ function handleComposerAction() {
           </button>
         </div>
 
-        <div v-if="isComposerSettingsOpen" class="composer-settings-popover">
-          <div class="composer-settings__summary">
-            <span>{{ chatStore.useKnowledgeBase ? '使用知识库' : '纯对话待接入' }}</span>
-            <span>{{ activeModeLabel }}</span>
-            <span>Top K {{ chatStore.topK }}</span>
-          </div>
-
-          <div class="composer-settings__body">
-            <label class="knowledge-toggle">
-              <input v-model="chatStore.useKnowledgeBase" type="checkbox" />
-              <span>使用知识库</span>
-            </label>
-
-            <SegmentedControl v-model="chatStore.mode" :options="SEARCH_MODES" label="RAG 检索模式" />
-            <label class="field field--small">
-              <span>Top K</span>
-              <input v-model="chatStore.topK" type="number" min="1" max="50" />
-            </label>
-          </div>
-        </div>
+        <ChatSettingsPopover
+          v-if="isComposerSettingsOpen"
+          :use-knowledge-base="chatStore.useKnowledgeBase"
+          :mode="chatStore.mode"
+          :top-k="chatStore.topK"
+          :modes="SEARCH_MODES"
+          @update:use-knowledge-base="chatStore.setUseKnowledgeBase"
+          @update:mode="chatStore.setMode"
+          @update:top-k="chatStore.setTopK"
+        />
       </div>
 
       <div class="composer-feedback">

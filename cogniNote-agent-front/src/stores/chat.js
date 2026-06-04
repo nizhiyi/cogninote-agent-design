@@ -2,6 +2,9 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { streamChatAnswer } from '../api/chat-stream'
 
+const DEFAULT_RETRIEVAL_MODE = 'HYBRID'
+const DEFAULT_TOP_K = 8
+
 let localIdSeed = 0
 
 function nextId(prefix) {
@@ -29,19 +32,38 @@ function createSession(title = '新对话') {
     createdAt: Date.now(),
     updatedAt: Date.now(),
     useKnowledgeBase: true,
-    mode: 'HYBRID',
-    topK: 8,
+    mode: DEFAULT_RETRIEVAL_MODE,
+    topK: DEFAULT_TOP_K,
     messages: []
   }
+}
+
+function normalizeKnowledgeBaseFlag(value) {
+  if (typeof value === 'boolean') {
+    return value
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    return normalized !== '' && normalized !== 'false' && normalized !== '0' && normalized !== 'off'
+  }
+  return Boolean(value)
+}
+
+function normalizeTopK(value) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_TOP_K
+  }
+  return Math.min(50, Math.max(1, Math.trunc(parsed)))
 }
 
 export const useChatStore = defineStore('chat', () => {
   const sessions = ref([createSession()])
   const activeSessionId = ref(sessions.value[0].id)
   const draft = ref('')
-  const useKnowledgeBase = ref(true)
-  const mode = ref('HYBRID')
-  const topK = ref(8)
+  const useKnowledgeBaseValue = ref(true)
+  const modeValue = ref(DEFAULT_RETRIEVAL_MODE)
+  const topKValue = ref(DEFAULT_TOP_K)
   const isStreaming = ref(false)
   const error = ref('')
   const abortController = ref(null)
@@ -53,9 +75,45 @@ export const useChatStore = defineStore('chat', () => {
   const activeMessages = computed(() => activeSession.value?.messages || [])
   const hasMessages = computed(() => activeMessages.value.length > 0)
   const canSend = computed(() => draft.value.trim().length > 0 && !isStreaming.value)
+  const useKnowledgeBase = computed({
+    get: () => normalizeKnowledgeBaseFlag(useKnowledgeBaseValue.value),
+    set: (value) => {
+      useKnowledgeBaseValue.value = normalizeKnowledgeBaseFlag(value)
+      syncSessionOptions()
+      if (useKnowledgeBaseValue.value) {
+        error.value = ''
+      }
+    }
+  })
+  const mode = computed({
+    get: () => modeValue.value || DEFAULT_RETRIEVAL_MODE,
+    set: (value) => {
+      modeValue.value = value || DEFAULT_RETRIEVAL_MODE
+      syncSessionOptions()
+    }
+  })
+  const topK = computed({
+    get: () => normalizeTopK(topKValue.value),
+    set: (value) => {
+      topKValue.value = normalizeTopK(value)
+      syncSessionOptions()
+    }
+  })
   const knowledgeDisabledHint = computed(() =>
     useKnowledgeBase.value ? '' : '纯对话将在第十阶段接入后端聊天记忆后启用。'
   )
+
+  function setUseKnowledgeBase(value) {
+    useKnowledgeBase.value = value
+  }
+
+  function setMode(value) {
+    mode.value = value
+  }
+
+  function setTopK(value) {
+    topK.value = value
+  }
 
   function startNewSession() {
     const session = createSession()
@@ -74,9 +132,9 @@ export const useChatStore = defineStore('chat', () => {
       return
     }
     activeSessionId.value = session.id
-    useKnowledgeBase.value = session.useKnowledgeBase
-    mode.value = session.mode
-    topK.value = session.topK
+    useKnowledgeBaseValue.value = normalizeKnowledgeBaseFlag(session.useKnowledgeBase)
+    modeValue.value = session.mode || DEFAULT_RETRIEVAL_MODE
+    topKValue.value = normalizeTopK(session.topK)
     error.value = ''
   }
 
@@ -191,10 +249,14 @@ export const useChatStore = defineStore('chat', () => {
     session.title = question.length > 18 ? `${question.slice(0, 18)}...` : question
   }
 
-  function syncSessionOptions(session) {
+  function syncSessionOptions(session = activeSession.value) {
+    if (!session) {
+      return
+    }
+    // 输入区设置会频繁开关弹层，直接写回当前临时会话，避免 UI 和会话列表状态分叉。
     session.useKnowledgeBase = useKnowledgeBase.value
     session.mode = mode.value
-    session.topK = Number(topK.value)
+    session.topK = topK.value
     session.updatedAt = Date.now()
   }
 
@@ -226,6 +288,9 @@ export const useChatStore = defineStore('chat', () => {
     error,
     canSend,
     knowledgeDisabledHint,
+    setUseKnowledgeBase,
+    setMode,
+    setTopK,
     startNewSession,
     selectSession,
     streamChat,

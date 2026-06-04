@@ -264,10 +264,31 @@ body {
 
 .field span,
 .checkbox-field,
-.knowledge-toggle {
+.knowledge-switch {
   color: var(--color-text-muted);
   font-size: 14px;
   font-weight: 650;
+}
+
+.knowledge-switch {
+  border-color: var(--color-border);
+  background: color-mix(in srgb, var(--color-surface-muted) 58%, transparent);
+}
+
+.knowledge-switch:hover,
+.knowledge-switch:focus-visible,
+.knowledge-switch[aria-checked="true"] {
+  border-color: var(--color-accent-border);
+  color: var(--color-text-strong);
+  background: var(--color-accent-soft);
+}
+
+.knowledge-switch__track {
+  background: color-mix(in srgb, var(--color-text-muted) 26%, transparent);
+}
+
+.knowledge-switch[aria-checked="true"] .knowledge-switch__track {
+  background: color-mix(in srgb, var(--color-accent-strong) 74%, transparent);
 }
 
 .primary-button,
@@ -470,6 +491,7 @@ textarea:focus-visible,
 .desktop-shell .settings-link:focus-visible,
 .settings-tabs button:focus-visible,
 .collapse-button:focus-visible,
+.knowledge-switch:focus-visible,
 .composer-settings-button:focus-visible,
 .composer-icon-button:focus-visible,
 .back-link:focus-visible {
