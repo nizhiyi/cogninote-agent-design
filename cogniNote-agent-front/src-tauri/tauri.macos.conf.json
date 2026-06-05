@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "CogniNote",
+  "version": "0.0.1",
+  "identifier": "com.itqianchen.cogninote",
+  "build": {
+    "frontendDist": "../dist",
+    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "npm run build"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg"],
+    "icon": [
+      "icons/icon.icns"
+    ],
+    "resources": {
+      "../../target/desktop-macos/backend/CogniNoteBackend.app/": "backend/CogniNoteBackend.app/"
+    },
+    "macOS": {
+      "signingIdentity": null
+    }
+  }
+}

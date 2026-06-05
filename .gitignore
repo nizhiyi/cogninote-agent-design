@@ -14,6 +14,7 @@ CogniNote/
 cogninote-data/
 logs/
 资料参考/
+.claude/
 
 # Frontend dependencies and build output
 node_modules/
@@ -51,7 +52,12 @@ cogniNote-agent-front/pnpm-debug.log*
 build/
 
 # VS Code
-.vscode/
+**/.vscode/
+!/.vscode/
+/.vscode/*
+!/.vscode/settings.json
+!/cogniNote-agent-front/.vscode/
+!/cogniNote-agent-front/.vscode/settings.json
 
 # OS files
 .DS_Store

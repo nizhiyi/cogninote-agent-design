@@ -15,6 +15,7 @@ $jarPath = Join-Path $projectRoot "target\$jarName"
 $desktopBackendDir = Join-Path $projectRoot 'target\desktop\backend'
 $backendImageDir = Join-Path $desktopBackendDir 'CogniNoteBackend'
 $jpackageInputDir = Join-Path $projectRoot 'target\desktop\jpackage-input'
+$frontendDir = Join-Path $projectRoot 'cogniNote-agent-front'
 
 function Assert-InProject {
     param([string]$Path)
@@ -23,6 +24,43 @@ function Assert-InProject {
     if (-not $fullPath.StartsWith($resolvedRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "Refusing to operate outside project directory: $fullPath"
     }
+}
+
+function Invoke-Native {
+    param(
+        [string]$FilePath,
+        [string[]]$ArgumentList = @()
+    )
+
+    & $FilePath @ArgumentList
+    if ($LASTEXITCODE -ne 0) {
+        throw "Command failed with exit code ${LASTEXITCODE}: $FilePath $($ArgumentList -join ' ')"
+    }
+}
+
+function Stop-ProjectFrontendDevServer {
+    $frontendFullPath = [System.IO.Path]::GetFullPath($frontendDir).ToLowerInvariant()
+    $projectNpmMarker = 'cogninote-agent-front'
+
+    Get-CimInstance Win32_Process -Filter "name = 'node.exe'" |
+        Where-Object {
+            $commandLine = $_.CommandLine
+            if (-not $commandLine) {
+                return $false
+            }
+
+            $normalized = $commandLine.ToLowerInvariant()
+            $isProjectVite = $normalized.Contains($frontendFullPath) -and $normalized.Contains('vite')
+            $isProjectNpmDev = $normalized.Contains($projectNpmMarker) -and $normalized.Contains('run dev')
+            return $isProjectVite -or $isProjectNpmDev
+        } |
+        ForEach-Object {
+            # npm ci removes and recreates node_modules. A running Vite dev server
+            # keeps Rolldown's native .node binding loaded on Windows, which turns
+            # dependency refresh into EPERM unlink failures.
+            Write-Host "Stopping frontend dev server process PID $($_.ProcessId) before npm ci."
+            Stop-Process -Id $_.ProcessId -Force
+        }
 }
 
 if (-not (Test-Path -LiteralPath $javaExe)) {
@@ -38,10 +76,12 @@ try {
     $env:JAVA_HOME = $JdkHome
     $env:Path = "$JdkHome\bin;$env:Path"
 
+    Stop-ProjectFrontendDevServer
+
     if ($SkipTests) {
-        mvn -Pwith-frontend package -DskipTests
+        Invoke-Native -FilePath 'mvn' -ArgumentList @('-Pwith-frontend', 'package', '-DskipTests')
     } else {
-        mvn -Pwith-frontend package
+        Invoke-Native -FilePath 'mvn' -ArgumentList @('-Pwith-frontend', 'package')
     }
 
     if (-not (Test-Path -LiteralPath $jarPath)) {
@@ -73,7 +113,7 @@ try {
         '--dest', $desktopBackendDir,
         '--java-options', '--enable-native-access=ALL-UNNAMED'
     )
-    & $jpackageExe @jpackageArgs
+    Invoke-Native -FilePath $jpackageExe -ArgumentList $jpackageArgs
 
     $backendExe = Join-Path $backendImageDir 'CogniNoteBackend.exe'
     if (-not (Test-Path -LiteralPath $backendExe)) {

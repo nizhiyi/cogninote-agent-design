@@ -1,2 +1,5 @@
 /mvnw text eol=lf
+*.sh text eol=lf
+.github/workflows/*.yml text eol=lf
+cogniNote-agent-front/src-tauri/icons/*.icns binary
 *.cmd text eol=crlf

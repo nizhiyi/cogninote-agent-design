@@ -1,0 +1,60 @@
+name: Desktop macOS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    name: Build macOS Apple Silicon desktop package
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          architecture: aarch64
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: cogniNote-agent-front/package-lock.json
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        run: npm --prefix cogniNote-agent-front ci
+
+      - name: Build macOS desktop package
+        run: bash ./scripts/build-desktop-app-macos.sh --skip-tests
+
+      - name: Archive macOS app bundle
+        run: |
+          APP_PATH="$(find cogniNote-agent-front/src-tauri/target/release/bundle/macos -maxdepth 1 -name '*.app' -type d | head -n 1)"
+          if [[ -z "$APP_PATH" ]]; then
+            echo "macOS .app bundle was not generated." >&2
+            exit 1
+          fi
+          mkdir -p artifacts/macos
+          ditto -c -k --keepParent "$APP_PATH" artifacts/macos/CogniNote.app.zip
+
+      - name: Upload macOS app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CogniNote-macos-app
+          path: artifacts/macos/CogniNote.app.zip
+          if-no-files-found: error
+
+      - name: Upload macOS dmg artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CogniNote-macos-dmg
+          path: cogniNote-agent-front/src-tauri/target/release/bundle/dmg/*.dmg
+          if-no-files-found: error

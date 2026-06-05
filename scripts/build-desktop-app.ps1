@@ -8,6 +8,18 @@ $ErrorActionPreference = 'Stop'
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Split-Path -Parent $scriptDir
 
+function Invoke-Native {
+    param(
+        [string]$FilePath,
+        [string[]]$ArgumentList = @()
+    )
+
+    & $FilePath @ArgumentList
+    if ($LASTEXITCODE -ne 0) {
+        throw "Command failed with exit code ${LASTEXITCODE}: $FilePath $($ArgumentList -join ' ')"
+    }
+}
+
 Push-Location $projectRoot
 try {
     # Dot-source the verifier so the refreshed Cargo/MSVC environment remains
@@ -18,14 +30,14 @@ try {
     $env:Path = "$JdkHome\bin;$env:Path"
 
     if (-not $SkipTests) {
-        mvn test
+        Invoke-Native -FilePath 'mvn' -ArgumentList @('test')
     }
 
     # build-desktop-backend embeds Vue dist into the Spring Boot Jar and then
     # creates the full backend app-image directory consumed by Tauri resources.
     .\scripts\build-desktop-backend.ps1 -JdkHome $JdkHome -SkipTests
 
-    npm --prefix cogniNote-agent-front run desktop:build
+    Invoke-Native -FilePath 'npm' -ArgumentList @('--prefix', 'cogniNote-agent-front', 'run', 'desktop:build')
 
     Write-Host ''
     Write-Host 'Desktop build finished. Check cogniNote-agent-front/src-tauri/target/release/bundle/.'

@@ -19,8 +19,18 @@ use tauri::{
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 const APP_NAME: &str = "CogniNote";
+#[cfg(windows)]
 const BACKEND_RESOURCE_DIR: &str = "backend/CogniNoteBackend";
+#[cfg(target_os = "macos")]
+const BACKEND_RESOURCE_DIR: &str = "backend/CogniNoteBackend.app";
+#[cfg(not(any(windows, target_os = "macos")))]
+const BACKEND_RESOURCE_DIR: &str = "backend/CogniNoteBackend";
+#[cfg(windows)]
 const BACKEND_EXE_NAME: &str = "CogniNoteBackend.exe";
+#[cfg(target_os = "macos")]
+const BACKEND_EXE_NAME: &str = "Contents/MacOS/CogniNoteBackend";
+#[cfg(not(any(windows, target_os = "macos")))]
+const BACKEND_EXE_NAME: &str = "CogniNoteBackend";
 const MIN_PORT: u16 = 18080;
 const MAX_PORT: u16 = 18120;
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(45);
@@ -119,8 +129,8 @@ fn select_available_port() -> Result<u16, String> {
 }
 
 fn resolve_backend_exe(app: &App) -> Result<PathBuf, String> {
-    // jpackage app-image 不是单文件程序，exe 旁边的 app/ 与 runtime/ 目录缺一不可。
-    // 因此 Tauri 打包时必须携带整个 backend/CogniNoteBackend 目录，再从资源目录中定位 exe。
+    // jpackage app-image 不是单文件程序，启动器旁边的 app/runtime 目录缺一不可。
+    // Windows 与 macOS 分别打包自己的完整 app-image，Tauri 只从当前平台资源目录定位启动器。
     let resource_dir = app
         .path()
         .resolve(BACKEND_RESOURCE_DIR, BaseDirectory::Resource)
@@ -130,20 +140,46 @@ fn resolve_backend_exe(app: &App) -> Result<PathBuf, String> {
         Ok(exe)
     } else {
         Err(format!(
-            "未找到后端启动器：{}\n请先运行 scripts/build-desktop-backend.ps1 生成 jpackage app-image。",
+            "未找到后端启动器：{}\n请先运行当前平台的桌面后端打包脚本生成 jpackage app-image。",
             exe.display()
         ))
     }
 }
 
 fn prepare_backend_log_path() -> Result<PathBuf, String> {
-    let app_data = std::env::var_os("APPDATA")
-        .map(PathBuf::from)
-        .ok_or_else(|| "无法读取 APPDATA 环境变量，不能创建桌面启动日志。".to_string())?;
-    let log_dir = app_data.join(APP_NAME).join("logs");
+    let log_dir = app_support_dir()?.join("logs");
     fs::create_dir_all(&log_dir)
         .map_err(|error| format!("无法创建日志目录 {}：{error}", log_dir.display()))?;
     Ok(log_dir.join("desktop-backend.log"))
+}
+
+fn app_support_dir() -> Result<PathBuf, String> {
+    #[cfg(windows)]
+    {
+        let app_data = std::env::var_os("APPDATA")
+            .map(PathBuf::from)
+            .ok_or_else(|| "无法读取 APPDATA 环境变量，不能创建桌面启动日志。".to_string())?;
+        return Ok(app_data.join(APP_NAME));
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let home = std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .ok_or_else(|| "无法读取 HOME 环境变量，不能创建 macOS 应用数据目录。".to_string())?;
+        return Ok(home
+            .join("Library")
+            .join("Application Support")
+            .join(APP_NAME));
+    }
+
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        let home = std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .ok_or_else(|| "无法读取 HOME 环境变量，不能创建应用数据目录。".to_string())?;
+        Ok(home.join(".cogninote"))
+    }
 }
 
 fn spawn_backend(backend_exe: &Path, port: u16, log_path: &Path) -> Result<Child, String> {
@@ -184,6 +220,21 @@ fn configure_backend_process_window(command: &mut Command) {
     // 桌面壳已经把输出重定向到日志文件，这里显式禁止子进程创建 cmd 窗口，避免用户双击主程序后看到后台服务窗口常驻。
     #[cfg(windows)]
     command.creation_flags(CREATE_NO_WINDOW);
+
+    #[cfg(target_os = "macos")]
+    configure_macos_backend_environment(command);
+}
+
+#[cfg(target_os = "macos")]
+fn configure_macos_backend_environment(command: &mut Command) {
+    if let Ok(app_dir) = app_support_dir() {
+        command
+            .env("COGNINOTE_DATA_DIR", &app_dir)
+            .env(
+                "COGNINOTE_LOG_FILE",
+                app_dir.join("logs").join("app.log"),
+            );
+    }
 }
 
 fn wait_until_backend_ready(port: u16) -> Result<(), String> {
@@ -195,9 +246,29 @@ fn wait_until_backend_ready(port: u16) -> Result<(), String> {
         thread::sleep(HEALTH_CHECK_INTERVAL);
     }
     Err(format!(
-        "后端启动超时。请查看日志：%APPDATA%\\{}\\logs\\desktop-backend.log",
-        APP_NAME
+        "后端启动超时。请查看日志：{}",
+        desktop_backend_log_hint()
     ))
+}
+
+fn desktop_backend_log_hint() -> String {
+    #[cfg(windows)]
+    {
+        return format!("%APPDATA%\\{}\\logs\\desktop-backend.log", APP_NAME);
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        return format!(
+            "~/Library/Application Support/{}/logs/desktop-backend.log",
+            APP_NAME
+        );
+    }
+
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        "~/.cogninote/logs/desktop-backend.log".to_string()
+    }
 }
 
 fn is_system_status_ready(port: u16) -> bool {

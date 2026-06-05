@@ -657,7 +657,9 @@ CogninoteMemoryAdvisor 注入会话摘要和最近原文消息
 
 ## 9. 打包方案
 
-推荐第六阶段：
+第六阶段已完成 Windows 桌面打包。第十四阶段新增 macOS Apple Silicon 独立打包链路。两个平台的 Tauri 配置、脚本和后端 app-image 输出目录分开维护，不把平台差异塞进同一份 bundle 配置或总脚本。
+
+Windows 打包链路：
 
 ```text
 Vue build
@@ -673,6 +675,22 @@ Tauri 打包桌面壳和后端资源目录
 生成 Windows 安装包
 ```
 
+macOS 打包链路：
+
+```text
+Vue build
+  ↓
+复制 dist 到 Spring Boot static
+  ↓
+Maven 打 Fat Jar
+  ↓
+jpackage 生成 macOS 后端 CogniNoteBackend.app
+  ↓
+Tauri 使用 tauri.macos.conf.json 打包桌面壳和后端资源目录
+  ↓
+生成 macOS .app / .dmg
+```
+
 启动逻辑：
 
 1. Tauri 主进程启动
@@ -682,9 +700,16 @@ Tauri 打包桌面壳和后端资源目录
 5. Tauri 等待 `/api/system/status` 健康检查通过
 6. Tauri WebView 加载 `http://127.0.0.1:{port}/`
 
-注意：`jpackage --type app-image` 的产物依赖 `app/` 和 `runtime/` 目录，不能只把 `CogniNoteBackend.exe` 作为单文件复制。`jpackage` 输入目录只放最终 Spring Boot fat jar，Tauri 则把完整 `target/desktop/backend/CogniNoteBackend/` 目录作为资源打包。
+注意：`jpackage --type app-image` 的产物依赖完整 app-image 目录，不能只复制启动器。Windows 后端资源目录是 `target/desktop/backend/CogniNoteBackend/`，启动器是 `CogniNoteBackend.exe`；macOS 后端资源目录是 `target/desktop-macos/backend/CogniNoteBackend.app/`，启动器是 `Contents/MacOS/CogniNoteBackend`。
 
-桌面构建和运行脚本统一放在项目根目录 `scripts/` 下。`.ps1` 文件应在 PowerShell 中从项目根目录运行，不建议双击；具体命令、执行策略处理、产物路径和常见故障排查见 `docs/desktop-build-guide.md`。
+桌面构建和运行脚本统一放在项目根目录 `scripts/` 下。Windows 使用 `.ps1`，macOS 使用 `.sh`。具体命令、执行策略处理、产物路径和常见故障排查见 `docs/desktop-build-guide.md`。
+
+macOS 桌面版运行时显式注入：
+
+```text
+COGNINOTE_DATA_DIR=~/Library/Application Support/CogniNote
+COGNINOTE_LOG_FILE=~/Library/Application Support/CogniNote/logs/app.log
+```
 
 后续可增加系统托盘能力：
 

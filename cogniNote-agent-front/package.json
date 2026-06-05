@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
-    "desktop:build": "tauri build"
+    "desktop:build": "tauri build",
+    "desktop:build:macos": "tauri build --config src-tauri/tauri.macos.conf.json --bundles app,dmg --no-sign"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.9.0",
