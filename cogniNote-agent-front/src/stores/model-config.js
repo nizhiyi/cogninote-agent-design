@@ -17,6 +17,8 @@ const ROLES = {
   EMBEDDING: 'EMBEDDING'
 }
 
+const FIXED_EMBEDDING_DIMENSIONS = 1024
+
 export const useModelConfigStore = defineStore('modelConfig', () => {
   const providerOptions = [
     {
@@ -45,7 +47,6 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
   const isFetchingModels = ref(false)
   const isTestingModelConfig = ref(false)
   const message = ref('')
-  const form = ref(defaultForm(ROLES.CHAT))
 
   const activeChatConfig = computed(() => activeSummary.value.chat)
   const activeEmbeddingConfig = computed(() => activeSummary.value.embedding)
@@ -57,6 +58,7 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
   }))
   const modelConfig = computed(() => activeChatConfig.value)
   const currentState = computed(() => roleState.value[activeRole.value])
+  const form = computed(() => currentState.value.form)
   const activeList = computed(() => currentState.value.configs)
   const selectedConfig = computed(() => currentState.value.selectedConfig)
   const activeConfigForRole = computed(() => activeRole.value === ROLES.CHAT
@@ -120,10 +122,10 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
   }
 
   async function switchRole(role) {
-    activeRole.value = role
-    form.value = roleState.value[role].form
+    const normalizedRole = normalizeRoleValue(role)
+    activeRole.value = normalizedRole
     message.value = ''
-    return await loadRoleSettings(role, { showMask: true })
+    return await loadRoleSettings(normalizedRole, { showMask: true })
   }
 
   function selectActiveConfig(role = activeRole.value) {
@@ -132,13 +134,14 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
   }
 
   function startCreate(role = activeRole.value) {
-    activeRole.value = role
-    const state = roleState.value[role]
+    const normalizedRole = normalizeRoleValue(role)
+    activeRole.value = normalizedRole
+    const state = roleState.value[normalizedRole]
     state.selectedConfig = null
-    replaceRoleForm(role, defaultForm(role))
+    replaceEditorForm(normalizedRole, defaultForm(normalizedRole))
     state.error = ''
     state.revision += 1
-    visibleApiKeyByRole.value[role] = false
+    visibleApiKeyByRole.value[normalizedRole] = false
     message.value = ''
   }
 
@@ -146,10 +149,11 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     if (!config) {
       return
     }
-    activeRole.value = config.role
-    applySelectedConfig(config.role, config)
-    roleState.value[config.role].error = ''
-    visibleApiKeyByRole.value[config.role] = false
+    const role = normalizeRoleValue(config.role)
+    activeRole.value = role
+    applySelectedConfig(role, normalizeConfigForRole(config, role))
+    roleState.value[role].error = ''
+    visibleApiKeyByRole.value[role] = false
     message.value = ''
   }
 
@@ -277,18 +281,26 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
   }
 
   function changeProvider(provider) {
-    const option = providerOptions.find(item => item.value === provider)
+    const currentForm = form.value
+    const normalizedProvider = normalizeProviderValue(provider, currentForm.baseUrl)
+    const option = providerOptions.find(item => item.value === normalizedProvider)
     if (!option) {
       return
     }
     const role = activeRole.value
     const state = roleState.value[role]
-    replaceRoleForm(role, {
-      ...form.value,
+    const previousProvider = currentForm.provider
+    const nextModelName = previousProvider === option.value
+      ? currentForm.modelName
+      : role === ROLES.CHAT ? 'qwen-plus' : 'text-embedding-v4'
+    replaceEditorForm(role, {
+      ...currentForm,
+      role,
       provider: option.value,
       displayName: option.displayName,
       baseUrl: option.baseUrl,
-      modelName: role === ROLES.CHAT ? 'qwen-plus' : 'text-embedding-v4'
+      modelName: nextModelName,
+      embeddingDimensions: role === ROLES.EMBEDDING ? FIXED_EMBEDDING_DIMENSIONS : null
     })
     modelOptionsByRole.value[role] = []
     state.error = ''
@@ -354,13 +366,13 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
       chat: snapshot.active?.chat || null,
       embedding: snapshot.active?.embedding || null
     }
-    const role = snapshot.role || activeRole.value
+    const role = normalizeRoleValue(snapshot.role || activeRole.value)
     activeRole.value = role
     const state = roleState.value[role]
-    state.configs = snapshot.configs || []
-    state.selectedConfig = snapshot.selectedConfig || null
-    replaceRoleForm(role, snapshot.selectedConfig
-      ? formFromConfig(snapshot.selectedConfig)
+    state.configs = (snapshot.configs || []).map(config => normalizeConfigForRole(config, role))
+    state.selectedConfig = snapshot.selectedConfig ? normalizeConfigForRole(snapshot.selectedConfig, role) : null
+    replaceEditorForm(role, snapshot.selectedConfig
+      ? formFromConfig(state.selectedConfig)
       : defaultForm(role))
     state.loaded = true
     state.error = ''
@@ -368,22 +380,24 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
   }
 
   function applySelectedConfig(role, config) {
-    const state = roleState.value[role]
-    state.selectedConfig = config || null
-    replaceRoleForm(role, config ? formFromConfig(config) : defaultForm(role))
+    const normalizedRole = normalizeRoleValue(role)
+    const state = roleState.value[normalizedRole]
+    const normalizedConfig = config ? normalizeConfigForRole(config, normalizedRole) : null
+    state.selectedConfig = normalizedConfig
+    replaceEditorForm(normalizedRole, normalizedConfig ? formFromConfig(normalizedConfig) : defaultForm(normalizedRole))
     state.revision += 1
   }
 
   function formPayload(role = activeRole.value, formOverride = null) {
-    const current = formOverride || (role === activeRole.value ? form.value : roleState.value[role].form)
+    const current = formOverride || roleState.value[role].form
     return {
       role,
-      provider: current.provider,
+      provider: normalizeProviderValue(current.provider, current.baseUrl),
       displayName: current.displayName.trim(),
       baseUrl: current.baseUrl.trim(),
       apiKey: current.apiKey,
       modelName: current.modelName.trim(),
-      embeddingDimensions: role === ROLES.EMBEDDING ? Number(current.embeddingDimensions) : undefined,
+      embeddingDimensions: role === ROLES.EMBEDDING ? FIXED_EMBEDDING_DIMENSIONS : undefined,
       temperature: role === ROLES.CHAT ? Number(current.temperature) : undefined,
       defaultTopK: role === ROLES.CHAT ? Number(current.defaultTopK) : undefined
     }
@@ -396,7 +410,7 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     const options = chatModelOptions.value
     const state = roleState.value[role]
     if (options.length && !options.some(model => model.id === state.form.modelName)) {
-      replaceRoleForm(role, {
+      replaceEditorForm(role, {
         ...state.form,
         modelName: options[0].id
       })
@@ -407,13 +421,11 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     return role === ROLES.CHAT ? activeSummary.value.chat : activeSummary.value.embedding
   }
 
-  function replaceRoleForm(role, nextForm) {
-    // 模型设置页右侧表单必须只有一个当前编辑对象。Pinia setup store 中
-    // computed 对象再接 v-model 容易出现“列表有数据但表单空”的响应式错位。
-    roleState.value[role].form = nextForm
-    if (role === activeRole.value) {
-      form.value = nextForm
-    }
+  function replaceEditorForm(role, nextForm) {
+    // 每个 role 只保留一份编辑表单。组件通过 computed form 读取当前 role，
+    // 避免“全局表单”和“role 表单”互相覆盖导致 Provider select 停在旧值。
+    const normalizedForm = normalizeFormForRole(nextForm, role)
+    roleState.value[role].form = { ...normalizedForm }
   }
 
   function roleSnapshot(role) {
@@ -507,24 +519,25 @@ function defaultForm(role) {
     baseUrl: 'https://dashscope.aliyuncs.com/api/v1',
     apiKey: '',
     modelName: role === ROLES.CHAT ? 'qwen-plus' : 'text-embedding-v4',
-    embeddingDimensions: role === ROLES.EMBEDDING ? 1024 : null,
+    embeddingDimensions: role === ROLES.EMBEDDING ? FIXED_EMBEDDING_DIMENSIONS : null,
     temperature: role === ROLES.CHAT ? 0.7 : null,
     defaultTopK: role === ROLES.CHAT ? 8 : null
   }
 }
 
 function formFromConfig(config) {
-  const role = config.role || ROLES.CHAT
+  const role = normalizeRoleValue(config.role)
   const defaults = defaultForm(role)
+  const provider = normalizeProviderValue(config.provider, config.baseUrl)
   return {
     role,
-    provider: config.provider || defaults.provider,
+    provider,
     displayName: config.displayName || defaults.displayName,
     baseUrl: config.baseUrl || defaults.baseUrl,
     apiKey: config.apiKey || '',
     modelName: config.modelName || defaults.modelName,
     embeddingDimensions: role === ROLES.EMBEDDING
-      ? (config.embeddingDimensions ?? defaults.embeddingDimensions)
+      ? FIXED_EMBEDDING_DIMENSIONS
       : null,
     temperature: role === ROLES.CHAT
       ? (config.temperature ?? defaults.temperature)
@@ -533,4 +546,54 @@ function formFromConfig(config) {
       ? (config.defaultTopK ?? defaults.defaultTopK)
       : null
   }
+}
+
+function normalizeRoleValue(role) {
+  return String(role || '').trim().toUpperCase() === ROLES.EMBEDDING ? ROLES.EMBEDDING : ROLES.CHAT
+}
+
+function normalizeConfigForRole(config, role = normalizeRoleValue(config?.role)) {
+  if (!config) {
+    return null
+  }
+  return {
+    ...config,
+    role,
+    provider: normalizeProviderValue(config.provider, config.baseUrl),
+    embeddingDimensions: role === ROLES.EMBEDDING ? FIXED_EMBEDDING_DIMENSIONS : null
+  }
+}
+
+function normalizeFormForRole(nextForm, role = normalizeRoleValue(nextForm?.role)) {
+  const defaults = defaultForm(role)
+  const provider = normalizeProviderValue(nextForm?.provider, nextForm?.baseUrl)
+  return {
+    role,
+    provider,
+    displayName: nextForm?.displayName || defaults.displayName,
+    baseUrl: nextForm?.baseUrl ?? defaults.baseUrl,
+    apiKey: nextForm?.apiKey || '',
+    modelName: nextForm?.modelName || defaults.modelName,
+    embeddingDimensions: role === ROLES.EMBEDDING ? FIXED_EMBEDDING_DIMENSIONS : null,
+    temperature: role === ROLES.CHAT ? (nextForm?.temperature ?? defaults.temperature) : null,
+    defaultTopK: role === ROLES.CHAT ? (nextForm?.defaultTopK ?? defaults.defaultTopK) : null
+  }
+}
+
+function normalizeProviderValue(provider, baseUrl = '') {
+  const normalized = String(provider || '').trim().toUpperCase()
+  if (normalized === 'OPENAI_COMPATIBLE' || normalized === 'OPENAI' || normalized.includes('OPENAI')) {
+    return 'OPENAI_COMPATIBLE'
+  }
+  if (normalized === 'DASHSCOPE' || normalized.includes('DASH')) {
+    return 'DASHSCOPE'
+  }
+
+  // 旧数据或手动导入数据可能只有自定义 Base URL。非 DashScope 地址按 OpenAI-compatible 渲染，
+  // 避免 <select> 因未知 value 回落显示第一个 DashScope 选项。
+  const normalizedBaseUrl = String(baseUrl || '').trim().toLowerCase()
+  if (normalizedBaseUrl && !normalizedBaseUrl.includes('dashscope.aliyuncs.com')) {
+    return 'OPENAI_COMPATIBLE'
+  }
+  return 'DASHSCOPE'
 }

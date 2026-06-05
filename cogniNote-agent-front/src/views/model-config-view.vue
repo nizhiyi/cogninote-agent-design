@@ -52,8 +52,8 @@ function providerLabel(provider) {
   return modelConfigStore.providerOptions.find(option => option.value === provider)?.label || provider
 }
 
-function handleProviderChange() {
-  modelConfigStore.changeProvider(modelConfigStore.form.provider)
+function handleProviderChange(event) {
+  modelConfigStore.changeProvider(event.target.value)
 }
 </script>
 
@@ -141,7 +141,7 @@ function handleProviderChange() {
               </button>
             </span>
             <select
-              v-model="modelConfigStore.form.provider"
+              :value="modelConfigStore.form.provider"
               @change="handleProviderChange"
             >
               <option
@@ -217,7 +217,8 @@ function handleProviderChange() {
 
           <label v-if="modelConfigStore.activeRole === modelConfigStore.ROLES.EMBEDDING" class="field">
             <span>Embedding 维度</span>
-            <input v-model.number="modelConfigStore.form.embeddingDimensions" type="number" min="1" max="8192" />
+            <input :value="1024" type="number" readonly />
+            <small class="field-hint">当前 Lucene 向量索引固定使用 1024 维。</small>
           </label>
 
           <label v-if="modelConfigStore.activeRole === modelConfigStore.ROLES.CHAT" class="field">

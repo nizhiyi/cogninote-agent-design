@@ -108,6 +108,33 @@ class ModelConfigControllerTests {
     }
 
     @Test
+    void settingsCreateAndSnapshotForceOpenAiCompatibleEmbeddingDimensionsTo1024() throws Exception {
+        mockMvc.perform(post("/api/model-configs/settings/configs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "role": "EMBEDDING",
+                                  "provider": "OPENAI_COMPATIBLE",
+                                  "displayName": "Qwen Embedding",
+                                  "baseUrl": "https://api.siliconflow.cn/v1",
+                                  "apiKey": "sk-test",
+                                  "modelName": "Qwen/Qwen3-Embedding-8B",
+                                  "embeddingDimensions": 2048
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.selectedConfig.provider").value("OPENAI_COMPATIBLE"))
+                .andExpect(jsonPath("$.data.selectedConfig.embeddingDimensions").value(1024));
+
+        mockMvc.perform(get("/api/model-configs/settings").param("role", "EMBEDDING"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.selectedConfig.provider").value("OPENAI_COMPATIBLE"))
+                .andExpect(jsonPath("$.data.selectedConfig.embeddingDimensions").value(1024));
+    }
+
+    @Test
     void settingsDeleteOnlyConfigReturnsFallbackSelectedConfig() throws Exception {
         String body = mockMvc.perform(post("/api/model-configs/settings/configs")
                         .contentType(MediaType.APPLICATION_JSON)

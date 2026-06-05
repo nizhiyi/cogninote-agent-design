@@ -234,7 +234,7 @@ public class ModelConfigService {
                 normalizeBaseUrl(provider, request.baseUrl()),
                 apiKey,
                 modelName,
-                role == ModelConfigRole.EMBEDDING ? normalizeEmbeddingDimensions(request.embeddingDimensions(), existing) : null,
+                role == ModelConfigRole.EMBEDDING ? ModelConfigDefaults.EMBEDDING_DIMENSIONS : null,
                 role == ModelConfigRole.CHAT ? normalizeTemperature(request.temperature(), existing) : null,
                 role == ModelConfigRole.CHAT ? normalizeTopK(request.defaultTopK(), request.topK(), existing) : null,
                 active,
@@ -398,10 +398,6 @@ public class ModelConfigService {
             throw new ModelConfigurationException(roleLabel(role) + " model name is required");
         }
         return value.trim();
-    }
-
-    private static Integer normalizeEmbeddingDimensions(Integer requested, ModelConfig existing) {
-        return requested == null ? existing.resolvedEmbeddingDimensions() : requested;
     }
 
     private static Double normalizeTemperature(Double requested, ModelConfig existing) {
