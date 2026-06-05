@@ -35,7 +35,7 @@ cogniNote-agent-front/src-tauri/target/release/bundle/dmg/CogniNote_0.0.1_aarch6
 
 Windows 桌面打包需要：
 
-- JDK 25，项目脚本默认使用 `D:\CodeApps\Java-JDK\jdk-25.0.2`。
+- JDK 25。本机默认使用 `D:\CodeApps\Java-JDK\jdk-25.0.2`；若设置了 `JAVA_HOME`，脚本会优先使用 `JAVA_HOME`。
 - Maven 3.9+。
 - Node.js 20.19.6 或兼容版本。
 - npm 10.8.2 或兼容版本。
@@ -55,6 +55,8 @@ cd D:\code\JavaCode\cogninote-agent-design
 ```powershell
 .\scripts\verify-desktop-toolchain.ps1 -JdkHome 'D:\CodeApps\Java-JDK\jdk-25.0.2'
 ```
+
+GitHub Actions 中不需要写死本机 JDK 路径。`desktop-windows.yml` 使用 `actions/setup-java` 安装 JDK 25 并设置 `JAVA_HOME`，Windows `.ps1` 脚本会自动读取该环境变量。
 
 ## macOS 前置工具链
 
@@ -176,6 +178,43 @@ scripts/build-desktop-app-macos.sh
 ```
 
 完整 macOS 桌面构建入口。它会检查工具链、构建 macOS 后端 app-image，临时切换 Tauri active config，然后执行 `npm --prefix cogniNote-agent-front run desktop:build:macos` 生成 `.app` 和 `.dmg`。不要用 Windows `tauri.conf.json` 直接打 macOS 包。
+
+## GitHub Actions 构建
+
+Windows 和 macOS CI 也分开维护，均默认手动触发：
+
+```text
+.github/workflows/desktop-windows.yml
+.github/workflows/desktop-macos.yml
+```
+
+Windows workflow 使用 `windows-latest`，通过 `actions/setup-java` 设置 JDK 25，通过 `actions/setup-node` 设置 Node，通过 `dtolnay/rust-toolchain` 设置 Rust，然后执行：
+
+```powershell
+.\scripts\build-desktop-app.ps1 -SkipTests
+```
+
+Windows artifacts：
+
+```text
+CogniNote-windows-exe
+CogniNote-windows-installer
+```
+
+macOS workflow 使用 Apple Silicon runner，执行：
+
+```bash
+bash ./scripts/build-desktop-app-macos.sh --skip-tests
+```
+
+macOS artifacts：
+
+```text
+CogniNote-macos-app
+CogniNote-macos-dmg
+```
+
+两个 workflow 不共享 Tauri bundle 配置，不共享后端 app-image 输出目录，也不把平台差异塞进同一个脚本。
 
 ## Windows 运行和验收
 

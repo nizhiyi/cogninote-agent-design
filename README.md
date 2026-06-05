@@ -103,6 +103,8 @@ cogniNote-agent-front/src-tauri/target/release/bundle/nsis/CogniNote_0.0.1_x64-s
 
 注意：`target/desktop/backend/CogniNoteBackend/CogniNoteBackend.exe` 只是后端 app-image 的启动器，不是最终桌面应用入口。
 
+也可以在 GitHub Actions 手动触发 `Desktop Windows` workflow 构建。workflow 会在 Windows runner 上安装 JDK 25、Node 和 Rust，并上传 `CogniNote-windows-exe` 与 `CogniNote-windows-installer` artifacts。
+
 ### 构建 macOS 桌面应用
 
 macOS 和 Windows 打包链路分开维护。请在 Apple Silicon Mac 上执行：

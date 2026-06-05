@@ -1,13 +1,57 @@
 param(
-    [string]$JdkHome = 'D:\CodeApps\Java-JDK\jdk-25.0.2',
+    [string]$JdkHome = '',
     [switch]$SkipTests
 )
 
 $ErrorActionPreference = 'Stop'
+$DefaultWindowsJdkHome = 'D:\CodeApps\Java-JDK\jdk-25.0.2'
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Split-Path -Parent $scriptDir
 $resolvedRoot = [System.IO.Path]::GetFullPath($projectRoot)
+
+function Test-Jdk25Home {
+    param([string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $false
+    }
+
+    $candidateJava = Join-Path $Path 'bin\java.exe'
+    $candidateJpackage = Join-Path $Path 'bin\jpackage.exe'
+    if (-not (Test-Path -LiteralPath $candidateJava) -or -not (Test-Path -LiteralPath $candidateJpackage)) {
+        return $false
+    }
+
+    $versionLine = cmd /c "`"$candidateJava`" -version 2>&1" | Select-Object -First 1
+    return $versionLine -match 'version "25(\.|")'
+}
+
+function Resolve-JdkHome {
+    param([string]$RequestedJdkHome)
+
+    if (-not [string]::IsNullOrWhiteSpace($RequestedJdkHome)) {
+        return $RequestedJdkHome
+    }
+
+    # GitHub Actions exposes setup-java through JAVA_HOME. On local machines,
+    # JAVA_HOME may still point to an old JDK, so only trust it when it is JDK 25.
+    if (Test-Jdk25Home $env:JAVA_HOME) {
+        return $env:JAVA_HOME
+    }
+
+    if (Test-Jdk25Home $DefaultWindowsJdkHome) {
+        return $DefaultWindowsJdkHome
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($env:JAVA_HOME)) {
+        return $env:JAVA_HOME
+    }
+
+    return $DefaultWindowsJdkHome
+}
+
+$JdkHome = Resolve-JdkHome $JdkHome
 $javaExe = Join-Path $JdkHome 'bin\java.exe'
 $jpackageExe = Join-Path $JdkHome 'bin\jpackage.exe'
 $jarName = 'cogninote-agent-design-0.0.1-SNAPSHOT.jar'
