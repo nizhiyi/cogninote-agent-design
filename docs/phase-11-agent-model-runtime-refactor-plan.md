@@ -2,9 +2,9 @@
 
 ## Summary
 
-第十一阶段聚焦重构智能体执行管线和模型调用层，不做聊天记忆持久化。原第十一阶段的 SQLite 聊天记忆顺延为第十二阶段。
+第十一阶段聚焦重构智能体执行管线和模型调用层，不做聊天记忆持久化。原第十一阶段的 SQLite 聊天记忆继续顺延；第十二阶段改做 AI 流式 Markdown 渲染重构，SQLite 聊天记忆顺延为第十三阶段。
 
-实施状态：已落地。当前 `/api/chat/stream` 已调整为 `ChatController -> AgentExecutionService -> CogninoteChatAgent -> AiRuntimeFactory`，OpenAI-compatible Chat / Embedding 已迁移到 Spring AI OpenAI Runtime，旧自研 OpenAI-compatible HTTP client 与旧 `LlmGateway` / `RagChatService` 兼容层已删除。
+实施状态：已落地。当前 `/api/chat/stream` 已调整为 `ChatController -> AgentExecutionService -> CogninoteChatAgent -> AiRuntimeFactory`，OpenAI-compatible Chat / Embedding 已迁移到 Spring AI OpenAI Runtime，旧自研 OpenAI-compatible HTTP client 与旧 `LlmGateway` / `RagChatService` 兼容层已删除。第十二阶段在此基础上补充了流式 Markdown 输出约束：Spring AI 流式 chunk 必须保留空格和换行，SSE mapper 负责显式取消注册和 event-stream 错误兜底。
 
 当前代码已经能完成 RAG 对话，但模型调用层的职责混在一起：
 
@@ -13,7 +13,7 @@
 - `ModelRoutingLlmGateway` 只做 provider 分流，无法承载后续记忆、工具、Advisor、取消保存等智能体能力。
 - `DASHSCOPE` 走 Spring AI Alibaba 原生模型，`OPENAI_COMPATIBLE` 目前走自研 HTTP client，两套调用行为缺少统一运行时边界。
 
-第十一阶段的目标是先把“模型运行时”和“智能体执行”从 RAG 业务里拆出来。第十二阶段再在这个清晰边界上接 SQLite 会话表、消息表和短期聊天记忆。
+第十一阶段的目标是先把“模型运行时”和“智能体执行”从 RAG 业务里拆出来。第十三阶段再在这个清晰边界上接 SQLite 会话表、消息表和短期聊天记忆。
 
 ## Reference Findings
 
@@ -59,10 +59,10 @@
   - DashScope 保留 Spring AI Alibaba 原生实现。
   - OpenAI-compatible 迁移到 Spring AI OpenAI 模型实现，并保留用户自定义 Base URL。
   - 现有 `OpenAiCompatibleClient` / `OpenAiCompatibleEmbeddingClient` 不进入第十一阶段新架构；迁移完成后删除。
-- 为第十二阶段预留聊天记忆接口：
+- 为第十三阶段预留聊天记忆接口：
   - 第十一阶段不新增 `chat_sessions` / `chat_messages` 表。
   - 只新增 `ConversationMemoryPort` 或等价空实现接口，定义“读取最近 N 轮消息、保存用户消息、保存 assistant 消息”的边界。
-  - 第十二阶段再落 SQLite 实现。
+  - 第十三阶段再落 SQLite 实现。
 
 ## Backend Architecture
 
@@ -110,7 +110,7 @@ src/main/java/com/itqianchen/agentdesign/
 - `service.agent.PromptAssembler`
   - 读取 `ChatPromptProperties`。
   - 组装 system/user messages。
-  - 后续第十二阶段在这里接入 memory messages 或 memory advisor 参数。
+  - 后续第十三阶段在这里接入 memory messages 或 memory advisor 参数。
 - `service.ai.AiRuntimeFactory`
   - 根据 `ModelConfig.provider()` 创建 runtime。
   - 保证同一配置对应的模型实例可复用。
@@ -180,8 +180,10 @@ SSE: meta -> delta -> done/error
 - `useKnowledgeBase=false` 的纯对话能力不在本阶段正式开放。
 - `/api/chat/stream` 的 SSE 协议保持 `meta -> delta -> done/error`。
 - `conversationId` 可以继续由后端生成，但不做持久化。
+- 第十二阶段后，`meta` 同时返回 `requestId`；用户点击停止时通过 `POST /api/chat/stream/{requestId}/cancel` 显式取消模型订阅。
+- 普通浏览器刷新、切页或 SSE 连接断开不等于用户停止。后端仍消费模型流到完成，为第十三阶段完整保存 assistant 消息预留空间。
 
-第十二阶段再扩展：
+第十三阶段再扩展：
 
 - `conversationId` 从前端传入或由后端创建并返回。
 - `useKnowledgeBase=false` 走纯模型对话。
@@ -189,12 +191,13 @@ SSE: meta -> delta -> done/error
 
 ## API Compatibility
 
-第十一阶段不强制新增公开 API。
+第十一阶段不强制新增公开 API。第十二阶段为用户显式停止生成补充了一个兼容新增接口，`POST /api/chat/stream` 的主 SSE 协议仍保持向后兼容。
 
 保留：
 
 ```text
 POST /api/chat/stream
+POST /api/chat/stream/{requestId}/cancel
 ```
 
 请求体兼容当前字段：
@@ -216,7 +219,13 @@ error
 done
 ```
 
-可以在内部 DTO 上预留 `conversationId`、`useKnowledgeBase` 字段，但第十一阶段不要让前端展示假功能。真正纯对话和持久化记忆放到第十二阶段。
+可以在内部 DTO 上预留 `conversationId`、`useKnowledgeBase` 字段，但第十一阶段不要让前端展示假功能。真正纯对话和持久化记忆放到第十三阶段。
+
+流式文本约束：
+
+- `delta.text` 是模型原始增量，可能是单独的空格、换行或缩进；后端 runtime 和前端 parser 都不能 `trim`。
+- `SpringAiChatRuntime` 只过滤 `null` 和空字符串，不使用 `isBlank()`，避免把 Markdown 语法所需空白吞掉。
+- SSE 已经进入 `text/event-stream` 后不能再走全局 JSON `ApiResponse` 错误响应；业务错误应映射为 SSE `error`，容器级异常只关闭响应。
 
 ## Prompt And Advisor Strategy
 
@@ -234,7 +243,7 @@ done
 - Prompt 组装继续由 CogniNote 自己控制。
 - RAG 检索抽成 `KnowledgeContextProvider`，形成 advisor-like 的业务组件；向量查询仍通过 `KnowledgeStore -> EmbeddingGateway -> AiRuntimeFactory` 使用 active `EMBEDDING` runtime。
 - 日志、记忆、工具调用等通用增强能力在 Agent 层预留 Advisor 接入点。
-- 第十二阶段可实现 SQLite `ChatMemory`，并决定是用 Spring AI `MessageChatMemoryAdvisor`，还是继续用 CogniNote 自己的 memory message 注入。
+- 第十三阶段可实现 SQLite `ChatMemory`，并决定是用 Spring AI `MessageChatMemoryAdvisor`，还是继续用 CogniNote 自己的 memory message 注入。
 
 ## Logging And Observability
 
@@ -279,20 +288,22 @@ done
 - 新增 `CogninoteChatAgent`，承接原 RAG 对话编排职责。
 - 将 Prompt 构造拆到 `PromptAssembler`。
 - 将原 `searchWithFallback()`、`hydrateSources()`、`buildContext()` 拆到 `KnowledgeContextProvider`，并保留 `KnowledgeStore` / `EmbeddingGateway` 负责查询向量生成的职责边界。
-- 新增 `ConversationMemoryPort` 空实现，明确第十二阶段的扩展点。
+- 新增 `ConversationMemoryPort` 空实现，明确第十三阶段的扩展点。
 
 ### 第四组：SSE 适配
 
 - `ChatController` 不再直接订阅 `RagChatStream.answer()`。
 - 新增 `ChatSseEventMapper` 或 `ChatStreamEmitterService`。
 - Controller 只负责创建 `SseEmitter`、调用 mapper、完成或报错。
+- 第十二阶段后，`ChatSseEventMapper` 还负责注册 `requestId` 与模型流订阅的取消关系；只有显式取消接口会中断模型流。
+- SSE 发送失败时只安全完成 emitter，不调用 `completeWithError()`，避免全局异常处理在 `text/event-stream` 响应上写 JSON。
 
 ## Documentation Changes
 
 - 新增本计划文件：`docs/phase-11-agent-model-runtime-refactor-plan.md`。
 - 更新 `docs/cogninote-agent-design.md`：
   - Milestone 11 改为智能体模型运行时重构。
-  - SQLite 聊天记忆顺延到 Milestone 12。
+  - SQLite 聊天记忆顺延到 Milestone 13。
   - 模型调用章节补充 AI Runtime / Agent 执行层。
 - 更新 `docs/phase-7-chat-ui-refactor-plan.md`、`docs/phase-8-multi-model-configuration-plan.md`、`docs/phase-9-ui-visual-readability-plan.md`、`docs/phase-10-knowledge-base-folders-plan.md` 中关于聊天记忆阶段的描述。
 - 更新 `docs/model-configuration-guide.md`，说明模型配置后续由统一 AI Runtime 消费。
@@ -333,7 +344,7 @@ npm --prefix cogniNote-agent-front run build
 ## Assumptions
 
 - 第十一阶段只重构智能体执行层和模型运行时，不做 SQLite 聊天记忆。
-- SQLite 聊天记忆、纯模型对话和会话恢复顺延到第十二阶段。
+- SQLite 聊天记忆、纯模型对话和会话恢复顺延到第十三阶段。
 - 现有 `/api/chat/stream` 对前端保持兼容。
 - DashScope Provider 继续使用 Spring AI Alibaba 原生客户端。
 - OpenAI-compatible Provider 必须继续支持用户自定义 Base URL。

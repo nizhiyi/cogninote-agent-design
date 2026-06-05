@@ -7,7 +7,8 @@ import jakarta.validation.constraints.Size;
 public record ChatStreamRequest(
         @NotBlank @Size(max = 4000) String question,
         Integer topK,
-        SearchMode mode
+        SearchMode mode,
+        @Size(max = 80) String requestId
 ) {
 }
 

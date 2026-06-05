@@ -4,11 +4,13 @@ import com.itqianchen.agentdesign.domain.search.SearchMode;
 import java.util.List;
 
 public record ChatMetaEvent(
+        String requestId,
         String conversationId,
         SearchMode retrievalMode,
         List<RagSourceResponse> sources
 ) {
-    public ChatMetaEvent(String conversationId, SearchMode retrievalMode, List<RagSourceResponse> sources) {
+    public ChatMetaEvent(String requestId, String conversationId, SearchMode retrievalMode, List<RagSourceResponse> sources) {
+        this.requestId = requestId;
         this.conversationId = conversationId;
         this.retrievalMode = retrievalMode;
         this.sources = sources.stream()

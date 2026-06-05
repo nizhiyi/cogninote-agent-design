@@ -40,7 +40,9 @@ public class CogninoteChatAgent {
 
     public AgentChatStream stream(AgentRequest request) {
         long startedAt = System.currentTimeMillis();
-        String requestId = UUID.randomUUID().toString();
+        String requestId = request.requestId() == null || request.requestId().isBlank()
+                ? UUID.randomUUID().toString()
+                : request.requestId();
         String conversationId = request.conversationId() == null || request.conversationId().isBlank()
                 ? UUID.randomUUID().toString()
                 : request.conversationId();
@@ -53,28 +55,33 @@ public class CogninoteChatAgent {
         KnowledgeContext knowledgeContext = knowledgeContextProvider.retrieve(question, requestedMode, topK);
         Prompt prompt = promptAssembler.assembleRagPrompt(question, knowledgeContext.contextText());
 
-        Flux<String> answer = aiRuntimeFactory.chatRuntime(chatConfig)
-                .stream(prompt)
-                .doOnComplete(() -> logAgentCompleted(
-                        requestId,
-                        conversationId,
-                        chatConfig,
-                        knowledgeContext,
-                        topK,
-                        startedAt
-                ))
-                .doOnError(error -> log.warn(
-                        "agent_chat_failed requestId={} conversationId={} provider={} modelName={} retrievalMode={} topK={} sourceCount={} durationMs={}",
-                        requestId,
-                        conversationId,
-                        chatConfig.provider(),
-                        chatConfig.modelName(),
-                        knowledgeContext.retrievalMode(),
-                        topK,
-                        knowledgeContext.sources().size(),
-                        System.currentTimeMillis() - startedAt,
-                        error
-                ));
+        Flux<String> answer = Flux.defer(() -> {
+            StringBuilder assistantAnswer = new StringBuilder();
+            return aiRuntimeFactory.chatRuntime(chatConfig)
+                    .stream(prompt)
+                    .doOnNext(assistantAnswer::append)
+                    .doOnComplete(() -> logAgentCompleted(
+                            requestId,
+                            conversationId,
+                            chatConfig,
+                            knowledgeContext,
+                            topK,
+                            startedAt
+                    ))
+                    .doOnComplete(() -> saveAssistantMessage(conversationId, assistantAnswer))
+                    .doOnError(error -> log.warn(
+                            "agent_chat_failed requestId={} conversationId={} provider={} modelName={} retrievalMode={} topK={} sourceCount={} durationMs={}",
+                            requestId,
+                            conversationId,
+                            chatConfig.provider(),
+                            chatConfig.modelName(),
+                            knowledgeContext.retrievalMode(),
+                            topK,
+                            knowledgeContext.sources().size(),
+                            System.currentTimeMillis() - startedAt,
+                            error
+                    ));
+        });
 
         return new AgentChatStream(
                 requestId,
@@ -104,6 +111,20 @@ public class CogninoteChatAgent {
                 knowledgeContext.sources().size(),
                 System.currentTimeMillis() - startedAt
         );
+    }
+
+    private void saveAssistantMessage(String conversationId, StringBuilder assistantAnswer) {
+        String content = assistantAnswer.toString();
+        if (content.isBlank()) {
+            return;
+        }
+        try {
+            // 这里仍是 Noop 端口，不会写 SQLite。第十三阶段替换端口实现后，
+            // 普通 SSE 断开仍会随模型流完成保存；用户显式停止会取消流，不触发 onComplete。
+            conversationMemoryPort.saveAssistantMessage(conversationId, content);
+        } catch (RuntimeException ex) {
+            log.warn("agent_chat_memory_save_failed conversationId={}", conversationId, ex);
+        }
     }
 
     private static int normalizeTopK(Integer requestedTopK, int configuredTopK) {

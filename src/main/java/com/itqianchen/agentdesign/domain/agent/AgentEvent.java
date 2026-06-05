@@ -6,7 +6,7 @@ import java.util.List;
 
 public sealed interface AgentEvent permits AgentEvent.Meta, AgentEvent.Delta, AgentEvent.Done, AgentEvent.Error {
 
-    record Meta(String conversationId, SearchMode retrievalMode, List<RagSourceResponse> sources) implements AgentEvent {
+    record Meta(String requestId, String conversationId, SearchMode retrievalMode, List<RagSourceResponse> sources) implements AgentEvent {
     }
 
     record Delta(String text) implements AgentEvent {

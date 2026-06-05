@@ -4,6 +4,7 @@ import com.itqianchen.agentdesign.domain.search.SearchMode;
 import com.itqianchen.agentdesign.dto.chat.ChatStreamRequest;
 
 public record AgentRequest(
+        String requestId,
         String question,
         Integer topK,
         SearchMode mode,
@@ -13,6 +14,7 @@ public record AgentRequest(
 
     public static AgentRequest from(ChatStreamRequest request) {
         return new AgentRequest(
+                request.requestId(),
                 request.question().trim(),
                 request.topK(),
                 request.mode(),

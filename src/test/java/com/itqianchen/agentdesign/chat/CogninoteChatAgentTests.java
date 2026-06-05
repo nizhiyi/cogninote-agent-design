@@ -24,6 +24,7 @@ import com.itqianchen.agentdesign.dto.search.SearchResponse;
 import com.itqianchen.agentdesign.repository.document.DocumentRepository;
 import com.itqianchen.agentdesign.repository.model.ModelConfigRepository;
 import com.itqianchen.agentdesign.service.agent.CogninoteChatAgent;
+import com.itqianchen.agentdesign.service.agent.ConversationMemoryPort;
 import com.itqianchen.agentdesign.service.agent.KnowledgeContext;
 import com.itqianchen.agentdesign.service.agent.KnowledgeContextProvider;
 import com.itqianchen.agentdesign.service.agent.NoopConversationMemoryPort;
@@ -33,7 +34,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.prompt.Prompt;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 
 class CogninoteChatAgentTests {
@@ -83,6 +86,7 @@ class CogninoteChatAgentTests {
         CogninoteChatAgent agent = newAgent(knowledgeStore, defaultPromptProperties());
 
         AgentChatStream stream = agent.stream(new AgentRequest(
+                null,
                 "Launch4j 是什么？",
                 5,
                 SearchMode.HYBRID,
@@ -115,7 +119,74 @@ class CogninoteChatAgentTests {
                 .satisfies(source -> assertThat(source.content()).contains("Launch4j"));
     }
 
+    @Test
+    void assistantMessageIsSavedOnlyAfterModelStreamCompletes() {
+        RecordingConversationMemoryPort memory = new RecordingConversationMemoryPort();
+        CogninoteChatAgent agent = newAgent(
+                new FakeKnowledgeStore(false),
+                defaultPromptProperties(),
+                new FakeAiRuntimeFactory(Flux.just("答案", "片段")),
+                memory
+        );
+
+        AgentChatStream stream = agent.stream(new AgentRequest(
+                "request-1",
+                "Launch4j 是什么？",
+                5,
+                SearchMode.KEYWORD,
+                "conversation-1",
+                true
+        ));
+
+        assertThat(memory.userMessages).containsExactly("Launch4j 是什么？");
+        assertThat(memory.assistantMessages).isEmpty();
+
+        assertThat(stream.answer().collectList().block()).containsExactly("答案", "片段");
+        assertThat(memory.assistantMessages).containsExactly("答案片段");
+    }
+
+    @Test
+    void cancelledModelStreamDoesNotSaveAssistantMessageAsCompleteAnswer() {
+        RecordingConversationMemoryPort memory = new RecordingConversationMemoryPort();
+        CogninoteChatAgent agent = newAgent(
+                new FakeKnowledgeStore(false),
+                defaultPromptProperties(),
+                new FakeAiRuntimeFactory(Flux.concat(Flux.just("半截"), Flux.never())),
+                memory
+        );
+
+        AgentChatStream stream = agent.stream(new AgentRequest(
+                "request-2",
+                "Launch4j 是什么？",
+                5,
+                SearchMode.KEYWORD,
+                "conversation-2",
+                true
+        ));
+        List<String> received = new ArrayList<>();
+
+        Disposable subscription = stream.answer().subscribe(received::add);
+        subscription.dispose();
+
+        assertThat(received).containsExactly("半截");
+        assertThat(memory.assistantMessages).isEmpty();
+    }
+
     private static CogninoteChatAgent newAgent(KnowledgeStore knowledgeStore, ChatPromptProperties promptProperties) {
+        return newAgent(
+                knowledgeStore,
+                promptProperties,
+                new FakeAiRuntimeFactory(),
+                new NoopConversationMemoryPort()
+        );
+    }
+
+    private static CogninoteChatAgent newAgent(
+            KnowledgeStore knowledgeStore,
+            ChatPromptProperties promptProperties,
+            AiRuntimeFactory aiRuntimeFactory,
+            ConversationMemoryPort conversationMemoryPort
+    ) {
         ModelConfigRepository repository = new ModelConfigRepository(null) {
             @Override
             public Optional<ModelConfig> findActive(ModelConfigRole role) {
@@ -139,10 +210,10 @@ class CogninoteChatAgentTests {
         };
         return new CogninoteChatAgent(
                 new ModelConfigService(repository),
-                new FakeAiRuntimeFactory(),
+                aiRuntimeFactory,
                 new KnowledgeContextProvider(knowledgeStore, new FakeDocumentRepository(), promptProperties),
                 new PromptAssembler(promptProperties),
-                new NoopConversationMemoryPort()
+                conversationMemoryPort
         );
     }
 
@@ -227,12 +298,22 @@ class CogninoteChatAgentTests {
     }
 
     private static class FakeAiRuntimeFactory implements AiRuntimeFactory {
+        private final Flux<String> stream;
+
+        private FakeAiRuntimeFactory() {
+            this(Flux.just("答案片段"));
+        }
+
+        private FakeAiRuntimeFactory(Flux<String> stream) {
+            this.stream = stream;
+        }
+
         @Override
         public AiChatRuntime chatRuntime(ModelConfig config) {
             return new AiChatRuntime() {
                 @Override
                 public Flux<String> stream(Prompt prompt) {
-                    return Flux.just("答案片段");
+                    return stream;
                 }
 
                 @Override
@@ -244,6 +325,26 @@ class CogninoteChatAgentTests {
         @Override
         public AiEmbeddingRuntime embeddingRuntime(ModelConfig config) {
             throw new UnsupportedOperationException("Embedding runtime is not used in this test");
+        }
+    }
+
+    private static class RecordingConversationMemoryPort implements ConversationMemoryPort {
+        private final List<String> userMessages = new ArrayList<>();
+        private final List<String> assistantMessages = new ArrayList<>();
+
+        @Override
+        public List<Message> loadRecentMessages(String conversationId, int maxMessages) {
+            return List.of();
+        }
+
+        @Override
+        public void saveUserMessage(String conversationId, String content) {
+            userMessages.add(content);
+        }
+
+        @Override
+        public void saveAssistantMessage(String conversationId, String content) {
+            assistantMessages.add(content);
         }
     }
 

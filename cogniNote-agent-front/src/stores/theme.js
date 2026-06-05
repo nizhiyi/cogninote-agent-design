@@ -30,7 +30,8 @@ export const useThemeStore = defineStore('theme', () => {
   return {
     theme,
     isDark,
-    setTheme
+    setTheme,
+    applyTheme
   }
 })
 

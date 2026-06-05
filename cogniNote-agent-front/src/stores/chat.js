@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { streamChatAnswer } from '../api/chat-stream'
+import { cancelChatAnswer, streamChatAnswer } from '../api/chat-stream'
 
 const DEFAULT_RETRIEVAL_MODE = 'HYBRID'
 const DEFAULT_TOP_K = 8
@@ -21,6 +21,7 @@ function createMessage(role, content = '') {
     sources: [],
     retrievalMode: '',
     conversationId: '',
+    requestId: '',
     createdAt: Date.now()
   }
 }
@@ -100,7 +101,7 @@ export const useChatStore = defineStore('chat', () => {
     }
   })
   const knowledgeDisabledHint = computed(() =>
-    useKnowledgeBase.value ? '' : '纯对话将在第十一阶段接入后端聊天记忆后启用。'
+    useKnowledgeBase.value ? '' : '纯对话将在第十三阶段接入后端聊天记忆后启用。'
   )
 
   function setUseKnowledgeBase(value) {
@@ -153,6 +154,8 @@ export const useChatStore = defineStore('chat', () => {
     syncSessionOptions(session)
     appendMessage(session, createMessage('user', trimmedQuestion))
     const assistantMessage = createMessage('assistant')
+    const requestId = nextId('request')
+    assistantMessage.requestId = requestId
     appendMessage(session, assistantMessage)
     updateSessionTitle(session, trimmedQuestion)
 
@@ -162,7 +165,8 @@ export const useChatStore = defineStore('chat', () => {
     abortController.value = new AbortController()
     streamingContext.value = {
       sessionId: session.id,
-      messageId: assistantMessage.id
+      messageId: assistantMessage.id,
+      requestId
     }
 
     try {
@@ -170,7 +174,8 @@ export const useChatStore = defineStore('chat', () => {
         {
           question: trimmedQuestion,
           mode: mode.value,
-          topK: Number(topK.value)
+          topK: Number(topK.value),
+          requestId
         },
         {
           signal: abortController.value.signal,
@@ -178,7 +183,9 @@ export const useChatStore = defineStore('chat', () => {
         }
       )
       updateAssistantMessage((message) => {
-        message.status = 'done'
+        if (message.status !== 'error') {
+          message.status = 'done'
+        }
       })
     } catch (err) {
       if (err.name === 'AbortError') {
@@ -191,6 +198,11 @@ export const useChatStore = defineStore('chat', () => {
       } else {
         error.value = `对话失败：${err.message}`
         updateAssistantMessage((message) => {
+          // 流式响应可能已经输出了部分答案；网络或服务端尾部错误不应抹掉用户已看到的内容。
+          if (message.content) {
+            message.status = 'done'
+            return
+          }
           message.status = 'error'
           message.content = err.message || '模型返回错误'
         })
@@ -203,17 +215,26 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function stopChat() {
+    const requestId = streamingContext.value?.requestId
+    if (requestId) {
+      // 停止按钮是显式取消命令；普通刷新/断开不会调用这里，后端仍可生成到完成。
+      cancelChatAnswer(requestId).catch(() => {})
+    }
     abortController.value?.abort()
   }
 
   function handleEvent(eventName, payload) {
     // SSE 的 meta/delta/error 在 store 中归档，页面只消费消息状态，
-    // 第十一阶段接入 SQLite 会话时可以复用同一套前端消息模型。
+    // 第十三阶段接入 SQLite 会话时可以复用同一套前端消息模型。
     if (eventName === 'meta') {
       updateAssistantMessage((message) => {
+        message.requestId = payload.requestId || message.requestId
         message.conversationId = payload.conversationId || ''
         message.retrievalMode = payload.retrievalMode || ''
         message.sources = payload.sources || []
+        if (payload.requestId && streamingContext.value) {
+          streamingContext.value.requestId = payload.requestId
+        }
       })
       return
     }
@@ -226,9 +247,15 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     if (eventName === 'error') {
+      const messageText = payload.message || '模型返回错误'
+      error.value = `对话失败：${messageText}`
       updateAssistantMessage((message) => {
+        if (message.content) {
+          message.status = 'done'
+          return
+        }
         message.status = 'error'
-        message.content = payload.message || '模型返回错误'
+        message.content = messageText
       })
     }
   }

@@ -1,0 +1,129 @@
+/* AI 流式 Markdown 渲染：只覆盖聊天消息里的 markstream-vue，不污染设置页。 */
+
+.ai-markdown-content,
+.ai-markdown-content .markstream-vue {
+  min-width: 0;
+  max-width: 100%;
+  color: inherit;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.78;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.ai-markdown-content .markstream-vue {
+  display: block;
+}
+
+.ai-markdown-content .markstream-vue > :first-child {
+  margin-top: 0;
+}
+
+.ai-markdown-content .markstream-vue > :last-child {
+  margin-bottom: 0;
+}
+
+.ai-markdown-content :where(p, ul, ol, blockquote, pre, table) {
+  margin: 0 0 12px;
+}
+
+.ai-markdown-content :where(h1, h2, h3, h4, h5, h6) {
+  margin: 14px 0 8px;
+  color: var(--color-text-strong);
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+
+.ai-markdown-content h1 {
+  font-size: 24px;
+}
+
+.ai-markdown-content h2 {
+  font-size: 21px;
+}
+
+.ai-markdown-content h3 {
+  font-size: 18px;
+}
+
+.ai-markdown-content :where(h4, h5, h6) {
+  font-size: 16px;
+}
+
+.ai-markdown-content :where(ul, ol) {
+  padding-left: 22px;
+}
+
+.ai-markdown-content li + li {
+  margin-top: 5px;
+}
+
+.ai-markdown-content blockquote {
+  padding: 2px 0 2px 14px;
+  border-left: 3px solid var(--color-accent-border);
+  color: var(--color-text-muted);
+}
+
+.ai-markdown-content a {
+  color: var(--color-accent-strong);
+  text-decoration: none;
+}
+
+.ai-markdown-content a:hover,
+.ai-markdown-content a:focus-visible {
+  text-decoration: underline;
+}
+
+.ai-markdown-content code {
+  padding: 2px 6px;
+  border-radius: 5px;
+  color: var(--color-text-strong);
+  background: color-mix(in srgb, var(--color-input) 82%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+.ai-markdown-content pre {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-input) 92%, transparent);
+}
+
+.ai-markdown-content pre code {
+  display: block;
+  min-width: max-content;
+  padding: 0;
+  color: var(--color-text);
+  background: transparent;
+  line-height: 1.7;
+  white-space: pre;
+}
+
+.ai-markdown-content table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.ai-markdown-content th,
+.ai-markdown-content td {
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.ai-markdown-content th {
+  color: var(--color-text-strong);
+  background: var(--color-accent-soft);
+}
+
+.ai-markdown-content :where(input[type='checkbox']) {
+  margin-right: 6px;
+  vertical-align: middle;
+}

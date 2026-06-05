@@ -1,8 +1,7 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, defineAsyncComponent, ref } from 'vue'
 import { LoaderCircle, Send, SlidersHorizontal } from 'lucide-vue-next'
 import ChatSettingsPopover from '../components/chat-settings-popover.vue'
-import MarkdownRenderer from '../components/markdown-renderer.vue'
 import SourceList from '../components/source-list.vue'
 import { useChatStore } from '../stores/chat'
 import { useModelConfigStore } from '../stores/model-config'
@@ -10,6 +9,7 @@ import { SEARCH_MODES } from '../stores/search'
 
 const chatStore = useChatStore()
 const modelConfigStore = useModelConfigStore()
+const AiMarkdownRenderer = defineAsyncComponent(() => import('../components/ai-markdown-renderer.vue'))
 const isComposerSettingsOpen = ref(false)
 const composerActionTitle = computed(() => (chatStore.isStreaming ? '停止对话' : '发送信息'))
 const activeModelSummary = computed(() => {
@@ -43,7 +43,7 @@ function handleComposerAction() {
       <div v-if="!chatStore.hasMessages" class="empty-chat">
         <p class="eyebrow">开始一次检索增强对话</p>
         <h3>导入资料后，直接问它。</h3>
-        <p>第七阶段先完成对话式前端。左侧会话是临时状态；跨重启聊天记忆会在第十一阶段用 SQLite 接上。</p>
+        <p>第七阶段先完成对话式前端。左侧会话是临时状态；跨重启聊天记忆会在第十三阶段用 SQLite 接上。</p>
       </div>
 
       <article
@@ -58,11 +58,12 @@ function handleComposerAction() {
           <em v-else-if="message.status === 'streaming'">生成中</em>
           <em v-else-if="message.status === 'stopped'">已停止</em>
         </div>
-        <MarkdownRenderer
+        <AiMarkdownRenderer
           v-if="message.role === 'assistant' && message.status !== 'error'"
           class="message-content"
           :content="message.content"
           empty-text="正在等待模型返回..."
+          :final="message.status !== 'streaming'"
         />
         <p v-else class="message-content">{{ message.content || '正在等待模型返回...' }}</p>
         <SourceList
@@ -79,7 +80,7 @@ function handleComposerAction() {
         <textarea
           v-model="chatStore.draft"
           rows="3"
-          :placeholder="chatStore.useKnowledgeBase ? '向知识库提问...' : '纯对话将在第十一阶段启用'"
+          :placeholder="chatStore.useKnowledgeBase ? '向知识库提问...' : '纯对话将在第十三阶段启用'"
           :disabled="chatStore.isStreaming"
         ></textarea>
 

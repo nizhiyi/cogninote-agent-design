@@ -1,4 +1,4 @@
-import { jsonOptions } from './http-client'
+import { jsonOptions, requestJson } from './http-client'
 
 export async function streamChatAnswer(payload, { signal, onEvent }) {
   const response = await fetch('/api/chat/stream', {
@@ -16,6 +16,13 @@ export async function streamChatAnswer(payload, { signal, onEvent }) {
   }
 
   await readSseStream(response.body, onEvent)
+}
+
+export async function cancelChatAnswer(requestId) {
+  if (!requestId) {
+    return false
+  }
+  return requestJson(`/api/chat/stream/${encodeURIComponent(requestId)}/cancel`, jsonOptions('POST', {}))
 }
 
 async function readSseStream(body, onEvent) {
@@ -46,7 +53,10 @@ async function readSseStream(body, onEvent) {
       return
     }
     if (line.startsWith('data:')) {
-      dataLines.push(line.slice(5).trimStart())
+      const data = line.slice(5)
+      // SSE 允许 "data: value" 里的一个分隔空格；内容本身的前导空白必须保留，
+      // 否则流式 Markdown 中单独返回的空格、缩进和换行会被吃掉。
+      dataLines.push(data.startsWith(' ') ? data.slice(1) : data)
     }
   }
 
