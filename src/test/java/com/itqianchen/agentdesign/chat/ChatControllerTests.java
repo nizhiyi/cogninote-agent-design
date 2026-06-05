@@ -5,7 +5,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.itqianchen.agentdesign.domain.chat.LlmGateway;
+import com.itqianchen.agentdesign.domain.ai.AiChatRuntime;
+import com.itqianchen.agentdesign.domain.ai.AiEmbeddingRuntime;
+import com.itqianchen.agentdesign.domain.ai.AiRuntimeFactory;
 import com.itqianchen.agentdesign.domain.model.ModelConfig;
 import com.itqianchen.agentdesign.domain.model.ModelConfigDefaults;
 import com.itqianchen.agentdesign.domain.search.EmbeddingGateway;
@@ -161,15 +163,25 @@ class ChatControllerTests {
 
         @Bean
         @Primary
-        LlmGateway fakeLlmGateway() {
-            return new LlmGateway() {
+        AiRuntimeFactory fakeAiRuntimeFactory() {
+            return new AiRuntimeFactory() {
                 @Override
-                public Flux<String> stream(ModelConfig config, Prompt prompt) {
-                    return Flux.just("可以使用 Launch4j 打包。");
+                public AiChatRuntime chatRuntime(ModelConfig config) {
+                    return new AiChatRuntime() {
+                        @Override
+                        public Flux<String> stream(Prompt prompt) {
+                            return Flux.just("可以使用 Launch4j 打包。");
+                        }
+
+                        @Override
+                        public void testConnection(Prompt prompt) {
+                        }
+                    };
                 }
 
                 @Override
-                public void testConnection(ModelConfig config) {
+                public AiEmbeddingRuntime embeddingRuntime(ModelConfig config) {
+                    throw new UnsupportedOperationException("Embedding runtime is intentionally disabled in chat controller tests");
                 }
             };
         }

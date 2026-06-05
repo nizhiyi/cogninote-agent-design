@@ -2,12 +2,11 @@ package com.itqianchen.agentdesign.service.search;
 
 import com.itqianchen.agentdesign.domain.model.ModelConfig;
 import com.itqianchen.agentdesign.domain.model.ModelConfigRole;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
+import com.itqianchen.agentdesign.domain.ai.AiRuntimeFactory;
 import com.itqianchen.agentdesign.domain.search.EmbeddingGateway;
 import com.itqianchen.agentdesign.domain.search.EmbeddingProperties;
 import com.itqianchen.agentdesign.domain.search.EmbeddingUnavailableException;
 import com.itqianchen.agentdesign.repository.model.ModelConfigRepository;
-import com.itqianchen.agentdesign.service.model.DashScopeModelFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -21,8 +20,7 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
 
     private final Optional<EmbeddingModel> embeddingModel;
     private final ModelConfigRepository modelConfigRepository;
-    private final DashScopeModelFactory dashScopeModelFactory;
-    private final OpenAiCompatibleEmbeddingClient openAiCompatibleEmbeddingClient;
+    private final AiRuntimeFactory aiRuntimeFactory;
     private final EmbeddingProperties embeddingProperties;
     private final String embeddingProvider;
     private final String dashscopeApiKey;
@@ -30,16 +28,14 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
     public SpringAiEmbeddingGateway(
             Optional<EmbeddingModel> embeddingModel,
             ModelConfigRepository modelConfigRepository,
-            DashScopeModelFactory dashScopeModelFactory,
-            OpenAiCompatibleEmbeddingClient openAiCompatibleEmbeddingClient,
+            AiRuntimeFactory aiRuntimeFactory,
             EmbeddingProperties embeddingProperties,
             @Value("${spring.ai.model.embedding:none}") String embeddingProvider,
             @Value("${spring.ai.dashscope.api-key:}") String dashscopeApiKey
     ) {
         this.embeddingModel = embeddingModel;
         this.modelConfigRepository = modelConfigRepository;
-        this.dashScopeModelFactory = dashScopeModelFactory;
-        this.openAiCompatibleEmbeddingClient = openAiCompatibleEmbeddingClient;
+        this.aiRuntimeFactory = aiRuntimeFactory;
         this.embeddingProperties = embeddingProperties;
         this.embeddingProvider = embeddingProvider;
         this.dashscopeApiKey = dashscopeApiKey;
@@ -100,11 +96,8 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
     }
 
     private EmbeddingModel activeEmbeddingModel() {
-        return modelConfigRepository.findActive(ModelConfigRole.EMBEDDING)
-                .filter(ModelConfig::hasApiKey)
-                .map(dashScopeModelFactory::embeddingModel)
-                .orElseGet(() -> embeddingModel.orElseThrow(() ->
-                        new EmbeddingUnavailableException("Embedding model is not configured")));
+        return embeddingModel.orElseThrow(() ->
+                new EmbeddingUnavailableException("Embedding model is not configured"));
     }
 
     private List<float[]> embedSlice(List<String> texts) {
@@ -115,10 +108,7 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
     }
 
     private List<float[]> embedConfigured(ModelConfig config, List<String> texts) {
-        if (config.provider() == ModelProvider.OPENAI_COMPATIBLE) {
-            return openAiCompatibleEmbeddingClient.embedBatch(config, texts);
-        }
-        return dashScopeModelFactory.embeddingModel(config).embed(texts);
+        return aiRuntimeFactory.embeddingRuntime(config).embedBatch(texts);
     }
 }
 

@@ -4,6 +4,8 @@
 
 第十一阶段聚焦重构智能体执行管线和模型调用层，不做聊天记忆持久化。原第十一阶段的 SQLite 聊天记忆顺延为第十二阶段。
 
+实施状态：已落地。当前 `/api/chat/stream` 已调整为 `ChatController -> AgentExecutionService -> CogninoteChatAgent -> AiRuntimeFactory`，OpenAI-compatible Chat / Embedding 已迁移到 Spring AI OpenAI Runtime，旧自研 OpenAI-compatible HTTP client 与旧 `LlmGateway` / `RagChatService` 兼容层已删除。
+
 当前代码已经能完成 RAG 对话，但模型调用层的职责混在一起：
 
 - `RagChatService` 同时负责检索、来源补全、Prompt 拼装和调用 LLM。
@@ -50,7 +52,8 @@
   - `AgentEvent` 表达 `meta/delta/error/done` 等内部事件。
   - Controller 只把内部事件映射成 SSE，不参与 Prompt、RAG、模型调用细节。
 - 抽离 RAG 上下文：
-  - `KnowledgeContextProvider` 只负责检索、降级、来源补全和上下文长度控制。
+  - `KnowledgeContextProvider` 只负责调用知识库检索、降级、来源补全和上下文长度控制。
+  - 向量检索和混合检索仍由 `LuceneKnowledgeStore -> EmbeddingGateway -> AiRuntimeFactory` 链路生成查询向量，必须读取 active `EMBEDDING` 配置。
   - `PromptAssembler` 只负责把系统提示词、知识上下文、用户问题组装为模型消息。
 - OpenAI-compatible 和 DashScope 重构到同一运行时接口：
   - DashScope 保留 Spring AI Alibaba 原生实现。
@@ -72,7 +75,6 @@ src/main/java/com/itqianchen/agentdesign/
       AgentRequest.java
       AgentChatStream.java
       AgentEvent.java
-      AgentMode.java
     ai/
       AiChatRuntime.java
       AiEmbeddingRuntime.java
@@ -87,8 +89,6 @@ src/main/java/com/itqianchen/agentdesign/
     ai/
       DashScopeRuntimeFactory.java
       OpenAiCompatibleRuntimeFactory.java
-      ModelRuntimeCache.java
-      ModelInvocationLogger.java
     chat/
       ChatSseEventMapper.java
 ```
@@ -104,7 +104,8 @@ src/main/java/com/itqianchen/agentdesign/
   - 决定是否使用知识库、是否注入记忆、使用哪个 active Chat 配置。
   - 返回内部事件流。
 - `service.agent.KnowledgeContextProvider`
-  - 负责 `KnowledgeStore.search(...)`、Embedding 降级、来源补全和 context 字符预算。
+  - 负责调用 `KnowledgeStore.search(...)`、Embedding 降级、来源补全和 context 字符预算。
+  - 不直接构造查询向量；向量生成保留在 `LuceneKnowledgeStore` 经由 `EmbeddingGateway` 调用 active `EMBEDDING` runtime 的链路中。
   - 返回 `KnowledgeContext`，包含实际检索模式、sources、contextText。
 - `service.agent.PromptAssembler`
   - 读取 `ChatPromptProperties`。
@@ -161,7 +162,8 @@ AgentExecutionService
 CogninoteChatAgent
   ├─ 读取 active CHAT 配置
   ├─ 读取当前请求设置
-  ├─ KnowledgeContextProvider 检索知识库
+  ├─ KnowledgeContextProvider 调用 KnowledgeStore 检索知识库
+  │    └─ 向量/混合模式由 LuceneKnowledgeStore 通过 EmbeddingGateway 生成查询向量
   ├─ ConversationMemoryPort 空实现预留
   ├─ PromptAssembler 组装 messages
   └─ AiChatRuntime.stream(...)
@@ -224,12 +226,13 @@ done
 
 - 当前项目需要返回自定义 sources，前端要展示文件名、路径、页码、chunk 和预览。
 - 当前 `KnowledgeStore` 是 Lucene + SQLite 组合，不是 Spring AI VectorStore。
+- 当前向量检索依赖 active `EMBEDDING` 模型生成查询向量，不能在 Agent 重构时把 Embedding 调用从检索链路里抹掉。
 - 当前 RAG 有 Embedding 降级到关键词检索的逻辑，不能丢。
 
 第十一阶段采用折中方案：
 
 - Prompt 组装继续由 CogniNote 自己控制。
-- RAG 检索抽成 `KnowledgeContextProvider`，形成 advisor-like 的业务组件。
+- RAG 检索抽成 `KnowledgeContextProvider`，形成 advisor-like 的业务组件；向量查询仍通过 `KnowledgeStore -> EmbeddingGateway -> AiRuntimeFactory` 使用 active `EMBEDDING` runtime。
 - 日志、记忆、工具调用等通用增强能力在 Agent 层预留 Advisor 接入点。
 - 第十二阶段可实现 SQLite `ChatMemory`，并决定是用 Spring AI `MessageChatMemoryAdvisor`，还是继续用 CogniNote 自己的 memory message 注入。
 
@@ -256,8 +259,8 @@ done
 ### 第一组：运行时接口
 
 - 新增 `AiChatRuntime`：
-  - `Flux<String> stream(AgentPrompt prompt)`
-  - `void testConnection()`
+  - `Flux<String> stream(Prompt prompt)`
+  - `void testConnection(Prompt prompt)`
 - 新增 `AiEmbeddingRuntime`：
   - `float[] embed(String text)`
   - `List<float[]> embedBatch(List<String> texts)`
@@ -273,9 +276,9 @@ done
 
 ### 第三组：Agent 执行
 
-- 新增 `CogninoteChatAgent`，承接原 `RagChatService.stream()` 的编排职责。
-- 将原 `RagChatService.buildPrompt()` 拆到 `PromptAssembler`。
-- 将原 `searchWithFallback()`、`hydrateSources()`、`buildContext()` 拆到 `KnowledgeContextProvider`。
+- 新增 `CogninoteChatAgent`，承接原 RAG 对话编排职责。
+- 将 Prompt 构造拆到 `PromptAssembler`。
+- 将原 `searchWithFallback()`、`hydrateSources()`、`buildContext()` 拆到 `KnowledgeContextProvider`，并保留 `KnowledgeStore` / `EmbeddingGateway` 负责查询向量生成的职责边界。
 - 新增 `ConversationMemoryPort` 空实现，明确第十二阶段的扩展点。
 
 ### 第四组：SSE 适配
@@ -309,7 +312,7 @@ mvn test
 - DashScope qwen3.7 / VL / omni 等模型仍走 multimodal endpoint。
 - OpenAI-compatible Runtime 通过 Spring AI OpenAI 使用用户自定义 Base URL，Chat / Embedding / Models 调用保持 OpenAI-compatible 语义。
 - Provider 切换不会影响 active Chat / active Embedding 独立性。
-- `KnowledgeContextProvider` 在 Embedding 不可用时仍从 HYBRID/VECTOR 降级到 KEYWORD。
+- `KnowledgeContextProvider` 调用 `KnowledgeStore` 检索；`LuceneKnowledgeStore` 通过 active Embedding runtime 生成查询向量，Embedding 不可用时仍从 HYBRID/VECTOR 降级到 KEYWORD。
 - `PromptAssembler` 能稳定注入系统提示词、知识上下文和用户问题。
 - `ChatSseEventMapper` 保持 `meta -> delta -> done/error` 输出顺序。
 

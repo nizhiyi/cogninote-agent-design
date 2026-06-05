@@ -2,8 +2,11 @@ package com.itqianchen.agentdesign.chat;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.itqianchen.agentdesign.domain.chat.LlmGateway;
-import com.itqianchen.agentdesign.domain.chat.RagChatStream;
+import com.itqianchen.agentdesign.domain.agent.AgentChatStream;
+import com.itqianchen.agentdesign.domain.agent.AgentRequest;
+import com.itqianchen.agentdesign.domain.ai.AiChatRuntime;
+import com.itqianchen.agentdesign.domain.ai.AiEmbeddingRuntime;
+import com.itqianchen.agentdesign.domain.ai.AiRuntimeFactory;
 import com.itqianchen.agentdesign.domain.chat.ChatPromptProperties;
 import com.itqianchen.agentdesign.domain.model.ModelConfig;
 import com.itqianchen.agentdesign.domain.model.ModelConfigDefaults;
@@ -13,8 +16,6 @@ import com.itqianchen.agentdesign.domain.search.IndexedDocument;
 import com.itqianchen.agentdesign.domain.search.KnowledgeStore;
 import com.itqianchen.agentdesign.domain.search.SearchMode;
 import com.itqianchen.agentdesign.domain.search.StoredChunk;
-import com.itqianchen.agentdesign.dto.chat.ChatStreamRequest;
-import com.itqianchen.agentdesign.dto.chat.RagSourceResponse;
 import com.itqianchen.agentdesign.dto.index.IndexStatusResponse;
 import com.itqianchen.agentdesign.dto.index.RebuildIndexResponse;
 import com.itqianchen.agentdesign.dto.search.SearchHitResponse;
@@ -22,7 +23,11 @@ import com.itqianchen.agentdesign.dto.search.SearchRequest;
 import com.itqianchen.agentdesign.dto.search.SearchResponse;
 import com.itqianchen.agentdesign.repository.document.DocumentRepository;
 import com.itqianchen.agentdesign.repository.model.ModelConfigRepository;
-import com.itqianchen.agentdesign.service.chat.RagChatService;
+import com.itqianchen.agentdesign.service.agent.CogninoteChatAgent;
+import com.itqianchen.agentdesign.service.agent.KnowledgeContext;
+import com.itqianchen.agentdesign.service.agent.KnowledgeContextProvider;
+import com.itqianchen.agentdesign.service.agent.NoopConversationMemoryPort;
+import com.itqianchen.agentdesign.service.agent.PromptAssembler;
 import com.itqianchen.agentdesign.service.model.ModelConfigService;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,14 +36,19 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.prompt.Prompt;
 import reactor.core.publisher.Flux;
 
-class RagChatServiceTests {
+class CogninoteChatAgentTests {
 
     @Test
     void promptContainsQuestionContextAndSourceNumbers() {
-        RagChatService service = newService(new FakeKnowledgeStore(false), new FakeLlmGateway());
-        List<RagSourceResponse> sources = List.of(RagSourceResponse.from(1, hit("chunk-1")));
+        PromptAssembler promptAssembler = new PromptAssembler(defaultPromptProperties());
+        String context = """
+                [1] 文件：packaging.md
+                路径：D:/notes/packaging.md
+                位置：打包
+                内容：CogniNote 使用 Launch4j 生成 Windows EXE。
+                """;
 
-        Prompt prompt = service.buildPrompt("如何打包？", sources);
+        Prompt prompt = promptAssembler.assembleRagPrompt("如何打包？", context);
 
         assertThat(prompt.getContents())
                 .contains("如何打包？")
@@ -57,9 +67,9 @@ class RagChatServiceTests {
                 ),
                 new ChatPromptProperties.ConnectionTest("测试连接")
         );
-        RagChatService service = newService(new FakeKnowledgeStore(false), new FakeLlmGateway(), promptProperties);
+        PromptAssembler promptAssembler = new PromptAssembler(promptProperties);
 
-        Prompt prompt = service.buildPrompt("没有资料的问题", List.of());
+        Prompt prompt = promptAssembler.assembleRagPrompt("没有资料的问题", promptProperties.rag().emptyContext());
 
         assertThat(prompt.getContents())
                 .contains("自定义系统提示词")
@@ -70,9 +80,15 @@ class RagChatServiceTests {
     @Test
     void hybridFallsBackToKeywordWhenEmbeddingIsUnavailable() {
         FakeKnowledgeStore knowledgeStore = new FakeKnowledgeStore(true);
-        RagChatService service = newService(knowledgeStore, new FakeLlmGateway());
+        CogninoteChatAgent agent = newAgent(knowledgeStore, defaultPromptProperties());
 
-        RagChatStream stream = service.stream(new ChatStreamRequest("Launch4j 是什么？", 5, SearchMode.HYBRID));
+        AgentChatStream stream = agent.stream(new AgentRequest(
+                "Launch4j 是什么？",
+                5,
+                SearchMode.HYBRID,
+                null,
+                true
+        ));
 
         assertThat(stream.retrievalMode()).isEqualTo(SearchMode.KEYWORD);
         assertThat(stream.sources()).hasSize(1);
@@ -80,15 +96,26 @@ class RagChatServiceTests {
         assertThat(knowledgeStore.seenModes).containsExactly(SearchMode.HYBRID, SearchMode.KEYWORD);
     }
 
-    private static RagChatService newService(KnowledgeStore knowledgeStore, LlmGateway llmGateway) {
-        return newService(knowledgeStore, llmGateway, defaultPromptProperties());
+    @Test
+    void knowledgeContextHydratesSourceContentFromSqliteChunks() {
+        KnowledgeContextProvider provider = new KnowledgeContextProvider(
+                new FakeKnowledgeStore(false),
+                new FakeDocumentRepository(),
+                defaultPromptProperties()
+        );
+
+        KnowledgeContext context = provider.retrieve("如何打包？", SearchMode.KEYWORD, 3);
+
+        assertThat(context.contextText())
+                .contains("[1]")
+                .contains("packaging.md")
+                .contains("CogniNote 使用 Launch4j 生成 Windows EXE。");
+        assertThat(context.sources())
+                .singleElement()
+                .satisfies(source -> assertThat(source.content()).contains("Launch4j"));
     }
 
-    private static RagChatService newService(
-            KnowledgeStore knowledgeStore,
-            LlmGateway llmGateway,
-            ChatPromptProperties promptProperties
-    ) {
+    private static CogninoteChatAgent newAgent(KnowledgeStore knowledgeStore, ChatPromptProperties promptProperties) {
         ModelConfigRepository repository = new ModelConfigRepository(null) {
             @Override
             public Optional<ModelConfig> findActive(ModelConfigRole role) {
@@ -110,12 +137,12 @@ class RagChatServiceTests {
                 ));
             }
         };
-        return new RagChatService(
-                knowledgeStore,
-                new FakeDocumentRepository(),
+        return new CogninoteChatAgent(
                 new ModelConfigService(repository),
-                llmGateway,
-                promptProperties
+                new FakeAiRuntimeFactory(),
+                new KnowledgeContextProvider(knowledgeStore, new FakeDocumentRepository(), promptProperties),
+                new PromptAssembler(promptProperties),
+                new NoopConversationMemoryPort()
         );
     }
 
@@ -199,14 +226,24 @@ class RagChatServiceTests {
         }
     }
 
-    private static class FakeLlmGateway implements LlmGateway {
+    private static class FakeAiRuntimeFactory implements AiRuntimeFactory {
         @Override
-        public Flux<String> stream(ModelConfig config, Prompt prompt) {
-            return Flux.just("答案片段");
+        public AiChatRuntime chatRuntime(ModelConfig config) {
+            return new AiChatRuntime() {
+                @Override
+                public Flux<String> stream(Prompt prompt) {
+                    return Flux.just("答案片段");
+                }
+
+                @Override
+                public void testConnection(Prompt prompt) {
+                }
+            };
         }
 
         @Override
-        public void testConnection(ModelConfig config) {
+        public AiEmbeddingRuntime embeddingRuntime(ModelConfig config) {
+            throw new UnsupportedOperationException("Embedding runtime is not used in this test");
         }
     }
 

@@ -1,16 +1,12 @@
-package com.itqianchen.agentdesign.domain.chat;
+package com.itqianchen.agentdesign.service.agent;
 
 import com.itqianchen.agentdesign.domain.search.SearchMode;
 import com.itqianchen.agentdesign.dto.chat.RagSourceResponse;
 import java.util.List;
-import reactor.core.publisher.Flux;
 
-public record RagChatStream(
-        String conversationId,
+public record KnowledgeContext(
         SearchMode retrievalMode,
         List<RagSourceResponse> sources,
-        Flux<String> answer
+        String contextText
 ) {
 }
-
-

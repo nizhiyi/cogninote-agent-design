@@ -5,6 +5,7 @@ spring:
     model:
       chat: none
       image: none
+      moderation: none
       video: none
       rerank: none
       audio:

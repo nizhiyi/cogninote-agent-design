@@ -1,8 +1,6 @@
 package com.itqianchen.agentdesign.controller.model;
 
 import com.itqianchen.agentdesign.common.api.ApiResponse;
-import com.itqianchen.agentdesign.domain.chat.LlmGateway;
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
 import com.itqianchen.agentdesign.domain.model.ModelConfigRole;
 import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
 import com.itqianchen.agentdesign.dto.model.ActiveModelConfigsResponse;
@@ -14,6 +12,7 @@ import com.itqianchen.agentdesign.dto.model.ModelConfigTestResponse;
 import com.itqianchen.agentdesign.dto.model.ModelConfigUpsertRequest;
 import com.itqianchen.agentdesign.dto.model.ModelOptionsResponse;
 import com.itqianchen.agentdesign.service.model.ModelCatalogService;
+import com.itqianchen.agentdesign.service.model.ModelConnectionTestService;
 import com.itqianchen.agentdesign.service.model.ModelConfigService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -23,7 +22,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -32,16 +30,16 @@ public class ModelConfigController {
 
     private final ModelConfigService modelConfigService;
     private final ModelCatalogService modelCatalogService;
-    private final LlmGateway llmGateway;
+    private final ModelConnectionTestService modelConnectionTestService;
 
     public ModelConfigController(
             ModelConfigService modelConfigService,
             ModelCatalogService modelCatalogService,
-            LlmGateway llmGateway
+            ModelConnectionTestService modelConnectionTestService
     ) {
         this.modelConfigService = modelConfigService;
         this.modelCatalogService = modelCatalogService;
-        this.llmGateway = llmGateway;
+        this.modelConnectionTestService = modelConnectionTestService;
     }
 
     @GetMapping("/api/model-configs")
@@ -115,7 +113,7 @@ public class ModelConfigController {
 
     @PostMapping("/api/model-configs/test")
     public ApiResponse<ModelConfigTestResponse> testRoleConfig(@Valid @RequestBody ModelConfigRequest request) {
-        return ApiResponse.ok(testConfigByRole(modelConfigService.connectionTestConfig(request)));
+        return ApiResponse.ok(modelConnectionTestService.test(modelConfigService.connectionTestConfig(request)));
     }
 
     @PostMapping("/api/model-configs/models")
@@ -138,7 +136,7 @@ public class ModelConfigController {
 
     @PostMapping("/api/model-config/test")
     public ApiResponse<ModelConfigTestResponse> testConfig(@Valid @RequestBody ModelConfigRequest request) {
-        return ApiResponse.ok(testConfigByRole(modelConfigService.connectionTestConfig(request)));
+        return ApiResponse.ok(modelConnectionTestService.test(modelConfigService.connectionTestConfig(request)));
     }
 
     @PostMapping("/api/model-config/models")
@@ -157,15 +155,6 @@ public class ModelConfigController {
         }
     }
 
-    private ModelConfigTestResponse testConfigByRole(ModelConfig config) {
-        if (config.role() == ModelConfigRole.CHAT) {
-            llmGateway.testConnection(config);
-            return new ModelConfigTestResponse(true, "模型连接测试成功");
-        }
-        // Embedding 连接会在 /models 或索引流程里验证。部分服务商没有轻量 embedding test，
-        // 这里不主动发 embedding 请求，避免测试连接产生额外计费或维度副作用。
-        return new ModelConfigTestResponse(true, "Embedding 配置格式已校验；未发起向量调用，请通过获取模型或重建索引验证服务端连接。");
-    }
 }
 
 
