@@ -16,6 +16,7 @@
 - `GeneralChatAgent` 只挂 `CogninoteMemoryAdvisor`，不检索知识库，不挂 RAG Advisor，返回 `retrievalMode=null` 和空 sources。
 - `KnowledgeBaseChatAgent` 保留 `KnowledgeContextProvider`、`CogninoteDocumentRetriever` 和 `RetrievalAugmentationAdvisor` 链路。
 - Prompt 按 Agent 分离：`general.system/user` 用于普通对话，`rag.system/user/empty-context` 只用于知识库模式。
+- `SpringAiChatRuntime` 读取 Spring AI 流式 `ChatResponse` 元数据，遇到 `length`、`max_tokens`、`max_completion_tokens` 或 `content_filter` 时把本轮回答标记为未完成，避免截断内容保存为正常完成。
 
 ## Memory Isolation
 
@@ -32,6 +33,8 @@
 - SSE `meta/delta/done/error` 不变。
 - 前端不新增必填字段。
 - 日志新增 `agentType`，用于确认本轮走 `GENERAL_CHAT` 还是 `KNOWLEDGE_BASE`。
+- `chat_messages.status` 继续使用 `DONE`、`STOPPED` 和 `ERROR`。模型异常或截断时，非空 assistant 片段保存为 `ERROR`；模型未返回任何 assistant 内容就失败时不新增 assistant 消息。
+- 前端遇到非用户主动停止的错误后，会按 `requestId` 延迟刷新会话详情，同步后端稍后写入的 `DONE/ERROR` 消息。
 
 ## Test Plan
 
@@ -41,15 +44,17 @@
 - 覆盖同一会话中从知识库模式切到普通模式，普通模式不再使用 RAG prompt，也不继承“知识库依据不足”的拒答规则。
 - 覆盖同一会话中从普通模式切到知识库模式，普通历史只能作为对话背景，不能作为引用来源。
 - 覆盖旧 SQLite 缺少 `agent_type` 时自动补列，旧消息读取不报错。
+- 覆盖 Provider 返回 `finishReason=length` 时，直接 ChatModel 流和 ChatClient/advisor 流都抛出 `ChatCompletionIncompleteException`，不按正常完成处理。
 
 已执行验证：
 
 ```text
 mvn -Dtest=ChatAgentRouterTests test
+mvn -Dtest=SpringAiChatRuntimeTests,ChatAgentRouterTests,ChatControllerTests test
 mvn test
 ```
 
-结果：后端 68 个测试通过，0 failures，0 errors。
+结果：后端 70 个测试通过，0 failures，0 errors。前端执行 `npm --prefix cogniNote-agent-front run build` 通过，仅保留既有的 Rolldown 依赖注解和 chunk size 警告。
 
 ## Assumptions
 

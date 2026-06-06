@@ -535,7 +535,7 @@ data: {"message":"..."}
 meta -> delta -> done
 ```
 
-异常时输出 `error`。如果 `HYBRID` 或 `VECTOR` 因 Embedding 不可用失败，RAG 服务会自动降级到 `KEYWORD`，并在 `meta.retrievalMode` 中返回实际检索模式。`useKnowledgeBase=false` 时路由到 `GENERAL_CHAT` 普通对话 Agent，不挂 RAG Advisor，`retrievalMode` 为 `null`、`sources` 为空，只注入模式隔离后的会话记忆。`useKnowledgeBase=true` 或省略时路由到 `KNOWLEDGE_BASE` 知识库 Agent。
+异常时输出 `error`，事件顺序为 `meta -> delta -> error`。客户端只有收到 `done` 或 `error` 终止事件时，才能认为本轮 SSE 流有明确结论；如果连接关闭但没有终止事件，应按回答未完成处理。如果 `HYBRID` 或 `VECTOR` 因 Embedding 不可用失败，RAG 服务会自动降级到 `KEYWORD`，并在 `meta.retrievalMode` 中返回实际检索模式。`useKnowledgeBase=false` 时路由到 `GENERAL_CHAT` 普通对话 Agent，不挂 RAG Advisor，`retrievalMode` 为 `null`、`sources` 为空，只注入模式隔离后的会话记忆。`useKnowledgeBase=true` 或省略时路由到 `KNOWLEDGE_BASE` 知识库 Agent。
 
 重要约束：
 
@@ -548,6 +548,8 @@ meta -> delta -> done
 - `POST /api/chat/stream` 已经写出 `text/event-stream` 后，错误不能再按 JSON `ApiResponse` 写回。能进入业务流的错误应发送 SSE `error` 事件；连接关闭或容器异常只能关闭响应。
 - 普通浏览器刷新、切页或 SSE 连接断开不代表用户停止生成。后端仍会消费模型流到结束并在完成后保存完整 assistant 消息。
 - 用户显式停止时，取消接口会中断模型订阅，并把已生成的 assistant 片段保存为 `STOPPED`。
+- 模型正常完成且 assistant 内容非空时，`chat_messages.status` 保存为 `DONE`；模型截断、Provider 异常或后端调用异常且 assistant 内容非空时保存为 `ERROR`；模型还未返回任何 assistant 内容就失败时不保存 assistant 消息，只保留 user 消息。
+- 前端遇到非用户主动停止的错误后，会先显示“未完成”气泡，再按本轮 `requestId` 延迟刷新会话详情；只有后端已经写入同一个 `requestId` 的 assistant 消息时，才用 SQLite 中的真实 `DONE/ERROR` 消息覆盖本地临时状态。
 
 ### 取消流式生成
 
