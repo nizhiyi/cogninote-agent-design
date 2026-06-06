@@ -23,6 +23,7 @@ export const useThemeStore = defineStore('theme', () => {
     // 主题类挂在 html 上，避免页面切换时丢失；CSS 模块只需要按 theme-light 做覆盖。
     document.documentElement.classList.toggle('theme-light', theme.value === 'light')
     document.documentElement.classList.toggle('theme-dark', theme.value === 'dark')
+    document.documentElement.classList.toggle('dark', theme.value === 'dark')
   }
 
   applyTheme()

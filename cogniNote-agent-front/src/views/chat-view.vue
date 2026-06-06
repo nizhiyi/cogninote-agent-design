@@ -15,7 +15,7 @@ const messageStreamRef = ref(null)
 const composerActionTitle = computed(() => (chatStore.isStreaming ? '停止对话' : '发送信息'))
 const activeModelSummary = computed(() => {
   const chat = modelConfigStore.activeChatConfig?.modelName || '未配置对话模型'
-  const embedding = modelConfigStore.activeEmbeddingConfig?.modelName || '未配置 Embedding'
+  const embedding = modelConfigStore.activeEmbeddingConfig?.modelName || '未配置向量模型'
   return `${chat} / ${embedding}`
 })
 
@@ -191,7 +191,7 @@ watch(
           尚未保存对话模型 API Key。请先到设置中的模型配置保存后再对话。
         </p>
         <p v-else-if="chatStore.useKnowledgeBase && !modelConfigStore.activeEmbeddingConfig?.apiKeyConfigured" class="hint-message">
-          尚未保存 Embedding 模型 API Key。向量检索不可用时会降级到关键词检索。
+          尚未保存向量模型 API Key。向量检索不可用时会降级到关键词检索。
         </p>
       </div>
     </form>

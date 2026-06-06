@@ -1,14 +1,32 @@
 <script setup>
-import { onMounted } from 'vue'
-import StatGrid from '../components/stat-grid.vue'
+import { computed, watch } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useModelConfigStore } from '../stores/model-config'
+import { useSearchStore } from '../stores/search'
 import { formatTime } from '../utils/formatters'
 
-const modelConfigStore = useModelConfigStore()
-
-onMounted(() => {
-  loadInitialSettings()
+const props = defineProps({
+  initialRole: {
+    type: String,
+    default: ''
+  }
 })
+
+const modelConfigStore = useModelConfigStore()
+const searchStore = useSearchStore()
+const apiKeyConfigured = computed(() => {
+  return Boolean(modelConfigStore.form.apiKey || modelConfigStore.selectedConfig?.apiKeyConfigured)
+})
+const apiKeySummary = computed(() => apiKeyConfigured.value ? '已配置' : '未配置')
+const updatedAtSummary = computed(() => {
+  return formatTime(modelConfigStore.activeConfigForRole?.updatedAt)
+})
+
+watch(
+  () => props.initialRole,
+  () => loadInitialSettings(),
+  { immediate: true }
+)
 
 function roleActiveConfig(role) {
   return role === modelConfigStore.ROLES.CHAT
@@ -17,11 +35,11 @@ function roleActiveConfig(role) {
 }
 
 async function loadInitialSettings() {
+  const role = normalizeInitialRole(props.initialRole)
+  if (role) {
+    return await modelConfigStore.switchRole(role)
+  }
   await modelConfigStore.initializeEditor()
-}
-
-async function handleSwitchRole(role) {
-  await modelConfigStore.switchRole(role)
 }
 
 function handleStartCreate() {
@@ -37,11 +55,13 @@ async function handleReload() {
 }
 
 async function handleSave() {
-  await modelConfigStore.saveModelConfig()
+  const snapshot = await modelConfigStore.saveModelConfig()
+  await promptRebuildIndexIfVectorConfigChanged(snapshot)
 }
 
 async function handleActivate() {
-  await modelConfigStore.activateConfig(modelConfigStore.selectedConfig)
+  const snapshot = await modelConfigStore.activateConfig(modelConfigStore.selectedConfig)
+  await promptRebuildIndexIfVectorConfigChanged(snapshot)
 }
 
 async function handleRemove() {
@@ -52,29 +72,48 @@ function providerLabel(provider) {
   return modelConfigStore.providerOptions.find(option => option.value === provider)?.label || provider
 }
 
-function handleProviderChange(event) {
-  modelConfigStore.changeProvider(event.target.value)
+async function promptRebuildIndexIfVectorConfigChanged(snapshot) {
+  if (!snapshot || snapshot.role !== modelConfigStore.ROLES.EMBEDDING) {
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      '向量模型或向量维度变化后，已有知识库向量索引不会自动更新。是否现在重建全部索引？',
+      '建议重建知识库索引',
+      {
+        confirmButtonText: '立即重建',
+        cancelButtonText: '稍后处理',
+        type: 'warning'
+      }
+    )
+    await searchStore.rebuildIndex()
+    if (searchStore.indexError) {
+      ElMessage.error(searchStore.indexError)
+      return
+    }
+    ElMessage.success('全部索引已重建')
+  } catch (err) {
+    if (err !== 'cancel' && err !== 'close') {
+      ElMessage.error(`重建索引失败：${err.message || err}`)
+    }
+  }
+}
+
+function normalizeInitialRole(role) {
+  const normalized = String(role || '').trim().toUpperCase()
+  return [modelConfigStore.ROLES.CHAT, modelConfigStore.ROLES.EMBEDDING].includes(normalized)
+    ? normalized
+    : ''
 }
 </script>
 
 <template>
   <section class="model-config-center">
     <header class="model-config-toolbar">
-      <div class="model-role-tabs" role="tablist" aria-label="模型配置类型">
-        <button
-          type="button"
-          :class="{ active: modelConfigStore.activeRole === modelConfigStore.ROLES.CHAT }"
-          @click="handleSwitchRole(modelConfigStore.ROLES.CHAT)"
-        >
-          对话模型
-        </button>
-        <button
-          type="button"
-          :class="{ active: modelConfigStore.activeRole === modelConfigStore.ROLES.EMBEDDING }"
-          @click="handleSwitchRole(modelConfigStore.ROLES.EMBEDDING)"
-        >
-          Embedding 模型
-        </button>
+      <div class="model-config-toolbar__title">
+        <p class="eyebrow">模型配置</p>
+        <h3>{{ modelConfigStore.roleLabel }}</h3>
       </div>
       <button class="primary-button" type="button" @click="handleStartCreate">
         新建{{ modelConfigStore.roleLabel }}
@@ -86,7 +125,7 @@ function handleProviderChange(event) {
         v-for="role in [modelConfigStore.ROLES.CHAT, modelConfigStore.ROLES.EMBEDDING]"
         :key="role"
       >
-        <p class="eyebrow">{{ role === modelConfigStore.ROLES.CHAT ? 'Active Chat' : 'Active Embedding' }}</p>
+        <p class="eyebrow">{{ role === modelConfigStore.ROLES.CHAT ? '当前对话模型' : '当前向量模型' }}</p>
         <h3>{{ roleActiveConfig(role)?.displayName || '-' }}</h3>
         <p>{{ roleActiveConfig(role)?.modelName || '-' }}</p>
         <small>{{ roleActiveConfig(role)?.baseUrl || '-' }}</small>
@@ -124,7 +163,7 @@ function handleProviderChange(event) {
         >
           <label class="field">
             <span>配置名称</span>
-            <input v-model="modelConfigStore.form.displayName" type="text" autocomplete="off" />
+            <el-input v-model="modelConfigStore.form.displayName" autocomplete="off" />
           </label>
 
           <label class="field">
@@ -140,23 +179,24 @@ function handleProviderChange(event) {
                 {{ modelConfigStore.selectedConfig?.active ? '已启用' : (modelConfigStore.isActivating ? '启用中...' : '启用') }}
               </button>
             </span>
-            <select
-              :value="modelConfigStore.form.provider"
-              @change="handleProviderChange"
+            <el-select
+              :model-value="modelConfigStore.form.provider"
+              @change="modelConfigStore.changeProvider"
             >
-              <option
+              <el-option
                 v-for="provider in modelConfigStore.providerOptions"
                 :key="provider.value"
                 :value="provider.value"
+                :label="provider.label"
               >
                 {{ provider.label }}
-              </option>
-            </select>
+              </el-option>
+            </el-select>
           </label>
 
           <label class="field field--full">
             <span>Base URL</span>
-            <input
+            <el-input
               v-model="modelConfigStore.form.baseUrl"
               type="url"
               autocomplete="off"
@@ -170,31 +210,28 @@ function handleProviderChange(event) {
           <label class="field field--full">
             <span>API Key</span>
             <div class="secret-input">
-              <input
+              <el-input
                 v-model="modelConfigStore.form.apiKey"
                 :type="modelConfigStore.visibleApiKeyByRole[modelConfigStore.activeRole] ? 'text' : 'password'"
                 :placeholder="modelConfigStore.apiKeyPlaceholder"
                 autocomplete="off"
               />
-              <button class="secondary-button" type="button" @click="modelConfigStore.toggleApiKeyVisible()">
+              <el-button @click="modelConfigStore.toggleApiKeyVisible()">
                 {{ modelConfigStore.visibleApiKeyByRole[modelConfigStore.activeRole] ? '隐藏' : '显示' }}
-              </button>
-              <button
-                class="secondary-button"
-                type="button"
+              </el-button>
+              <el-button
                 :disabled="!modelConfigStore.form.apiKey"
                 @click="modelConfigStore.copyApiKey()"
               >
                 复制
-              </button>
+              </el-button>
             </div>
           </label>
 
           <label class="field field--full">
             <span>模型 ID</span>
-            <input
+            <el-input
               v-model="modelConfigStore.form.modelName"
-              type="text"
               :list="modelConfigStore.activeRole === modelConfigStore.ROLES.CHAT
                 ? 'chat-model-options'
                 : 'embedding-model-options'"
@@ -216,76 +253,108 @@ function handleProviderChange(event) {
           </label>
 
           <label v-if="modelConfigStore.activeRole === modelConfigStore.ROLES.EMBEDDING" class="field">
-            <span>Embedding 维度</span>
-            <input :value="1024" type="number" readonly />
+            <span>向量维度</span>
+            <el-input-number :model-value="1024" :controls="false" readonly />
             <small class="field-hint">当前 Lucene 向量索引固定使用 1024 维。</small>
           </label>
 
           <label v-if="modelConfigStore.activeRole === modelConfigStore.ROLES.CHAT" class="field">
             <span>Temperature</span>
-            <input v-model.number="modelConfigStore.form.temperature" type="number" min="0" max="2" step="0.1" />
+            <el-input-number v-model="modelConfigStore.form.temperature" :min="0" :max="2" :step="0.1" controls-position="right" />
           </label>
 
           <label v-if="modelConfigStore.activeRole === modelConfigStore.ROLES.CHAT" class="field">
             <span>默认 Top K</span>
-            <input v-model.number="modelConfigStore.form.defaultTopK" type="number" min="1" max="50" />
+            <el-input-number v-model="modelConfigStore.form.defaultTopK" :min="1" :max="50" controls-position="right" />
           </label>
 
           <div class="model-form__actions">
-            <button
-              class="secondary-button"
-              type="button"
+            <el-button
               :disabled="modelConfigStore.isFetchingModels"
+              :loading="modelConfigStore.isFetchingModels"
               @click="modelConfigStore.fetchModels()"
             >
-              {{ modelConfigStore.isFetchingModels ? '获取中...' : '获取模型' }}
-            </button>
-            <button class="primary-button" type="submit" :disabled="modelConfigStore.isSavingModelConfig">
-              {{ modelConfigStore.isSavingModelConfig ? '保存中...' : (modelConfigStore.isEditingExisting ? '保存配置' : '创建配置') }}
-            </button>
-            <button
-              class="secondary-button"
-              type="button"
+              获取模型
+            </el-button>
+            <el-button type="primary" native-type="submit" :loading="modelConfigStore.isSavingModelConfig">
+              {{ modelConfigStore.isEditingExisting ? '保存配置' : '创建配置' }}
+            </el-button>
+            <el-button
               :disabled="modelConfigStore.isTestingModelConfig"
+              :loading="modelConfigStore.isTestingModelConfig"
               @click="modelConfigStore.testModelConfig()"
             >
-              {{ modelConfigStore.isTestingModelConfig ? '测试中...' : '测试连接' }}
-            </button>
-            <button
+              测试连接
+            </el-button>
+            <el-popconfirm
               v-if="modelConfigStore.isEditingExisting"
-              class="secondary-button danger-button"
-              type="button"
-              :disabled="modelConfigStore.isDeleting"
-              @click="handleRemove"
+              title="删除当前模型配置？"
+              confirm-button-text="删除"
+              cancel-button-text="取消"
+              @confirm="handleRemove"
             >
-              删除
-            </button>
-            <button
-              class="secondary-button"
-              type="button"
+              <template #reference>
+                <el-button type="danger" plain :loading="modelConfigStore.isDeleting">
+                  删除
+                </el-button>
+              </template>
+            </el-popconfirm>
+            <el-button
               :disabled="modelConfigStore.isLoadingModelConfig"
+              :loading="modelConfigStore.isLoadingModelConfig"
               @click="handleReload"
             >
               重新读取
-            </button>
+            </el-button>
           </div>
         </form>
 
         <p v-if="modelConfigStore.error" class="error-message">{{ modelConfigStore.error }}</p>
         <p v-if="modelConfigStore.message" class="success-message">{{ modelConfigStore.message }}</p>
 
-        <StatGrid
-          class="config-summary"
-          :columns="6"
-          :items="[
-            { label: '当前类型', value: modelConfigStore.roleLabel },
-            { label: 'Provider', value: providerLabel(modelConfigStore.form.provider) },
-            { label: 'Base URL', value: modelConfigStore.form.baseUrl, mono: true },
-            { label: 'API Key', value: modelConfigStore.form.apiKey ? '已填写' : '未配置' },
-            { label: '模型', value: modelConfigStore.form.modelName },
-            { label: '更新于', value: formatTime(modelConfigStore.activeConfigForRole?.updatedAt) }
-          ]"
-        />
+        <section class="model-config-summary" aria-label="当前模型配置摘要">
+          <div class="model-config-summary__header">
+            <div>
+              <p class="eyebrow">当前配置</p>
+              <h3>{{ modelConfigStore.form.displayName || modelConfigStore.roleLabel }}</h3>
+            </div>
+            <span class="model-config-summary__badge" :class="{ 'is-ready': apiKeyConfigured }">
+              API Key {{ apiKeySummary }}
+            </span>
+          </div>
+
+          <dl class="model-config-summary__meta">
+            <div>
+              <dt>类型</dt>
+              <dd>{{ modelConfigStore.roleLabel }}</dd>
+            </div>
+            <div>
+              <dt>Provider</dt>
+              <dd :title="providerLabel(modelConfigStore.form.provider)">
+                {{ providerLabel(modelConfigStore.form.provider) }}
+              </dd>
+            </div>
+            <div>
+              <dt>更新于</dt>
+              <dd>{{ updatedAtSummary }}</dd>
+            </div>
+          </dl>
+
+          <dl class="model-config-summary__details">
+            <div>
+              <dt>Base URL</dt>
+              <dd class="path-text" :title="modelConfigStore.form.baseUrl || '-'">
+                {{ modelConfigStore.form.baseUrl || '-' }}
+              </dd>
+            </div>
+            <div>
+              <dt>模型 ID</dt>
+              <dd :title="modelConfigStore.form.modelName || '-'">
+                {{ modelConfigStore.form.modelName || '-' }}
+              </dd>
+            </div>
+          </dl>
+        </section>
 
         <section v-if="modelConfigStore.modelOptions.length" class="model-options-panel">
           <div class="section-title-line">
@@ -308,7 +377,7 @@ function handleProviderChange(event) {
 
     <p class="warning-message">
       阿里百炼会使用默认 DashScope 地址；OpenAI-compatible 使用用户填写的 Base URL，并调用 Base URL + /chat/completions、/embeddings 和 /models。
-      当前阶段 API Key 会以明文保存到本机 SQLite。Embedding 模型或维度变化后，旧向量索引不会自动重建，请按需在知识库中手动重建索引。
+      当前阶段 API Key 会以明文保存到本机 SQLite。向量模型或维度变化后，旧向量索引不会自动重建，请按需在知识库中手动重建索引。
     </p>
   </section>
 </template>

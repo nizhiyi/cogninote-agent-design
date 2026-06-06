@@ -10,7 +10,9 @@
 @import './knowledge.css';
 @import './model-config.css';
 @import './desktop-chat.css';
+@import './settings-center.css';
 @import './markdown.css';
 @import './ai-markdown.css';
+@import './element-plus.css';
 @import './theme.css';
 @import './responsive.css';

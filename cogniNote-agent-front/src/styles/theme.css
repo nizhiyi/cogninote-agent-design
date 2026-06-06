@@ -36,6 +36,7 @@ body {
 
 .conversation-header h2,
 .settings-header h2,
+.knowledge-pane__header h3,
 .brand-panel h1,
 .empty-chat h3,
 .markdown-content h1,
@@ -82,7 +83,6 @@ body {
 .back-link,
 .settings-tabs button,
 .theme-choice button,
-.model-role-tabs button,
 .collapse-button {
   border-color: var(--color-border);
   color: var(--color-text);
@@ -108,9 +108,6 @@ body {
 .theme-choice button.active,
 .theme-choice button:hover,
 .theme-choice button:focus-visible,
-.model-role-tabs button.active,
-.model-role-tabs button:hover,
-.model-role-tabs button:focus-visible,
 .collapse-button:hover,
 .collapse-button:focus-visible {
   border-color: var(--color-accent-border);
@@ -167,6 +164,7 @@ body {
 .index-toolbar,
 .model-config-list,
 .model-config-editor,
+.model-config-summary,
 .model-active-summary article,
 .model-options-panel,
 .stat-grid div {
@@ -227,17 +225,17 @@ body {
 }
 
 .composer-input-row textarea,
-.field input,
-.field select,
-.field textarea {
+.field > input,
+.field > select,
+.field > textarea {
   border-color: var(--color-border-strong);
   color: var(--color-input-text);
   background: var(--color-input);
 }
 
 .composer-input-row textarea::placeholder,
-.field input::placeholder,
-.field textarea::placeholder {
+.field > input::placeholder,
+.field > textarea::placeholder {
   color: var(--color-text-faint);
 }
 
@@ -270,6 +268,12 @@ body {
   color: var(--color-text-muted);
   font-size: 14px;
   font-weight: 650;
+}
+
+.knowledge-pane__header h3,
+.settings-panel__header h3,
+.settings-theme-card h4 {
+  color: var(--color-text-strong);
 }
 
 .knowledge-switch {
@@ -334,8 +338,7 @@ body {
   background: var(--color-danger-soft);
 }
 
-.segmented-control,
-.model-role-tabs {
+.segmented-control {
   border-color: var(--color-border);
   background: color-mix(in srgb, var(--color-surface-muted) 62%, transparent);
 }
@@ -344,6 +347,10 @@ body {
   border-color: var(--color-border);
   color: var(--color-text-muted);
   font-weight: 650;
+}
+
+.search-form {
+  border-top-color: var(--color-border);
 }
 
 .stat-grid div {
@@ -372,9 +379,14 @@ body {
   line-height: 1.45;
 }
 
+.index-toolbar,
 .index-path-panel > span,
 .folder-toggle-button {
   color: var(--color-text-strong);
+}
+
+.path-text--index {
+  color: var(--color-text);
 }
 
 .folder-meta {
@@ -387,6 +399,10 @@ body {
 
 .document-row--nested {
   background: color-mix(in srgb, var(--color-surface-muted) 48%, transparent);
+}
+
+.knowledge-folder-card {
+  color: var(--color-text);
 }
 
 .model-config-layout {
@@ -422,8 +438,42 @@ body {
   padding: 20px;
 }
 
+.model-config-toolbar__title h3 {
+  color: var(--color-text-strong);
+}
+
 .model-form {
   gap: 14px 18px;
+}
+
+.model-config-summary {
+  border-color: var(--color-border);
+  background: color-mix(in srgb, var(--color-surface-strong) 92%, transparent);
+}
+
+.model-config-summary__header h3,
+.model-config-summary dd {
+  color: var(--color-text-strong);
+}
+
+.model-config-summary__badge {
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.model-config-summary__badge.is-ready {
+  color: var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.model-config-summary__meta > div,
+.model-config-summary__details > div {
+  border-color: var(--color-border);
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+}
+
+.model-config-summary dt {
+  color: var(--color-text-muted);
 }
 
 .enable-config-button {
@@ -516,6 +566,118 @@ body {
 
 .error-message {
   color: var(--color-danger);
+}
+
+.settings-center-page .settings-card,
+.settings-center-page .knowledge-pane,
+.settings-center-page .knowledge-folder-card,
+.settings-center-page .index-toolbar,
+.settings-center-page .model-config-list,
+.settings-center-page .model-config-editor,
+.settings-center-page .model-config-summary,
+.settings-center-page .model-active-summary article,
+.settings-center-page .model-options-panel,
+.settings-center-page .stat-grid div {
+  border-color: var(--color-border);
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+}
+
+.settings-center-page .knowledge-pane__header h3,
+.settings-center-page .settings-panel__header h3,
+.settings-center-page .settings-theme-card h4,
+.settings-center-page .model-config-toolbar__title h3,
+.settings-center-page .model-config-summary__header h3,
+.settings-center-page .folder-toggle-button {
+  color: var(--color-text-strong);
+}
+
+.settings-center-page .stat-grid span,
+.settings-center-page .muted-text,
+.settings-center-page .folder-meta,
+.settings-center-page .document-main p,
+.settings-center-page .source-main p {
+  color: var(--color-text-muted);
+}
+
+.settings-center-page .stat-grid strong,
+.settings-center-page .path-text--index,
+.settings-center-page .model-config-summary dd {
+  color: var(--color-text-strong);
+}
+
+.settings-center-page .search-form,
+.settings-center-page .folder-documents {
+  border-color: var(--color-border);
+}
+
+.settings-center-page .document-row--nested,
+.settings-center-page .model-config-summary__meta > div,
+.settings-center-page .model-config-summary__details > div,
+.settings-center-page .model-option-chip {
+  border-color: var(--color-border);
+  background: color-mix(in srgb, var(--color-surface-muted) 42%, transparent);
+}
+
+.settings-center-page .model-option-chip strong {
+  color: var(--color-text-strong);
+}
+
+.settings-center-page .el-button {
+  border-color: var(--color-border);
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-surface-muted) 62%, transparent);
+}
+
+.settings-center-page .el-button:not(.is-disabled):hover,
+.settings-center-page .el-button:not(.is-disabled):focus-visible {
+  border-color: var(--color-accent-border);
+  color: var(--color-text-strong);
+  background: var(--color-accent-soft);
+}
+
+.settings-center-page .el-button--primary {
+  border-color: var(--color-accent);
+  color: #ffffff;
+  background: var(--color-accent);
+}
+
+.settings-center-page .el-button--primary:not(.is-disabled):hover,
+.settings-center-page .el-button--primary:not(.is-disabled):focus-visible {
+  border-color: var(--color-accent-strong);
+  color: #ffffff;
+  background: var(--color-accent-strong);
+}
+
+.settings-center-page .el-button.is-disabled,
+.settings-center-page .el-button.is-disabled:hover {
+  border-color: var(--color-border);
+  color: var(--color-text-faint);
+  background: color-mix(in srgb, var(--color-surface-muted) 48%, transparent);
+  opacity: 0.76;
+}
+
+.settings-center-page .el-input__wrapper,
+.settings-center-page .el-select__wrapper,
+.settings-center-page .el-input-number,
+.settings-center-page .el-textarea__inner {
+  background: var(--color-input);
+  box-shadow: 0 0 0 1px var(--color-border) inset;
+}
+
+.settings-center-page .el-input__inner,
+.settings-center-page .el-select__placeholder,
+.settings-center-page .el-select__selected-item,
+.settings-center-page .el-input-number .el-input__inner {
+  color: var(--color-input-text);
+}
+
+.settings-center-page .el-input__wrapper:hover,
+.settings-center-page .el-input__wrapper.is-focus,
+.settings-center-page .el-select__wrapper:hover,
+.settings-center-page .el-select__wrapper.is-focused,
+.settings-center-page .el-input-number:hover {
+  box-shadow: 0 0 0 1px var(--color-accent-border) inset;
 }
 
 .primary-button:focus-visible,

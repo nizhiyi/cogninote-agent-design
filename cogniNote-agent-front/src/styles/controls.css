@@ -13,9 +13,9 @@
   font-weight: 800;
 }
 
-.field input,
-.field select,
-.field textarea {
+.field > input,
+.field > select,
+.field > textarea {
   width: 100%;
   min-height: 44px;
   padding: 0 12px;
@@ -25,11 +25,11 @@
   background: #ffffff;
 }
 
-.field select {
+.field > select {
   appearance: none;
 }
 
-.field textarea {
+.field > textarea {
   min-height: 150px;
   padding: 12px;
   line-height: 1.6;
@@ -40,7 +40,7 @@
   width: 98px;
 }
 
-.field--small input {
+.field--small > input {
   text-align: center;
 }
 

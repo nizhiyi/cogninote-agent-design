@@ -29,9 +29,9 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     },
     {
       value: 'OPENAI_COMPATIBLE',
-      label: 'OpenAI-compatible Completions',
+      label: 'OpenAI-compatible',
       baseUrl: '',
-      displayName: 'OpenAI-compatible Completions'
+      displayName: 'OpenAI-compatible'
     }
   ]
 
@@ -69,7 +69,7 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     EMBEDDING: roleState.value.EMBEDDING.selectedConfig?.id || null
   }))
   const isEditingExisting = computed(() => Boolean(selectedConfig.value?.id))
-  const roleLabel = computed(() => activeRole.value === ROLES.CHAT ? '对话模型' : 'Embedding 模型')
+  const roleLabel = computed(() => activeRole.value === ROLES.CHAT ? '对话模型' : '向量模型')
   const isOpenAiCompatible = computed(() => form.value.provider === 'OPENAI_COMPATIBLE')
   const providerLabel = computed(() => {
     return providerOptions.find(option => option.value === form.value.provider)?.label || form.value.provider
@@ -177,7 +177,6 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
       applySnapshot(snapshot)
       message.value = `${roleLabel.value}配置已保存`
       if (role === ROLES.EMBEDDING) {
-        message.value += '。Embedding 维度或模型变化后，请按需重建索引。'
         await searchStore.fetchIndexStatus()
       }
       return snapshot
@@ -205,7 +204,7 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
       applySnapshot(snapshot)
       if (role === ROLES.EMBEDDING) {
         await searchStore.fetchIndexStatus()
-        message.value = 'Embedding 配置已启用。模型或维度变化后，请按需重建索引。'
+        message.value = '向量模型配置已启用'
       } else {
         message.value = '对话模型配置已启用'
       }
@@ -515,7 +514,7 @@ function defaultForm(role) {
   return {
     role,
     provider: 'DASHSCOPE',
-    displayName: role === ROLES.CHAT ? 'DashScope Chat' : 'DashScope Embedding',
+    displayName: role === ROLES.CHAT ? 'DashScope Chat' : 'DashScope 向量模型',
     baseUrl: 'https://dashscope.aliyuncs.com/api/v1',
     apiKey: '',
     modelName: role === ROLES.CHAT ? 'qwen-plus' : 'text-embedding-v4',
