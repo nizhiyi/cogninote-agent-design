@@ -216,9 +216,9 @@ WINDOWS_CERTIFICATE_PASSWORD
 Windows artifacts：
 
 ```text
-CogniNote-0.1.0-windows-x64-unsigned-exe
+CogniNote-0.1.0-windows-x64-unsigned-portable
 CogniNote-0.1.0-windows-x64-unsigned-installer
-CogniNote-0.1.0-windows-x64-signed-exe
+CogniNote-0.1.0-windows-x64-signed-portable
 CogniNote-0.1.0-windows-x64-signed-installer
 ```
 
@@ -261,6 +261,28 @@ CogniNote-0.1.0-macos-notarization-logs
 ```
 
 两个 workflow 不共享 Tauri bundle 配置，不共享后端 app-image 输出目录，也不把平台差异塞进同一个脚本。
+
+### 发布到 GitHub Release
+
+两个 workflow 默认只上传 Actions artifacts，不会自动污染 Release 页面。手动触发 workflow 时可以设置：
+
+```text
+publish_release = true
+release_tag = v0.1.0-test.1
+```
+
+`release_tag` 留空时，unsigned 构建默认发布到 `v0.1.0-test.1`，signed 构建默认发布到 `v0.1.0`。unsigned Release 会标记为 pre-release。Windows 和 macOS 可以分别运行 workflow，并使用同一个 `release_tag`，后运行的平台会把自己的资产追加到同一个 Release 中。
+
+Release 上传的是真实安装文件，不是 Actions artifact 外层 zip：
+
+```text
+CogniNote-0.1.0-windows-x64-unsigned-installer.exe
+CogniNote-0.1.0-windows-x64-unsigned-portable.zip
+CogniNote-0.1.0-macos-arm64-unsigned.dmg
+CogniNote-0.1.0-macos-arm64-unsigned.app.zip
+```
+
+给测试用户分发时，优先发送 Release 页面里的 `.exe` 或 `.dmg` 下载链接，避免从微信等聊天工具转发后额外叠加隔离属性。
 
 ## Windows 运行和验收
 

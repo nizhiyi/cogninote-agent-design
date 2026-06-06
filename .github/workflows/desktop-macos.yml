@@ -2,6 +2,20 @@ name: Desktop macOS
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: 'Upload generated macOS assets to a GitHub Release.'
+        required: false
+        type: boolean
+        default: false
+      release_tag:
+        description: 'Release tag. Leave empty to use v0.1.0-test.1 for unsigned or v0.1.0 for signed.'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -190,3 +204,60 @@ jobs:
           name: CogniNote-0.1.0-macos-notarization-logs
           path: artifacts/macos/notary-*.log
           if-no-files-found: error
+
+      - name: Prepare macOS release assets
+        if: ${{ inputs.publish_release }}
+        run: |
+          set -euo pipefail
+          suffix="${{ steps.macos-signing.outputs.artifact_suffix }}"
+          version="$COGNINOTE_DESKTOP_VERSION"
+          mkdir -p artifacts/macos-release
+
+          DMG_PATH="$(find cogniNote-agent-front/src-tauri/target/release/bundle/dmg -maxdepth 1 -name '*.dmg' -type f | head -n 1)"
+          APP_ZIP="artifacts/macos/CogniNote-${version}-macos-arm64-${suffix}.app.zip"
+          if [[ -z "$DMG_PATH" || ! -f "$APP_ZIP" ]]; then
+            echo "macOS release assets were not generated." >&2
+            exit 1
+          fi
+
+          cp "$DMG_PATH" "artifacts/macos-release/CogniNote-${version}-macos-arm64-${suffix}.dmg"
+          cp "$APP_ZIP" "artifacts/macos-release/CogniNote-${version}-macos-arm64-${suffix}.app.zip"
+
+      - name: Publish macOS GitHub Release assets
+        if: ${{ inputs.publish_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          suffix="${{ steps.macos-signing.outputs.artifact_suffix }}"
+          version="$COGNINOTE_DESKTOP_VERSION"
+          tag="${RELEASE_TAG_INPUT:-}"
+          if [[ -z "$tag" ]]; then
+            if [[ "$suffix" == "signed" ]]; then
+              tag="v${version}"
+            else
+              tag="v${version}-test.1"
+            fi
+          fi
+
+          notes_path="$RUNNER_TEMP/cogninote-macos-release-notes.md"
+          printf '%s\n' \
+            "CogniNote ${version} macOS Apple Silicon ${suffix} package." \
+            "" \
+            "Assets:" \
+            "- DMG installer: CogniNote-${version}-macos-arm64-${suffix}.dmg" \
+            "- App bundle zip: CogniNote-${version}-macos-arm64-${suffix}.app.zip" \
+            "" \
+            "Unsigned macOS builds are for technical testing only. If Gatekeeper reports that the app is damaged or cannot be verified, use signed and notarized assets for ordinary-user distribution when an Apple Developer certificate is available." \
+            > "$notes_path"
+
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            create_args=(release create "$tag" --title "CogniNote ${version} ${suffix}" --notes-file "$notes_path")
+            if [[ "$suffix" != "signed" ]]; then
+              create_args+=(--prerelease)
+            fi
+            gh "${create_args[@]}"
+          fi
+
+          gh release upload "$tag" artifacts/macos-release/* --clobber

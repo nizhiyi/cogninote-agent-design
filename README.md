@@ -105,6 +105,8 @@ cogniNote-agent-front/src-tauri/target/release/bundle/nsis/CogniNote_0.1.0_x64-s
 
 也可以在 GitHub Actions 手动触发 `Desktop Windows` workflow 构建。workflow 会在 Windows runner 上安装 JDK 25、Node 和 Rust；未配置证书时上传 `CogniNote-0.1.0-windows-x64-unsigned-*` 测试 artifacts，配置 `WINDOWS_CERTIFICATE_PFX_BASE64` 和 `WINDOWS_CERTIFICATE_PASSWORD` 后上传 `signed` artifacts。
 
+手动触发 workflow 时可设置 `publish_release=true`，把真实安装包 `.exe` 和便携包 `.zip` 发布到 GitHub Release；`release_tag` 留空时 unsigned 构建默认发布到 `v0.1.0-test.1`。
+
 ### 构建 macOS 桌面应用
 
 macOS 和 Windows 打包链路分开维护。请在 Apple Silicon Mac 上执行：
@@ -123,6 +125,8 @@ cogniNote-agent-front/src-tauri/target/release/bundle/dmg/CogniNote_0.1.0_aarch6
 注意：`target/desktop-macos/backend/CogniNoteBackend.app` 只是 macOS 后端 app-image，不是最终桌面应用入口。
 
 macOS 可以在 GitHub Actions `Desktop macOS` workflow 构建。未配置 Apple Developer 证书时会上传 `CogniNote-0.1.0-macos-arm64-unsigned-*` 测试 artifacts，普通用户可能遇到 Gatekeeper 拦截；配置 Developer ID 和公证 Secrets 后会上传 `signed` artifacts，避免下载后出现“已损坏，无法打开”的常见拦截。
+
+手动触发 workflow 时可设置 `publish_release=true`，把真实 `.dmg` 和 `.app.zip` 发布到 GitHub Release。给测试用户分发时优先发 Release 下载链接，不建议用微信直接转发 `.dmg`。
 
 ## 使用流程
 

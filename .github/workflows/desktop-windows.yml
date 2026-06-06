@@ -2,6 +2,20 @@ name: Desktop Windows
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: 'Upload generated Windows assets to a GitHub Release.'
+        required: false
+        type: boolean
+        default: false
+      release_tag:
+        description: 'Release tag. Leave empty to use v0.1.0-test.1 for unsigned or v0.1.0 for signed.'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -110,11 +124,24 @@ jobs:
           Write-Host 'Unsigned Windows artifacts were generated for testing only.'
           Write-Host 'Users may see SmartScreen / Unknown Publisher prompts during installation.'
 
-      - name: Upload Windows executable artifact
+      - name: Prepare Windows portable package
+        shell: pwsh
+        run: |
+          $suffix = '${{ steps.windows-signing.outputs.artifact_suffix }}'
+          $version = $env:COGNINOTE_DESKTOP_VERSION
+          $portableRoot = 'artifacts/windows-portable/CogniNote'
+          New-Item -ItemType Directory -Force -Path $portableRoot | Out-Null
+
+          Copy-Item -LiteralPath 'cogniNote-agent-front/src-tauri/target/release/cogninote-agent.exe' -Destination "$portableRoot/CogniNote.exe" -Force
+          Copy-Item -LiteralPath 'cogniNote-agent-front/src-tauri/target/release/backend' -Destination "$portableRoot/backend" -Recurse -Force
+
+          Compress-Archive -LiteralPath $portableRoot -DestinationPath "artifacts/CogniNote-${version}-windows-x64-${suffix}-portable.zip" -Force
+
+      - name: Upload Windows portable artifact
         uses: actions/upload-artifact@v4
         with:
-          name: CogniNote-0.1.0-windows-x64-${{ steps.windows-signing.outputs.artifact_suffix }}-exe
-          path: cogniNote-agent-front/src-tauri/target/release/*.exe
+          name: CogniNote-0.1.0-windows-x64-${{ steps.windows-signing.outputs.artifact_suffix }}-portable
+          path: artifacts/CogniNote-0.1.0-windows-x64-${{ steps.windows-signing.outputs.artifact_suffix }}-portable.zip
           if-no-files-found: error
 
       - name: Upload Windows installer artifact
@@ -123,3 +150,65 @@ jobs:
           name: CogniNote-0.1.0-windows-x64-${{ steps.windows-signing.outputs.artifact_suffix }}-installer
           path: cogniNote-agent-front/src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
+
+      - name: Prepare Windows release assets
+        if: ${{ inputs.publish_release }}
+        shell: pwsh
+        run: |
+          $suffix = '${{ steps.windows-signing.outputs.artifact_suffix }}'
+          $version = $env:COGNINOTE_DESKTOP_VERSION
+          $assetDir = 'artifacts/windows-release'
+          New-Item -ItemType Directory -Force -Path $assetDir | Out-Null
+
+          $installer = Get-ChildItem -LiteralPath 'cogniNote-agent-front/src-tauri/target/release/bundle/nsis' -Filter '*.exe' -File | Select-Object -First 1
+          if (-not $installer) {
+            throw 'Windows NSIS installer was not generated.'
+          }
+
+          Copy-Item -LiteralPath "artifacts/CogniNote-${version}-windows-x64-${suffix}-portable.zip" -Destination "$assetDir/CogniNote-${version}-windows-x64-${suffix}-portable.zip" -Force
+          Copy-Item -LiteralPath $installer.FullName -Destination "$assetDir/CogniNote-${version}-windows-x64-${suffix}-installer.exe" -Force
+
+      - name: Publish Windows GitHub Release assets
+        if: ${{ inputs.publish_release }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
+        run: |
+          $suffix = '${{ steps.windows-signing.outputs.artifact_suffix }}'
+          $version = $env:COGNINOTE_DESKTOP_VERSION
+          $tag = $env:RELEASE_TAG_INPUT.Trim()
+          if ([string]::IsNullOrWhiteSpace($tag)) {
+            $tag = if ($suffix -eq 'signed') { "v$version" } else { "v$version-test.1" }
+          }
+
+          $notesPath = Join-Path $env:RUNNER_TEMP 'cogninote-windows-release-notes.md'
+          $notes = @(
+            "CogniNote $version Windows x64 $suffix package.",
+            '',
+            'Assets:',
+            "- Installer: CogniNote-${version}-windows-x64-${suffix}-installer.exe",
+            "- Portable zip: CogniNote-${version}-windows-x64-${suffix}-portable.zip",
+            '',
+            'Unsigned Windows builds may show SmartScreen or Unknown Publisher prompts. Use signed assets for ordinary-user distribution when a code-signing certificate is available.'
+          )
+          $notes | Set-Content -LiteralPath $notesPath -Encoding UTF8
+
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            $createArgs = @('release', 'create', $tag, '--title', "CogniNote $version $suffix", '--notes-file', $notesPath)
+            if ($suffix -ne 'signed') {
+              $createArgs += '--prerelease'
+            }
+            & gh @createArgs
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to create GitHub Release $tag."
+            }
+          }
+
+          $assetPaths = (Get-ChildItem -LiteralPath 'artifacts/windows-release' -File).FullName
+          $uploadArgs = @('release', 'upload', $tag) + $assetPaths + @('--clobber')
+          & gh @uploadArgs
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to upload Windows assets to GitHub Release $tag."
+          }
