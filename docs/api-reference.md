@@ -524,7 +524,7 @@ PATCH /api/chat/sessions/{conversationId}
 DELETE /api/chat/sessions/{conversationId}
 ```
 
-软删除会话，不影响知识库文档、chunks、索引或用户原始文件。
+物理删除该会话和会话下的聊天消息，不影响知识库文档、chunks、索引或用户原始文件。
 
 ### 清空会话消息
 

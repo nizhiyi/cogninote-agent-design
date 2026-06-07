@@ -11,7 +11,7 @@
 ## Key Changes
 
 - 聊天数据持久化：
-  - 新增 `chat_sessions`，保存会话标题、摘要、摘要覆盖到的消息序号、检索设置、创建/更新时间和软删除状态。
+  - 新增 `chat_sessions`，保存会话标题、摘要、摘要覆盖到的消息序号、检索设置和创建/更新时间；`deleted` 字段保留为旧版本兼容字段。
   - 新增 `chat_messages`，保存消息顺序、role、content、status、requestId、retrievalMode、sources JSON、token 估算和创建时间。
   - 用户首次发送消息时创建或更新会话；assistant 流式完成后保存完整回答；用户显式停止时保存部分回答并标记 `STOPPED`。
 
@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 );
 ```
 
-`agent_type` 是第十八阶段新增字段。旧 SQLite 文件启动时由 schema 初始化自动补列；旧 assistant 消息读取时会按 `retrieval_mode` 推断 Agent，旧 user 消息按中性历史处理。
+`agent_type` 是第十八阶段新增字段。旧 SQLite 文件启动时由 schema 初始化自动补列；旧 assistant 消息读取时会按 `retrieval_mode` 推断 Agent，旧 user 消息按中性历史处理。当前删除会话是物理删除，会同时删除 `chat_sessions` 和对应 `chat_messages`；旧版本已经标记为 `deleted=1` 的会话会在启动初始化时被清理。
 
 ## Runtime Flow
 
@@ -147,7 +147,7 @@ assistant DONE / STOPPED / ERROR 写入 chat_messages
 
 - 后端：
   - `mvn test`
-  - 覆盖 schema 初始化、会话 CRUD、消息写入、消息顺序、软删除和清空消息。
+  - 覆盖 schema 初始化、会话 CRUD、消息写入、消息顺序、物理删除和清空消息。
   - 覆盖长会话：全量历史留在 SQLite，模型输入包含摘要和 token 预算内最近消息。
   - 覆盖纯模型对话：`useKnowledgeBase=false` 不检索知识库，但能使用会话记忆。
   - 覆盖 RAG 对话：通过 Spring AI Advisor 调用检索适配器，不再手动拼接 `{context}`。

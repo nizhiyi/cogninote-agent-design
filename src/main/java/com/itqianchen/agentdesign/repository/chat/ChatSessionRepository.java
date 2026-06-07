@@ -117,8 +117,16 @@ public class ChatSessionRepository {
         chatSessionMapper.updateSummary(id, summary, coveredSequence, updatedAt);
     }
 
-    public boolean softDelete(String id, long updatedAt) {
-        return chatSessionMapper.softDelete(id, updatedAt) > 0;
+    public boolean deleteSession(String id) {
+        /*
+         * 删除会话是用户可见的销毁操作，不能只隐藏 chat_sessions。
+         * 先删除会话确认 id 有效，再显式清消息，避免依赖 SQLite 外键开关导致历史消息残留。
+         */
+        if (chatSessionMapper.deleteSession(id) == 0) {
+            return false;
+        }
+        chatSessionMapper.deleteMessages(id);
+        return true;
     }
 
     public void clearMessages(String conversationId, long updatedAt) {

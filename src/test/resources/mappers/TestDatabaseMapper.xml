@@ -12,6 +12,36 @@
         DELETE FROM chat_sessions
     </delete>
 
+    <insert id="insertSoftDeletedChatSession">
+        INSERT INTO chat_sessions (
+            id, title, summary, summary_message_sequence, use_knowledge_base,
+            retrieval_mode, top_k, deleted, created_at, updated_at
+        )
+        VALUES (
+            #{id}, #{title}, NULL, 0, 1,
+            'HYBRID', 8, 1, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <insert id="insertChatMessage">
+        INSERT INTO chat_messages (
+            id, conversation_id, message_sequence, role, content, status,
+            request_id, agent_type, retrieval_mode, sources_json, token_estimate, created_at
+        )
+        VALUES (
+            #{id}, #{conversationId}, #{sequence}, 'USER', #{content}, 'DONE',
+            NULL, NULL, NULL, NULL, 1, #{createdAt}
+        )
+    </insert>
+
+    <select id="countChatSessionsById" resultType="_int">
+        SELECT COUNT(*) FROM chat_sessions WHERE id = #{id}
+    </select>
+
+    <select id="countChatMessagesByConversationId" resultType="_int">
+        SELECT COUNT(*) FROM chat_messages WHERE conversation_id = #{conversationId}
+    </select>
+
     <delete id="deleteChunks">
         DELETE FROM chunks
     </delete>

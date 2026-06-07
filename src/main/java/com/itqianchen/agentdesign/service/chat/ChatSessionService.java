@@ -78,7 +78,7 @@ public class ChatSessionService {
 
     @Transactional
     public void deleteSession(String conversationId) {
-        if (!chatSessionRepository.softDelete(conversationId, System.currentTimeMillis())) {
+        if (!chatSessionRepository.deleteSession(conversationId)) {
             throw new ResourceNotFoundException("Chat session not found: " + conversationId);
         }
     }

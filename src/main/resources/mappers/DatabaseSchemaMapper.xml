@@ -166,6 +166,17 @@
         CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation_id ON chat_messages(conversation_id, created_at)
     </update>
 
+    <delete id="deleteSoftDeletedChatMessages">
+        DELETE FROM chat_messages
+        WHERE conversation_id IN (
+            SELECT id FROM chat_sessions WHERE deleted = 1
+        )
+    </delete>
+
+    <delete id="deleteSoftDeletedChatSessions">
+        DELETE FROM chat_sessions WHERE deleted = 1
+    </delete>
+
     <select id="countModelConfigs" resultType="_long">
         SELECT COUNT(*) FROM model_configs
     </select>

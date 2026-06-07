@@ -31,7 +31,7 @@ public interface ChatSessionMapper {
             @Param("updatedAt") long updatedAt
     );
 
-    int softDelete(@Param("id") String id, @Param("updatedAt") long updatedAt);
+    int deleteSession(@Param("id") String id);
 
     void deleteMessages(@Param("conversationId") String conversationId);
 

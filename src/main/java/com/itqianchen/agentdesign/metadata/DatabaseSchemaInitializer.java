@@ -54,7 +54,17 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
         databaseSchemaMapper.createChatSessionsUpdatedAtIndex();
         databaseSchemaMapper.createChatMessagesSequenceIndex();
         databaseSchemaMapper.createChatMessagesConversationIdIndex();
+        cleanupSoftDeletedChatSessions();
         migrateLegacyModelConfigIfNeeded();
+    }
+
+    private void cleanupSoftDeletedChatSessions() {
+        /*
+         * 旧版本的“删除会话”只是把 chat_sessions.deleted 置为 1，消息仍留在本地库里。
+         * 新版本把用户删除视为销毁操作；启动时顺手清掉历史软删除残留，避免升级后旧数据继续存在。
+         */
+        databaseSchemaMapper.deleteSoftDeletedChatMessages();
+        databaseSchemaMapper.deleteSoftDeletedChatSessions();
     }
 
     private void addColumnIfMissing(String tableName, String columnName, String definition) {

@@ -117,11 +117,9 @@
         WHERE id = #{id} AND deleted = 0
     </update>
 
-    <update id="softDelete">
-        UPDATE chat_sessions
-        SET deleted = 1, updated_at = #{updatedAt}
-        WHERE id = #{id} AND deleted = 0
-    </update>
+    <delete id="deleteSession">
+        DELETE FROM chat_sessions WHERE id = #{id} AND deleted = 0
+    </delete>
 
     <delete id="deleteMessages">
         DELETE FROM chat_messages WHERE conversation_id = #{conversationId}

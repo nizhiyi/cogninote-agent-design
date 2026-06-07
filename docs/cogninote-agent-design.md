@@ -624,7 +624,7 @@ CREATE TABLE chat_messages (
 
 `knowledge_folders` 是第十阶段新增的知识库目录表。`documents.knowledge_folder_id` 只记录明确通过目录导入产生的归属；历史散落文档不自动猜测目录，继续作为未归属文档保留。
 
-`chat_sessions` 与 `chat_messages` 是第十三阶段新增的聊天记忆事实来源。SQLite 保存全量消息；`summary` 和 `summary_message_sequence` 只描述已被摘要覆盖的历史范围，模型输入仍由 `ConversationMemorySnapshotService` 按 token 预算选择“摘要 + 最近原文消息”，不写死固定条数。第十八阶段新增 `chat_messages.agent_type`，用于标记消息所属 Agent，并在普通对话和知识库模式切换时隔离跨 Agent 记忆污染。
+`chat_sessions` 与 `chat_messages` 是第十三阶段新增的聊天记忆事实来源。SQLite 保存全量消息；`summary` 和 `summary_message_sequence` 只描述已被摘要覆盖的历史范围，模型输入仍由 `ConversationMemorySnapshotService` 按 token 预算选择“摘要 + 最近原文消息”，不写死固定条数。删除会话是物理删除，会同时移除会话行和对应消息；第十八阶段新增 `chat_messages.agent_type`，用于标记消息所属 Agent，并在普通对话和知识库模式切换时隔离跨 Agent 记忆污染。
 
 `chunks.content` 会额外占用一份解析后的文本空间，这是有意设计。
 

@@ -48,6 +48,10 @@ public interface DatabaseSchemaMapper {
 
     void createChatMessagesConversationIdIndex();
 
+    void deleteSoftDeletedChatMessages();
+
+    void deleteSoftDeletedChatSessions();
+
     long countModelConfigs();
 
     List<Map<String, Object>> findLegacyActiveModelConfig();
