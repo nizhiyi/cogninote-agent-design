@@ -181,6 +181,8 @@ POST /api/index/rebuild
 
 从 SQLite 中已解析的 chunks 全量重建 Lucene 索引。全量重建只处理启用目录和未归属文档；停用目录不会重新进入索引。Lucene 是可重建索引，不是业务事实来源。
 
+修改 Analyzer、BM25 参数、代码索引文本策略、Embedding 模型或 Embedding 维度后，都需要执行全量重建索引。若旧版本导入时已经把代码块缩进清洗丢失，只重建 Lucene 无法恢复格式，需要从原始文件重新导入。
+
 ### 搜索
 
 ```text
@@ -204,6 +206,14 @@ POST /api/search
 - `HYBRID`
 
 Embedding 不可用时，向量检索和混合检索可能降级或返回明确错误，具体行为由调用场景决定。
+
+搜索结果中的 `score`、`keywordScore`、`vectorScore` 语义如下：
+
+- `KEYWORD`：`score` 和 `keywordScore` 为 Lucene BM25 原始分数，`vectorScore` 为空。
+- `VECTOR`：`score` 和 `vectorScore` 为向量召回原始分数，`keywordScore` 为空。
+- `HYBRID`：`score` 为加权 RRF 融合分数，`keywordScore` / `vectorScore` 分别保留原始 BM25 / Vector 分数。
+
+中文正文使用中文 Analyzer；代码块、类名、函数名、变量名、路径、异常名和 Mermaid/PlantUML 等流程图节点会派生到代码检索字段。REST 请求和响应结构保持兼容。
 
 ## 模型配置
 

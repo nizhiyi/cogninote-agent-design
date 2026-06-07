@@ -4,7 +4,7 @@ import java.util.List;
 
 public interface AiEmbeddingRuntime {
 
-    float[] embed(String text);
+    float[] embedQuery(String query);
 
-    List<float[]> embedBatch(List<String> texts);
+    List<float[]> embedDocuments(List<String> texts);
 }

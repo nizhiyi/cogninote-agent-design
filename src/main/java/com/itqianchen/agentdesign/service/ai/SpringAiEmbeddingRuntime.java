@@ -13,12 +13,12 @@ final class SpringAiEmbeddingRuntime implements AiEmbeddingRuntime {
     }
 
     @Override
-    public float[] embed(String text) {
-        return embeddingModel.embed(text);
+    public float[] embedQuery(String query) {
+        return embeddingModel.embed(query);
     }
 
     @Override
-    public List<float[]> embedBatch(List<String> texts) {
+    public List<float[]> embedDocuments(List<String> texts) {
         return embeddingModel.embed(texts);
     }
 }

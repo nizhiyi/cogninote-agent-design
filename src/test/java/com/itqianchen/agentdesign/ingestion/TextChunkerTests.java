@@ -1,77 +1,21 @@
 package com.itqianchen.agentdesign.ingestion;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.DocumentChunk;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
 
 import com.itqianchen.agentdesign.domain.document.FileType;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
 import com.itqianchen.agentdesign.domain.ingestion.DocumentChunk;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
 import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
 import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
 import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
 import java.util.List;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.DocumentChunk;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
 import org.junit.jupiter.api.Test;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.DocumentChunk;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
 
 class TextChunkerTests {
 
     private final TextChunker textChunker = new TextChunker();
 
     @Test
-    void chunkKeepsHeadingAndCreatesOverlap() {
+    void chunkKeepsHeadingAndCreatesOverlapForPlainText() {
         String text = "a".repeat(TextChunker.MAX_CHUNK_CHARS + 50);
         ParsedDocument document = new ParsedDocument(
                 FileType.MARKDOWN,
@@ -87,11 +31,69 @@ class TextChunkerTests {
     }
 
     @Test
-    void cleanNormalizesWhitespace() {
-        String cleaned = textChunker.clean("a\r\n\r\n\r\nb\t\tc");
+    void cleanNormalizesPlainTextWhitespaceButKeepsCodeIndentation() {
+        String cleaned = textChunker.clean("a\r\n"
+                + "\n"
+                + "\n"
+                + "b\t\tc\n"
+                + "```java\n"
+                + "public class Demo {\n"
+                + "\t\tvoid run() {\n"
+                + "        System.out.println(\"ok\");\n"
+                + "    }\n"
+                + "}\n"
+                + "```\n");
 
-        assertThat(cleaned).isEqualTo("a\n\nb c");
+        assertThat(cleaned).contains("a\n\nb c");
+        assertThat(cleaned).contains("\t\tvoid run()");
+        assertThat(cleaned).contains("    System.out.println");
+    }
+
+    @Test
+    void chunkDoesNotSplitNormalFencedCodeBlock() {
+        String markdown = """
+                # Agent
+
+                ```java
+                public class ChatAgentRouter {
+                    void route() {
+                        useKnowledgeBase = false;
+                    }
+                }
+                ```
+                """;
+        ParsedDocument document = new ParsedDocument(
+                FileType.MARKDOWN,
+                List.of(new ParsedSection(markdown, "Agent", null))
+        );
+
+        List<DocumentChunk> chunks = textChunker.chunk(document);
+
+        assertThat(chunks).hasSize(1);
+        assertThat(chunks.getFirst().content()).contains("```java");
+        assertThat(chunks.getFirst().content()).contains("    void route()");
+        assertThat(chunks.getFirst().content()).contains("```");
+    }
+
+    @Test
+    void oversizedFencedBlockIsSplitWithFenceMarkersPreserved() {
+        String markdown = "```mermaid\n"
+                + "flowchart TD\n"
+                + ("A --> B\n".repeat(260))
+                + "```\n";
+        ParsedDocument document = new ParsedDocument(
+                FileType.MARKDOWN,
+                List.of(new ParsedSection(markdown, "Flow", null))
+        );
+
+        List<DocumentChunk> chunks = textChunker.chunk(document);
+
+        assertThat(chunks).hasSizeGreaterThan(1);
+        assertThat(chunks)
+                .allSatisfy(chunk -> {
+                    assertThat(chunk.content()).startsWith("```mermaid");
+                    assertThat(chunk.content()).endsWith("```");
+                    assertThat(chunk.content()).contains("flowchart");
+                });
     }
 }
-
-

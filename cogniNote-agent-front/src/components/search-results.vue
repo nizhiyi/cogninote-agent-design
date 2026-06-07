@@ -7,6 +7,19 @@ defineProps({
     default: null
   }
 })
+
+function scoreLabel(mode) {
+  if (mode === 'HYBRID') {
+    return 'RRF'
+  }
+  if (mode === 'KEYWORD') {
+    return 'BM25'
+  }
+  if (mode === 'VECTOR') {
+    return 'Vector'
+  }
+  return 'Score'
+}
 </script>
 
 <template>
@@ -21,7 +34,7 @@ defineProps({
     <article v-for="hit in result.hits" v-else :key="hit.chunkId" class="search-hit">
       <div class="search-hit__top">
         <h4>{{ hit.fileName }}</h4>
-        <span>{{ formatScore(hit.score) }}</span>
+        <span>{{ scoreLabel(result.mode) }} {{ formatScore(hit.score) }}</span>
       </div>
       <p class="path-text">{{ hit.sourcePath }}</p>
       <p class="hit-preview">{{ hit.preview }}</p>

@@ -32,6 +32,14 @@ async function rebuildAll() {
       </div>
     </header>
 
+    <el-alert
+      class="settings-inline-alert retrieval-upgrade-alert"
+      type="info"
+      title="当前索引支持中文分词、代码标识符和流程图节点检索。升级后请先执行“全量重建”。"
+      :closable="false"
+      show-icon
+    />
+
     <StatGrid
       :items="[
         { label: '已索引文档', value: searchStore.indexStatus?.indexedDocumentCount ?? '-' },

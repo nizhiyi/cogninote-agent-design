@@ -1,5 +1,6 @@
 package com.itqianchen.agentdesign.search;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -90,41 +91,89 @@ class SearchVectorIntegrationTests {
                 .andExpect(jsonPath("$.data.hits[0].fileName").value("alpha.txt"));
     }
 
+    @Test
+    void embeddingGatewayUsesDocumentAndQueryPurposes() throws Exception {
+        Files.writeString(tempDir.resolve("purpose.txt"), "purpose alpha payload");
+        ingestionService.ingestFolder(tempDir.toString(), true);
+        RecordingEmbeddingGateway gateway = (RecordingEmbeddingGateway) knowledgeStoreStatusAwareGateway();
+
+        mockMvc.perform(post("/api/search")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "query": "purpose alpha",
+                                  "mode": "VECTOR",
+                                  "topK": 1
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        assertThat(gateway.documentCalls()).isGreaterThan(0);
+        assertThat(gateway.queryCalls()).isGreaterThan(0);
+    }
+
+    @Autowired
+    private EmbeddingGateway knowledgeStoreStatusAwareGateway;
+
+    private EmbeddingGateway knowledgeStoreStatusAwareGateway() {
+        return knowledgeStoreStatusAwareGateway;
+    }
+
     @TestConfiguration
     static class FakeEmbeddingConfiguration {
 
         @Bean
         @Primary
         EmbeddingGateway fakeEmbeddingGateway() {
-            return new EmbeddingGateway() {
-                @Override
-                public boolean isAvailable() {
-                    return true;
-                }
+            return new RecordingEmbeddingGateway();
+        }
+    }
 
-                @Override
-                public int dimensions() {
-                    return 4;
-                }
+    private static final class RecordingEmbeddingGateway implements EmbeddingGateway {
+        private int documentCalls;
+        private int queryCalls;
 
-                @Override
-                public List<float[]> embedBatch(List<String> texts) {
-                    return texts.stream()
-                            .map(this::embed)
-                            .toList();
-                }
+        @Override
+        public boolean isAvailable() {
+            return true;
+        }
 
-                private float[] embed(String text) {
-                    String lowerCaseText = text.toLowerCase();
-                    if (lowerCaseText.contains("alpha")) {
-                        return new float[]{1.0f, 0.0f, 0.0f, 0.0f};
-                    }
-                    if (lowerCaseText.contains("beta")) {
-                        return new float[]{0.0f, 1.0f, 0.0f, 0.0f};
-                    }
-                    return new float[]{0.0f, 0.0f, 1.0f, 0.0f};
-                }
-            };
+        @Override
+        public int dimensions() {
+            return 4;
+        }
+
+        @Override
+        public List<float[]> embedDocuments(List<String> texts) {
+            documentCalls++;
+            return texts.stream()
+                    .map(this::embed)
+                    .toList();
+        }
+
+        @Override
+        public float[] embedQuery(String query) {
+            queryCalls++;
+            return embed(query);
+        }
+
+        private int documentCalls() {
+            return documentCalls;
+        }
+
+        private int queryCalls() {
+            return queryCalls;
+        }
+
+        private float[] embed(String text) {
+            String lowerCaseText = text.toLowerCase();
+            if (lowerCaseText.contains("alpha") || lowerCaseText.contains("purpose")) {
+                return new float[]{1.0f, 0.0f, 0.0f, 0.0f};
+            }
+            if (lowerCaseText.contains("beta")) {
+                return new float[]{0.0f, 1.0f, 0.0f, 0.0f};
+            }
+            return new float[]{0.0f, 0.0f, 1.0f, 0.0f};
         }
     }
 }

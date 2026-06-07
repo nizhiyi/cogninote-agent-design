@@ -20,6 +20,6 @@ public class DashScopeRuntimeFactory {
     }
 
     public AiEmbeddingRuntime embeddingRuntime(ModelConfig config) {
-        return new SpringAiEmbeddingRuntime(dashScopeModelFactory.embeddingModel(config));
+        return new DashScopeEmbeddingRuntime(dashScopeModelFactory, config);
     }
 }

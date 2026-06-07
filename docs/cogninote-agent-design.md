@@ -199,7 +199,7 @@ Lucene 中维护：
 推荐分工：
 
 - SQLite：保存文档元数据、Chunk 文本、模型配置、聊天会话、消息和应用设置
-- Lucene：保存 BM25 字段、向量字段和检索必要字段
+- Lucene：保存 BM25 派生字段、代码标识符字段、向量字段和检索必要字段
 - 原始文件：仍保留在用户自己的目录里，应用不复制原文件
 
 检索时先由 Lucene 返回 `chunk_id`，再用 `chunk_id` 到 SQLite 查询 `chunks.content`。第十三阶段后，知识库片段由 `CogninoteDocumentRetriever` 转成 Spring AI `Document`，再通过 `RetrievalAugmentationAdvisor` 注入模型调用链。
@@ -208,35 +208,37 @@ Lucene 中维护：
 
 检索方式：
 
-- 关键词检索：BM25
-- 语义检索：读取 active `EMBEDDING` 配置，通过 Embedding 模型把用户问题转换为查询向量，再做向量相似度召回
-- 混合检索：BM25 结果和向量结果合并重排
+- 关键词检索：Lucene BM25。正文使用 `SmartChineseAnalyzer`，代码/标识符字段使用 `StandardAnalyzer`，并从原始 chunk 派生类名、函数名、变量名、路径、异常名和流程图节点文本。
+- 语义检索：读取 active `EMBEDDING` 配置，通过 Embedding 模型把用户问题转换为查询向量，再做向量相似度召回。
+- 混合检索：BM25 和 Vector 各取 `max(topK * 8, 60)` 候选，再使用加权 RRF 融合排序。
 
 默认权重：
 
 ```text
-BM25: 0.6
-Vector: 0.4
+BM25: 0.45
+Vector: 0.55
+RRF K: 60
 ```
 
-后续可在设置页开放调整。
+`SearchHitResponse.score` 在 `HYBRID` 下表示最终 RRF 分数；`keywordScore` 和 `vectorScore` 保留原始 BM25 / Vector 分数，主要用于调试和检索测试展示。修改 Analyzer、索引文本策略、Embedding 模型或维度后必须重建 Lucene 索引；如果旧 chunks 已经被旧清洗逻辑破坏缩进，需要重新导入原始文件才能恢复代码格式。
 
 ### 5.4 Embedding Gateway
 
-嵌入模型不放进 JVM。CogniNote 使用 Spring AI 的 `EmbeddingModel` 作为模型抽象，默认实现选择 Spring AI Alibaba DashScope。业务代码只依赖 CogniNote 自己的 `EmbeddingGateway` / Spring AI 通用接口，不直接散落依赖 Alibaba 具体类。
+嵌入模型不放进 JVM。CogniNote 使用自己的 `EmbeddingGateway` 和 `AiEmbeddingRuntime` 隔离 provider 差异，默认推荐 DashScope `text-embedding-v4`。业务代码只区分“文档向量化”和“查询向量化”，不直接依赖 Alibaba 或 OpenAI 具体类。
 
 第一版推荐默认接入：
 
-- Spring AI Alibaba DashScope / 百炼 embedding
-- 后续可替换为 Spring AI OpenAI、Ollama、DeepSeek 或其它 OpenAI-compatible 实现
+- DashScope / 百炼 embedding：通过 Spring AI Alibaba `DashScopeEmbeddingOptions.textType` 分别传递 `document` 和 `query`。
+- OpenAI-compatible embedding：继续走 Spring AI OpenAI runtime 的标准 `/embeddings` 请求；Spring AI OpenAI 的 embedding options 没有 `text_type` 字段，CogniNote 不发送非标准参数。
+- 后续可扩展 Ollama、DeepSeek 或其它 provider，只需实现对应 `AiEmbeddingRuntime`。
 
 统一接口：
 
 ```java
-public interface EmbeddingClient {
-    float[] embed(String text);
+public interface EmbeddingGateway {
+    List<float[]> embedDocuments(List<String> texts);
 
-    List<float[]> embedBatch(List<String> texts);
+    float[] embedQuery(String query);
 }
 ```
 
@@ -635,11 +637,12 @@ source_path
 heading
 page_number
 content_for_bm25
+content_for_code
 embedding_vector
 preview_text
 ```
 
-`content_for_bm25` 可用于检索，但不要求作为展示数据来源。真正展示和喂给模型的文本，以 SQLite 中的 `chunks.content` 为准。
+`content_for_bm25` 保存从文件名、标题和正文派生出的中文友好索引文本；`content_for_code` 保存代码块、流程图、类名、函数名、变量名、路径、异常名和拆分后的 camelCase / snake_case / kebab-case token。两者都只服务 Lucene 检索，不作为展示数据来源。真正展示和喂给模型的文本，以 SQLite 中的 `chunks.content` 为准。
 
 ### 8.3 检索回读流程
 
@@ -961,6 +964,15 @@ POST   /api/chat/stream/{requestId}/cancel
 - Tauri 启动日志记录桌面壳版本、包版本、实际启动路径、后端资源路径和端口
 - Windows NSIS 安装/卸载钩子负责关闭旧主程序和后端进程，并清理旧安装目录中的 backend 资源和常见快捷方式残留
 - 设置中心系统信息显示后端版本、前端版本、桌面壳版本和桌面模式，便于确认用户实际启动的新旧版本
+
+### Milestone 20：代码友好的检索准确率优化
+
+- `TextChunker` 保护 Markdown fenced code block、Mermaid、PlantUML 和常见代码块缩进
+- Lucene 正文使用 `SmartChineseAnalyzer`，代码/标识符字段使用 `StandardAnalyzer`
+- 从 chunk 原文派生代码标识符、路径、异常名、流程图节点等 BM25 索引文本，但展示和 RAG 上下文仍回读 SQLite 原文
+- HYBRID 检索扩大候选集，并用加权 RRF 替代 min-max 分数融合
+- Embedding 网关拆分 `embedDocuments` 和 `embedQuery`
+- DashScope 通过 `textType=document/query` 区分向量语义，OpenAI-compatible 继续使用 Spring AI OpenAI 标准 `/embeddings`
 
 ## 12. 后续版本规划
 

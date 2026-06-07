@@ -82,6 +82,68 @@ class SearchIndexIntegrationTests {
     }
 
     @Test
+    void keywordSearchHitsChineseProseCodeIdentifiersAndMermaidDiagram() throws Exception {
+        Files.writeString(tempDir.resolve("technical-note.md"), """
+                # 多智能体路由
+
+                路由式多智能体需要根据用户开关选择普通对话或知识库问答。
+
+                ```java
+                public class ChatAgentRouter {
+                    private boolean useKnowledgeBase;
+
+                    void routeToKnowledgeBase() {
+                        useKnowledgeBase = true;
+                    }
+                }
+                ```
+
+                ```mermaid
+                flowchart TD
+                  User --> Router
+                  Router --> KnowledgeBaseAgent
+                ```
+                """);
+        ingestionService.ingestFolder(tempDir.toString(), true);
+
+        mockMvc.perform(post("/api/search")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "query": "多智能体 路由",
+                                  "mode": "KEYWORD",
+                                  "topK": 5
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.hits[0].fileName").value("technical-note.md"));
+
+        mockMvc.perform(post("/api/search")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "query": "ChatAgentRouter useKnowledgeBase",
+                                  "mode": "KEYWORD",
+                                  "topK": 5
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.hits[0].fileName").value("technical-note.md"));
+
+        mockMvc.perform(post("/api/search")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "query": "flowchart KnowledgeBaseAgent",
+                                  "mode": "KEYWORD",
+                                  "topK": 5
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.hits[0].fileName").value("technical-note.md"));
+    }
+
+    @Test
     void rebuildUsesSqliteAsSourceOfTruth() throws Exception {
         Files.writeString(tempDir.resolve("rag.txt"), "SQLite is the source of truth and Lucene can be rebuilt.");
         ingestionService.ingestFolder(tempDir.toString(), true);

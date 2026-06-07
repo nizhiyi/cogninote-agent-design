@@ -53,8 +53,13 @@ app:
     database-path: ${COGNINOTE_DATABASE_PATH:}
   search:
     top-k: ${COGNINOTE_SEARCH_TOP_K:8}
-    bm25-weight: ${COGNINOTE_BM25_WEIGHT:0.6}
-    vector-weight: ${COGNINOTE_VECTOR_WEIGHT:0.4}
+    bm25-weight: ${COGNINOTE_BM25_WEIGHT:0.45}
+    vector-weight: ${COGNINOTE_VECTOR_WEIGHT:0.55}
+    bm25-k1: ${COGNINOTE_BM25_K1:1.2}
+    bm25-b: ${COGNINOTE_BM25_B:0.65}
+    hybrid-candidate-multiplier: ${COGNINOTE_HYBRID_CANDIDATE_MULTIPLIER:8}
+    hybrid-min-candidates: ${COGNINOTE_HYBRID_MIN_CANDIDATES:60}
+    rrf-k: ${COGNINOTE_RRF_K:60}
   embedding:
     dimensions: ${COGNINOTE_EMBEDDING_DIMENSIONS:1024}
     batch-size: ${COGNINOTE_EMBEDDING_BATCH_SIZE:32}

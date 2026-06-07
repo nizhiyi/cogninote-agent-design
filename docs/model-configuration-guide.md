@@ -15,10 +15,13 @@ CogniNote 第八阶段开始使用多模型配置中心。对话模型和 Embedd
 - 配置页展示的 Base URL：`https://dashscope.aliyuncs.com/api/v1`
 - Chat / Embedding 调用：使用 Spring AI Alibaba 原生 DashScope 客户端
 - 模型列表：使用百炼兼容 `/models` 端点
+- Embedding 语义：索引文档时传递 `textType=document`，搜索查询时传递 `textType=query`
 
 DashScope 不允许用户自定义 host。需要自定义 URL 时，应选择 `OPENAI_COMPATIBLE`。
 
 实现约束：DashScope SDK 示例中的 HTTP API Root 是 `https://dashscope.aliyuncs.com/api/v1`。Spring AI Alibaba 的 `DashScopeApi` 内部 path 已包含 `/api/v1/services/...`，因此后端构造客户端时会转换为裸域名 `https://dashscope.aliyuncs.com`，避免拼出重复 `/api/v1`。
+
+第 20 阶段后，DashScope Embedding 不再和通用 Spring AI runtime 混在一起处理：`DashScopeEmbeddingRuntime` 通过 `DashScopeModelFactory.embeddingModel(config, textType)` 分别创建并缓存 `document` / `query` 两类模型实例。这个差异只存在于 DashScope 具体实现里，搜索索引层只调用 `embedDocuments` 和 `embedQuery`。
 
 ### OpenAI-compatible
 
@@ -39,6 +42,8 @@ Base URL + /embeddings
 ```
 
 如果用户粘贴了完整的 `/chat/completions`、`/embeddings` 或 `/models` 地址，后端会尽量规整回 Base URL。
+
+OpenAI-compatible 的 Embedding 继续使用 Spring AI OpenAI runtime 的标准 `/embeddings` 请求。Spring AI OpenAI 的 Embedding options 只有 `model`、`encodingFormat`、`dimensions`、`user` 等标准字段，没有 DashScope 的 `text_type`；CogniNote 不会向 OpenAI-compatible 服务发送非标准 `text_type` 参数。内部仍保留 `embedDocuments` / `embedQuery` 两个入口，方便后续 provider 自己实现查询/文档语义区分。
 
 ## 配置类型
 
@@ -71,7 +76,7 @@ Base URL + /embeddings
 6. 保存配置。
 7. 在配置列表中点击“激活”让该配置成为当前类型的 active 配置。
 
-保存或激活 Embedding 配置后，如果模型或维度发生变化，需要在知识库中手动重建索引。系统不会自动重建旧向量，避免用户不知情地产生大量外部模型调用。
+保存或激活 Embedding 配置后，如果模型或维度发生变化，需要在知识库中手动重建索引。系统不会自动重建旧向量，避免用户不知情地产生大量外部模型调用。第 20 阶段调整了中文 Analyzer、代码块索引文本和混合检索融合方式，升级后也需要重建 Lucene 索引；如果旧 chunks 已经丢失代码缩进，需要重新导入原始文件才能恢复代码格式。
 
 ## 前端回显规则
 

@@ -20,16 +20,16 @@ import com.itqianchen.agentdesign.repository.document.DocumentRepository;
 import com.itqianchen.agentdesign.service.system.AppStorageInitializer;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.cn.smart.SmartChineseAnalyzer;
+import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.IntPoint;
@@ -48,6 +48,7 @@ import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.FSDirectory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,25 +59,30 @@ import org.springframework.util.StringUtils;
 public class LuceneKnowledgeStore implements KnowledgeStore {
 
     private static final int PREVIEW_LIMIT = 260;
-    private static final int MIN_HYBRID_CANDIDATES = 20;
     private static final Logger log = LoggerFactory.getLogger(LuceneKnowledgeStore.class);
 
     private final DocumentRepository documentRepository;
     private final EmbeddingGateway embeddingGateway;
     private final SearchProperties searchProperties;
     private final AppStorage appStorage;
-    private final Analyzer analyzer = new StandardAnalyzer();
+    private final SearchIndexTextBuilder indexTextBuilder;
+    private final Analyzer analyzer = new PerFieldAnalyzerWrapper(
+            new SmartChineseAnalyzer(),
+            Map.of(SearchFieldNames.CODE_CONTENT, new StandardAnalyzer())
+    );
 
     public LuceneKnowledgeStore(
             DocumentRepository documentRepository,
             EmbeddingGateway embeddingGateway,
             SearchProperties searchProperties,
-            AppStorageInitializer storageInitializer
+            AppStorageInitializer storageInitializer,
+            SearchIndexTextBuilder indexTextBuilder
     ) {
         this.documentRepository = documentRepository;
         this.embeddingGateway = embeddingGateway;
         this.searchProperties = searchProperties;
         this.appStorage = storageInitializer.appStorage();
+        this.indexTextBuilder = indexTextBuilder;
     }
 
     @Override
@@ -232,7 +238,7 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     private void addDocumentChunks(IndexWriter writer, IndexedDocument document) throws IOException {
         List<float[]> vectors = List.of();
         if (embeddingGateway.isAvailable()) {
-            vectors = embeddingGateway.embedBatch(document.chunks().stream()
+            vectors = embeddingGateway.embedDocuments(document.chunks().stream()
                     .map(IndexedChunk::content)
                     .toList());
         }
@@ -247,7 +253,9 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
             luceneDocument.add(new IntPoint(SearchFieldNames.CHUNK_INDEX, chunk.chunkIndex()));
             luceneDocument.add(new StoredField(SearchFieldNames.CHUNK_INDEX, chunk.chunkIndex()));
             luceneDocument.add(new StringField(SearchFieldNames.CONTENT_HASH, chunk.contentHash(), org.apache.lucene.document.Field.Store.YES));
-            luceneDocument.add(new TextField(SearchFieldNames.CONTENT, chunk.content(), org.apache.lucene.document.Field.Store.NO));
+            SearchIndexText indexText = indexTextBuilder.build(document, chunk);
+            luceneDocument.add(new TextField(SearchFieldNames.CONTENT, indexText.proseText(), org.apache.lucene.document.Field.Store.NO));
+            luceneDocument.add(new TextField(SearchFieldNames.CODE_CONTENT, indexText.codeText(), org.apache.lucene.document.Field.Store.NO));
             luceneDocument.add(new StoredField(SearchFieldNames.PREVIEW, preview(chunk.content())));
 
             if (StringUtils.hasText(chunk.heading())) {
@@ -294,7 +302,7 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
             throw new EmbeddingUnavailableException("Embedding model is not configured; vector search is unavailable");
         }
 
-        float[] queryVector = embeddingGateway.embedBatch(List.of(query)).getFirst();
+        float[] queryVector = embeddingGateway.embedQuery(query);
         try {
             if (!indexExists()) {
                 return List.of();
@@ -322,13 +330,11 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
             throw new EmbeddingUnavailableException("Embedding model is not configured; hybrid search is unavailable");
         }
 
-        int candidateLimit = Math.max(topK * 3, MIN_HYBRID_CANDIDATES);
+        int candidateLimit = searchProperties.hybridCandidateLimit(topK);
         List<SearchHit> keywordHits = searchKeyword(query, candidateLimit);
         List<SearchHit> vectorHits = searchVector(query, candidateLimit);
         Map<String, SearchHit> merged = new LinkedHashMap<>();
 
-        Map<String, Double> normalizedKeywordScores = normalize(keywordHits, ScoreKind.KEYWORD);
-        Map<String, Double> normalizedVectorScores = normalize(vectorHits, ScoreKind.VECTOR);
         for (SearchHit hit : keywordHits) {
             SearchHit current = merged.computeIfAbsent(hit.chunkId(), ignored -> hit.withScores(null, null, 0));
             merged.put(hit.chunkId(), current.withScores(hit.keywordScore(), current.vectorScore(), 0));
@@ -340,10 +346,7 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
 
         return merged.values().stream()
                 .map(hit -> {
-                    double keywordScore = normalizedKeywordScores.getOrDefault(hit.chunkId(), 0.0);
-                    double vectorScore = normalizedVectorScores.getOrDefault(hit.chunkId(), 0.0);
-                    double finalScore = searchProperties.bm25Weight() * keywordScore
-                            + searchProperties.vectorWeight() * vectorScore;
+                    double finalScore = rrfScore(hit.chunkId(), keywordHits, vectorHits);
                     return hit.withScores(hit.keywordScore(), hit.vectorScore(), finalScore);
                 })
                 .sorted(Comparator.comparingDouble(SearchHit::score).reversed())
@@ -356,6 +359,7 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
             MultiFieldQueryParser parser = new MultiFieldQueryParser(
                     new String[]{
                             SearchFieldNames.CONTENT,
+                            SearchFieldNames.CODE_CONTENT,
                             SearchFieldNames.HEADING,
                             SearchFieldNames.FILE_NAME
                     },
@@ -368,6 +372,7 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
                 MultiFieldQueryParser parser = new MultiFieldQueryParser(
                         new String[]{
                                 SearchFieldNames.CONTENT,
+                                SearchFieldNames.CODE_CONTENT,
                                 SearchFieldNames.HEADING,
                                 SearchFieldNames.FILE_NAME
                         },
@@ -420,30 +425,20 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
                 .toList();
     }
 
-    private Map<String, Double> normalize(List<SearchHit> hits, ScoreKind scoreKind) {
-        Map<String, Double> scores = new HashMap<>();
-        List<Double> rawScores = hits.stream()
-                .map(hit -> scoreKind == ScoreKind.KEYWORD ? hit.keywordScore() : hit.vectorScore())
-                .filter(Objects::nonNull)
-                .toList();
-        if (rawScores.isEmpty()) {
-            return scores;
-        }
+    private double rrfScore(String chunkId, List<SearchHit> keywordHits, List<SearchHit> vectorHits) {
+        double keywordScore = reciprocalRankScore(chunkId, keywordHits, searchProperties.bm25Weight());
+        double vectorScore = reciprocalRankScore(chunkId, vectorHits, searchProperties.vectorWeight());
+        return keywordScore + vectorScore;
+    }
 
-        double min = rawScores.stream().mapToDouble(Double::doubleValue).min().orElse(0.0);
-        double max = rawScores.stream().mapToDouble(Double::doubleValue).max().orElse(0.0);
-        // BM25 和向量相似度的量纲不同，融合前必须先归一化到同一尺度。
-        for (SearchHit hit : hits) {
-            Double rawScore = scoreKind == ScoreKind.KEYWORD ? hit.keywordScore() : hit.vectorScore();
-            if (rawScore == null) {
-                continue;
+    private double reciprocalRankScore(String chunkId, List<SearchHit> hits, double weight) {
+        int rrfK = searchProperties.normalizedRrfK();
+        for (int index = 0; index < hits.size(); index++) {
+            if (hits.get(index).chunkId().equals(chunkId)) {
+                return weight / (rrfK + index + 1.0);
             }
-
-            double normalized = max == min ? 1.0 : (rawScore - min) / (max - min);
-            scores.put(hit.chunkId(), normalized);
         }
-
-        return scores;
+        return 0.0;
     }
 
     private IndexCounts readIndexCounts(IndexStatistics statistics) throws IOException {
@@ -462,15 +457,23 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     private <T> T searchWithReader(IndexSearchOperation<T> operation) throws IOException {
         try (FSDirectory directory = FSDirectory.open(appStorage.luceneIndexDir());
              DirectoryReader reader = DirectoryReader.open(directory)) {
-            return operation.search(new IndexSearcher(reader));
+            IndexSearcher searcher = new IndexSearcher(reader);
+            searcher.setSimilarity(bm25Similarity());
+            return operation.search(searcher);
         }
     }
 
     private IndexWriter newWriter() throws IOException {
+        IndexWriterConfig config = new IndexWriterConfig(analyzer);
+        config.setSimilarity(bm25Similarity());
         return new IndexWriter(
                 FSDirectory.open(appStorage.luceneIndexDir()),
-                new IndexWriterConfig(analyzer)
+                config
         );
+    }
+
+    private BM25Similarity bm25Similarity() {
+        return new BM25Similarity(searchProperties.bm25K1(), searchProperties.bm25B());
     }
 
     private void ensureIndexDirectory() throws IOException {
@@ -490,11 +493,6 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
             return normalized;
         }
         return normalized.substring(0, PREVIEW_LIMIT) + "...";
-    }
-
-    private enum ScoreKind {
-        KEYWORD,
-        VECTOR
     }
 
     @FunctionalInterface

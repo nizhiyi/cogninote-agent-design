@@ -67,7 +67,17 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
     }
 
     @Override
-    public List<float[]> embedBatch(List<String> texts) {
+    public List<float[]> embedDocuments(List<String> texts) {
+        return embedTexts(texts, EmbeddingPurpose.DOCUMENT);
+    }
+
+    @Override
+    public float[] embedQuery(String query) {
+        List<float[]> vectors = embedTexts(List.of(query), EmbeddingPurpose.QUERY);
+        return vectors.getFirst();
+    }
+
+    private List<float[]> embedTexts(List<String> texts, EmbeddingPurpose purpose) {
         if (!isAvailable()) {
             throw new EmbeddingUnavailableException("Embedding model is not configured");
         }
@@ -78,7 +88,7 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
         int batchSize = embeddingProperties.normalizedBatchSize();
         for (int start = 0; start < texts.size(); start += batchSize) {
             int end = Math.min(start + batchSize, texts.size());
-            vectors.addAll(embedSlice(texts.subList(start, end)));
+            vectors.addAll(embedSlice(texts.subList(start, end), purpose));
         }
 
         for (float[] vector : vectors) {
@@ -100,15 +110,31 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
                 new EmbeddingUnavailableException("Embedding model is not configured"));
     }
 
-    private List<float[]> embedSlice(List<String> texts) {
+    private List<float[]> embedSlice(List<String> texts, EmbeddingPurpose purpose) {
         return modelConfigRepository.findActive(ModelConfigRole.EMBEDDING)
                 .filter(ModelConfig::hasApiKey)
-                .map(config -> embedConfigured(config, texts))
-                .orElseGet(() -> activeEmbeddingModel().embed(texts));
+                .map(config -> embedConfigured(config, texts, purpose))
+                .orElseGet(() -> embedAutoConfigured(texts, purpose));
     }
 
-    private List<float[]> embedConfigured(ModelConfig config, List<String> texts) {
-        return aiRuntimeFactory.embeddingRuntime(config).embedBatch(texts);
+    private List<float[]> embedConfigured(ModelConfig config, List<String> texts, EmbeddingPurpose purpose) {
+        if (purpose == EmbeddingPurpose.QUERY) {
+            return List.of(aiRuntimeFactory.embeddingRuntime(config).embedQuery(texts.getFirst()));
+        }
+        return aiRuntimeFactory.embeddingRuntime(config).embedDocuments(texts);
+    }
+
+    private List<float[]> embedAutoConfigured(List<String> texts, EmbeddingPurpose purpose) {
+        EmbeddingModel model = activeEmbeddingModel();
+        if (purpose == EmbeddingPurpose.QUERY) {
+            return List.of(model.embed(texts.getFirst()));
+        }
+        return model.embed(texts);
+    }
+
+    private enum EmbeddingPurpose {
+        DOCUMENT,
+        QUERY
     }
 }
 

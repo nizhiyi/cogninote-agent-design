@@ -11,6 +11,7 @@ final class SearchFieldNames {
     static final String PAGE_NUMBER = "page_number";
     static final String CONTENT_HASH = "content_hash";
     static final String CONTENT = "content_for_bm25";
+    static final String CODE_CONTENT = "content_for_code";
     static final String PREVIEW = "preview_text";
     static final String EMBEDDING = "embedding_vector";
 

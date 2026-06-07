@@ -208,7 +208,12 @@ class ChatControllerTests {
                 }
 
                 @Override
-                public java.util.List<float[]> embedBatch(java.util.List<String> texts) {
+                public java.util.List<float[]> embedDocuments(java.util.List<String> texts) {
+                    throw new UnsupportedOperationException("Embedding is intentionally disabled in chat controller tests");
+                }
+
+                @Override
+                public float[] embedQuery(String query) {
                     throw new UnsupportedOperationException("Embedding is intentionally disabled in chat controller tests");
                 }
             };

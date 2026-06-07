@@ -8,7 +8,9 @@ public interface EmbeddingGateway {
 
     int dimensions();
 
-    List<float[]> embedBatch(List<String> texts);
+    List<float[]> embedDocuments(List<String> texts);
+
+    float[] embedQuery(String query);
 }
 
 

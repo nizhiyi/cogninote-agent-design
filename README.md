@@ -234,12 +234,13 @@ bash ./scripts/build-desktop-app-macos.sh --skip-tests
 | [模型配置指南](docs/model-configuration-guide.md) | DashScope 与 OpenAI-compatible 配置方式 |
 | [桌面构建指南](docs/desktop-build-guide.md) | PowerShell 脚本、Tauri 打包、产物和故障排查 |
 | [阶段 19：桌面安装升级计划](docs/phase-19-desktop-install-upgrade-reliability-plan.md) | macOS/Windows 安装、卸载、升级可靠性 |
+| [阶段 20：代码友好检索优化计划](docs/phase-20-code-aware-retrieval-optimization-plan.md) | 中文正文、代码块、流程图和混合检索准确率优化 |
 | [可维护性重构计划](docs/maintainability-refactor-plan.md) | 前后端分层、统一响应和注释规范 |
 
 
 ## 开发状态
 
-当前项目已完成文档摄入、Lucene 搜索、模型配置、RAG 对话、路由式多智能体对话、模式隔离聊天记忆、智能体模型运行时重构、AI 流式 Markdown 渲染、SQLite 聊天记忆、纯模型对话、空白保真的 SSE 流式输出、流式截断识别与错误状态同步、MyBatis 统一数据访问层、Windows 桌面打包、macOS Apple Silicon 独立打包链路、`0.1.11` 双平台 unsigned/signed CI 打包链路，以及桌面安装/卸载/升级可靠性修复的主要闭环。仍需重点补齐：
+当前项目已完成文档摄入、代码友好的 Lucene 混合检索、模型配置、RAG 对话、路由式多智能体对话、模式隔离聊天记忆、智能体模型运行时重构、AI 流式 Markdown 渲染、SQLite 聊天记忆、纯模型对话、空白保真的 SSE 流式输出、流式截断识别与错误状态同步、MyBatis 统一数据访问层、Windows 桌面打包、macOS Apple Silicon 独立打包链路、`0.1.11` 双平台 unsigned/signed CI 打包链路，以及桌面安装/卸载/升级可靠性修复的主要闭环。仍需重点补齐：
 
 - API Key 本地加密或凭据管理。
 - 桌面会话令牌保护。

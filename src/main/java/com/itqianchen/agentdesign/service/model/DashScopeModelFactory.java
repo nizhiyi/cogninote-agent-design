@@ -8,6 +8,8 @@ import com.alibaba.cloud.ai.dashscope.embedding.text.DashScopeEmbeddingOptions;
 import com.itqianchen.agentdesign.domain.model.ModelConfig;
 import io.micrometer.observation.ObservationRegistry;
 import java.util.Locale;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.document.MetadataMode;
 import org.springframework.ai.embedding.EmbeddingModel;
@@ -21,7 +23,7 @@ public class DashScopeModelFactory {
 
     private final ObservationRegistry observationRegistry;
     private volatile CachedChatModel cachedChatModel;
-    private volatile CachedEmbeddingModel cachedEmbeddingModel;
+    private final ConcurrentMap<EmbeddingModelKey, EmbeddingModel> cachedEmbeddingModels = new ConcurrentHashMap<>();
 
     public DashScopeModelFactory(ObjectProvider<ObservationRegistry> observationRegistry) {
         this.observationRegistry = observationRegistry.getIfAvailable(() -> ObservationRegistry.NOOP);
@@ -48,22 +50,13 @@ public class DashScopeModelFactory {
     }
 
     public EmbeddingModel embeddingModel(ModelConfig config) {
-        EmbeddingModelKey key = EmbeddingModelKey.from(config);
-        CachedEmbeddingModel cached = cachedEmbeddingModel;
-        if (cached != null && cached.key().equals(key)) {
-            return cached.model();
-        }
+        return embeddingModel(config, null);
+    }
 
-        synchronized (this) {
-            cached = cachedEmbeddingModel;
-            if (cached != null && cached.key().equals(key)) {
-                return cached.model();
-            }
-            // Embedding 在批量索引时调用频繁，同样需要按配置复用模型实例。
-            EmbeddingModel model = buildEmbeddingModel(config);
-            cachedEmbeddingModel = new CachedEmbeddingModel(key, model);
-            return model;
-        }
+    public EmbeddingModel embeddingModel(ModelConfig config, String textType) {
+        EmbeddingModelKey key = EmbeddingModelKey.from(config, textType);
+        // DashScope document/query 会使用不同 textType，必须按完整 key 缓存，避免两种实例互相覆盖。
+        return cachedEmbeddingModels.computeIfAbsent(key, ignored -> buildEmbeddingModel(config, textType));
     }
 
     private ChatModel buildChatModel(ModelConfig config) {
@@ -87,10 +80,11 @@ public class DashScopeModelFactory {
                 .build();
     }
 
-    private EmbeddingModel buildEmbeddingModel(ModelConfig config) {
+    private EmbeddingModel buildEmbeddingModel(ModelConfig config, String textType) {
         DashScopeEmbeddingOptions options = DashScopeEmbeddingOptions.builder()
                 .model(config.modelName())
                 .dimensions(config.resolvedEmbeddingDimensions())
+                .textType(textType)
                 .build();
 
         return DashScopeEmbeddingModel.builder()
@@ -169,14 +163,16 @@ public class DashScopeModelFactory {
             String nativeBaseUrl,
             String apiKey,
             String embeddingModel,
-            int embeddingDimensions
+            int embeddingDimensions,
+            String textType
     ) {
-        private static EmbeddingModelKey from(ModelConfig config) {
+        private static EmbeddingModelKey from(ModelConfig config, String textType) {
             return new EmbeddingModelKey(
                     DashScopeBaseUrls.toSpringAiAlibabaBaseUrl(config.baseUrl()),
                     config.apiKey(),
                     config.modelName(),
-                    config.resolvedEmbeddingDimensions()
+                    config.resolvedEmbeddingDimensions(),
+                    textType
             );
         }
     }
@@ -184,8 +180,6 @@ public class DashScopeModelFactory {
     private record CachedChatModel(ChatModelKey key, ChatModel model) {
     }
 
-    private record CachedEmbeddingModel(EmbeddingModelKey key, EmbeddingModel model) {
-    }
 }
 
 
