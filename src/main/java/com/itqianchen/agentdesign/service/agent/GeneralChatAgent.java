@@ -37,7 +37,7 @@ public class GeneralChatAgent extends AbstractChatAgent {
     }
 
     @Override
-    protected AgentInvocation prepareInvocation(String question, SearchMode requestedMode, int topK) {
+    protected AgentInvocation prepareInvocation(AgentInvocationRequest request) {
         return new AgentInvocation(new KnowledgeContext(null, List.of()), List.of(memoryAdvisor));
     }
 }

@@ -56,6 +56,19 @@ final class SpringAiChatRuntime implements AiChatRuntime {
     }
 
     @Override
+    public String callText(String systemPrompt, String userMessage) {
+        ChatResponse response = ChatClient.builder(chatModel)
+                .build()
+                .prompt()
+                .system(systemPrompt)
+                .user(userMessage)
+                .call()
+                .chatResponse();
+        String text = extractText(response);
+        return text == null ? "" : text;
+    }
+
+    @Override
     public void testConnection(Prompt prompt) {
         try {
             chatModel.call(prompt);

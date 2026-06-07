@@ -19,6 +19,7 @@ public class KnowledgeBaseChatAgent extends AbstractChatAgent {
     private final KnowledgeContextProvider knowledgeContextProvider;
     private final PromptAssembler promptAssembler;
     private final CogninoteMemoryAdvisor memoryAdvisor;
+    private final QueryContextualizerAgent queryContextualizerAgent;
 
     public KnowledgeBaseChatAgent(
             ModelConfigService modelConfigService,
@@ -26,12 +27,14 @@ public class KnowledgeBaseChatAgent extends AbstractChatAgent {
             KnowledgeContextProvider knowledgeContextProvider,
             PromptAssembler promptAssembler,
             ChatSessionService chatSessionService,
-            CogninoteMemoryAdvisor memoryAdvisor
+            CogninoteMemoryAdvisor memoryAdvisor,
+            QueryContextualizerAgent queryContextualizerAgent
     ) {
         super(modelConfigService, aiRuntimeFactory, promptAssembler, chatSessionService);
         this.knowledgeContextProvider = knowledgeContextProvider;
         this.promptAssembler = promptAssembler;
         this.memoryAdvisor = memoryAdvisor;
+        this.queryContextualizerAgent = queryContextualizerAgent;
     }
 
     @Override
@@ -45,12 +48,20 @@ public class KnowledgeBaseChatAgent extends AbstractChatAgent {
     }
 
     @Override
-    protected AgentInvocation prepareInvocation(String question, SearchMode requestedMode, int topK) {
+    protected AgentInvocation prepareInvocation(AgentInvocationRequest request) {
+        QueryContextualization query = queryContextualizerAgent.contextualize(
+                request.requestId(),
+                request.conversationId(),
+                request.question(),
+                request.userMessage().sequence() - 1,
+                request.chatConfig()
+        );
         CogninoteDocumentRetriever documentRetriever = new CogninoteDocumentRetriever(
                 knowledgeContextProvider,
-                question,
-                requestedMode,
-                topK
+                query.originalQuestion(),
+                query.retrievalQuery(),
+                request.requestedMode(),
+                request.topK()
         );
         KnowledgeContext knowledgeContext = documentRetriever.retrieveKnowledgeContext();
         List<Advisor> advisors = new ArrayList<>();
@@ -58,7 +69,11 @@ public class KnowledgeBaseChatAgent extends AbstractChatAgent {
         if (knowledgeContext.retrievalMode() != null) {
             advisors.add(RetrievalAugmentationAdvisor.builder()
                     .documentRetriever(documentRetriever)
-                    .queryAugmenter(new CogninoteRagQueryAugmenter(promptAssembler.emptyContextPrompt()))
+                    .queryAugmenter(new CogninoteRagQueryAugmenter(
+                            promptAssembler.emptyContextPrompt(),
+                            query.originalQuestion(),
+                            query.retrievalQuery()
+                    ))
                     .build());
         }
         return new AgentInvocation(knowledgeContext, advisors);

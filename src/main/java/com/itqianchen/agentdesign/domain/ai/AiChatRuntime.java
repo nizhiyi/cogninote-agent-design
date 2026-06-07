@@ -12,5 +12,7 @@ public interface AiChatRuntime {
 
     Flux<String> stream(String systemPrompt, String userMessage, List<Advisor> advisors, Map<String, Object> advisorParams);
 
+    String callText(String systemPrompt, String userMessage);
+
     void testConnection(Prompt prompt);
 }

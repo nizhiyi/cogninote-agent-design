@@ -181,6 +181,11 @@ class ChatControllerTests {
                         }
 
                         @Override
+                        public String callText(String systemPrompt, String userMessage) {
+                            return "{\"shouldRewrite\":false,\"rewrittenQuery\":\"\",\"reason\":\"test_keep_original\",\"confidence\":0.0}";
+                        }
+
+                        @Override
                         public void testConnection(Prompt prompt) {
                         }
                     };

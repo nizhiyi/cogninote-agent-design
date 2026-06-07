@@ -6,6 +6,8 @@ CogniNote 第八阶段开始使用多模型配置中心。对话模型和 Embedd
 
 第十一阶段已把这些 active 配置统一交给 AI Runtime 消费：DashScope Runtime 封装 Spring AI Alibaba，OpenAI-compatible Runtime 使用 Spring AI OpenAI 官方模型实现，并保留用户自定义 Base URL。原自研 OpenAI-compatible HTTP client 已删除，后续不再维护两套模型调用路径。
 
+第 21 阶段后，active `CHAT` 配置还会被知识库模式下的 `QueryContextualizerAgent` 复用。这个内部 Agent 只用独立 JSON Prompt 判断省略式追问是否需要补全检索 query，不回答用户问题，也不新增前端模型角色。也就是说，用户仍只需要维护“对话模型”和“Embedding 模型”两类配置；但对话模型的指令遵循能力会影响追问补全质量。
+
 ## Provider 类型
 
 ### DashScope

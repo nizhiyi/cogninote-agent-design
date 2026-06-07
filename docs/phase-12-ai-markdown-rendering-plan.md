@@ -6,11 +6,12 @@
 
 本阶段从“只换 Markdown 渲染器”扩展为“AI 流式 Markdown 输出链路修正”：前端用 `markstream-vue` 替换当前基础 `markdown-it` 封装，同时修复 SSE 解析和后端 Spring AI 流式 chunk 处理，保证标题、列表、表格、任务列表、代码块和流式输出中的未完成 Markdown 不因为空格/换行被吞而渲染失败。
 
-实施状态：已落地。聊天页 assistant 消息改用异步加载的 `ai-markdown-renderer.vue`，旧 `markdown-renderer.vue` 保留一个阶段作为兼容组件。后端已保留 Spring AI 返回的空白 chunk，前端 SSE parser 只移除 `data:` 后的协议分隔空格，不再对内容做 `trimStart()`。第十三阶段后，普通 SSE 断开会继续生成并保存完整 assistant 消息，只有用户显式停止才落库为 `STOPPED`。
+实施状态：已落地。聊天页 assistant 消息改用异步加载的 `ai-markdown-renderer.vue`，旧 `markdown-renderer.vue` 保留一个阶段作为兼容组件。后端已保留 Spring AI 返回的空白 chunk，前端 SSE parser 只移除 `data:` 后的协议分隔空格，不再对内容做 `trimStart()`。第十三阶段后，普通 SSE 断开会继续生成并保存完整 assistant 消息，只有用户显式停止才落库为 `STOPPED`。当前渲染器已安装并启用 Mermaid peer，模型返回 fenced Mermaid 代码块时会在 assistant 消息内渲染为流程图。
 
 ## Key Changes
 
 - 新增依赖 `markstream-vue`，使用其 `MarkdownRender` 作为聊天消息 Markdown 渲染器。
+- 新增 Mermaid peer 依赖并在 `ai-markdown-renderer.vue` 中调用 `enableMermaid()`；` ```mermaid ` fenced code block 会渲染为可预览、复制、导出、全屏查看的图表。
 - 新增 `ai-markdown-renderer.vue`，接收 `content` 和 `final`，使用 `htmlPolicy="escape"`，外部模型输出的原始 HTML 只按文本显示。
 - 渲染器使用流式友好配置：`max-live-nodes=0`、`batch-rendering=true`、`typewriter=true`、`fade=false`、`smooth-streaming=true`。
 - `chat-view.vue` 将 assistant 消息从旧 `markdown-renderer.vue` 切到新组件；user/error/stopped 状态保持原逻辑。
@@ -40,6 +41,7 @@
 
 - `npm --prefix cogniNote-agent-front run build`
 - 手测 assistant 消息：标题、粗体、列表、任务列表、表格、引用、行内代码、fenced code block、未闭合代码块流式追加、长代码横向滚动。
+- 手测 assistant 消息中的 Mermaid fenced code block，例如 `flowchart TD`、`sequenceDiagram`，确认日间/夜间主题下可以渲染、滚动、复制、导出和全屏查看。
 - 检查日间/夜间主题下 Markdown 字体、代码块、表格、链接颜色可读。
 - 检查流式生成时不闪烁、不整段跳动，消息气泡宽度不被表格或代码撑破。
 - 后端流式链路改动需要覆盖：Spring AI 空白 chunk 不被丢弃、SSE 取消注册、`text/event-stream` 异常不再尝试写 JSON。
@@ -53,6 +55,6 @@
 
 - 本阶段只解决 AI Markdown 渲染质量和流式传输正确性；聊天记忆和纯模型对话已由第十三阶段承接。
 - SSE 协议保持向后兼容，新增的取消端点只服务“用户显式停止”。
-- `markstream-vue` 的 Mermaid、KaTeX、Monaco、D2 等 peer dependencies 暂不安装；第一版只启用基础 Markdown 渲染。
+- `markstream-vue` 的 Mermaid peer 已安装并启用；KaTeX、Monaco、D2 等其他可选 peer 暂不安装。
 - 原始 HTML 继续转义，不能为了渲染效果开放模型 HTML 注入。
 - 如果 `markstream-vue` 与现有样式冲突，优先用局部样式覆盖，不全局重写主题系统。

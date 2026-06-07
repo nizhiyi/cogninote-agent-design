@@ -13,6 +13,7 @@ public final class CogninoteDocumentRetriever implements DocumentRetriever {
 
     private final KnowledgeContextProvider knowledgeContextProvider;
     private final String originalQuestion;
+    private final String retrievalQuery;
     private final SearchMode requestedMode;
     private final int topK;
     private volatile KnowledgeContext cachedContext;
@@ -20,13 +21,25 @@ public final class CogninoteDocumentRetriever implements DocumentRetriever {
     public CogninoteDocumentRetriever(
             KnowledgeContextProvider knowledgeContextProvider,
             String originalQuestion,
+            String retrievalQuery,
             SearchMode requestedMode,
             int topK
     ) {
         this.knowledgeContextProvider = knowledgeContextProvider;
         this.originalQuestion = originalQuestion;
+        this.retrievalQuery = retrievalQuery == null || retrievalQuery.isBlank()
+                ? originalQuestion
+                : retrievalQuery;
         this.requestedMode = requestedMode;
         this.topK = topK;
+    }
+
+    public String originalQuestion() {
+        return originalQuestion;
+    }
+
+    public String retrievalQuery() {
+        return retrievalQuery;
     }
 
     public KnowledgeContext retrieveKnowledgeContext() {
@@ -49,9 +62,10 @@ public final class CogninoteDocumentRetriever implements DocumentRetriever {
             if (cachedContext == null) {
                 /*
                  * ChatClient 的 user(...) 里包含格式化提示词，不适合直接作为检索 query。
-                 * DocumentRetriever 仍挂在 Spring AI RAG Advisor 链上，但检索问题固定使用用户原始输入。
+                 * DocumentRetriever 仍挂在 Spring AI RAG Advisor 链上，检索 query 由补全 Agent
+                 * 在必要时结合历史生成，但最终回答仍面向用户原始问题。
                  */
-                cachedContext = knowledgeContextProvider.retrieve(originalQuestion, requestedMode, topK);
+                cachedContext = knowledgeContextProvider.retrieve(retrievalQuery, requestedMode, topK);
             }
             return cachedContext;
         }

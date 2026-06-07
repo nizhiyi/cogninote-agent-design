@@ -127,3 +127,59 @@
   margin-right: 6px;
   vertical-align: middle;
 }
+
+.ai-markdown-content .mermaid-block-container {
+  max-width: 100%;
+  margin: 0 0 12px;
+  border-color: var(--color-border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  overflow: hidden;
+}
+
+.ai-markdown-content .mermaid-block-header {
+  min-width: 0;
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+  background: color-mix(in srgb, var(--color-input) 84%, transparent);
+}
+
+.ai-markdown-content .mermaid-mode-btn,
+.ai-markdown-content .mermaid-action-btn {
+  color: var(--color-text-muted);
+}
+
+.ai-markdown-content .mermaid-mode-btn:hover,
+.ai-markdown-content .mermaid-mode-btn:focus-visible,
+.ai-markdown-content .mermaid-action-btn:hover,
+.ai-markdown-content .mermaid-action-btn:focus-visible {
+  color: var(--color-text-strong);
+  background: var(--color-accent-soft);
+}
+
+.ai-markdown-content .mermaid-mode-btn.is-active {
+  color: var(--color-accent-strong);
+  background: var(--color-accent-soft);
+}
+
+.ai-markdown-content .mermaid-preview-area {
+  max-width: 100%;
+  min-height: 220px;
+  overflow: auto;
+  background: color-mix(in srgb, var(--color-input) 88%, transparent);
+}
+
+.ai-markdown-content ._mermaid {
+  min-width: 100%;
+}
+
+.ai-markdown-content ._mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.ai-markdown-content .mermaid-block-container pre {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}

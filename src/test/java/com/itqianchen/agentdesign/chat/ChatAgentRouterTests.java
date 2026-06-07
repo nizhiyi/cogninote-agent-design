@@ -14,6 +14,7 @@ import com.itqianchen.agentdesign.domain.chat.ChatMessage;
 import com.itqianchen.agentdesign.domain.chat.ChatMessageRole;
 import com.itqianchen.agentdesign.domain.chat.ChatMessageStatus;
 import com.itqianchen.agentdesign.domain.chat.ChatPromptProperties;
+import com.itqianchen.agentdesign.domain.chat.QueryContextualizerProperties;
 import com.itqianchen.agentdesign.domain.model.ModelConfig;
 import com.itqianchen.agentdesign.domain.model.ModelConfigDefaults;
 import com.itqianchen.agentdesign.domain.model.ModelConfigRole;
@@ -40,6 +41,7 @@ import com.itqianchen.agentdesign.service.agent.CogninoteDocumentRetriever;
 import com.itqianchen.agentdesign.service.agent.KnowledgeContextProvider;
 import com.itqianchen.agentdesign.service.agent.KnowledgeBaseChatAgent;
 import com.itqianchen.agentdesign.service.agent.PromptAssembler;
+import com.itqianchen.agentdesign.service.agent.QueryContextualizerAgent;
 import com.itqianchen.agentdesign.service.chat.ChatSessionService;
 import com.itqianchen.agentdesign.service.chat.CogninoteMemoryAdvisor;
 import com.itqianchen.agentdesign.service.chat.ConversationMemorySnapshotService;
@@ -206,6 +208,7 @@ class ChatAgentRouterTests {
                         new FakeDocumentRepository()
                 ),
                 "如何打包？",
+                "如何打包？",
                 SearchMode.KEYWORD,
                 3
         );
@@ -246,6 +249,65 @@ class ChatAgentRouterTests {
         assertThat(messages.get(1).content()).isEqualTo("半截");
     }
 
+    @Test
+    void knowledgeBaseContextualizesFollowUpQuestionForRetrievalOnly() {
+        AgentFixture fixture = new AgentFixture(new FakeKnowledgeStore(false), Flux.just("红黑树说明"));
+        fixture.agent.stream(new AgentRequest(
+                "request-rbtree-1",
+                "红黑树是什么？在 Java 中哪里用到了这个结构？",
+                3,
+                SearchMode.KEYWORD,
+                "conversation-rbtree",
+                true
+        )).answer().collectList().block();
+
+        fixture.runtime.stream = Flux.just("下面给出 Java 中 TreeMap 的红黑树使用示例。");
+        fixture.runtime.contextualizerResponse = """
+                {"shouldRewrite":true,"rewrittenQuery":"红黑树是什么？在 Java 中哪里用到了这个结构？ 给出代码示例","reason":"当前问题是上一轮红黑树主题的省略式追问","confidence":0.93}
+                """;
+        AgentChatStream stream = fixture.agent.stream(new AgentRequest(
+                "request-rbtree-2",
+                "给出代码示例",
+                3,
+                SearchMode.KEYWORD,
+                "conversation-rbtree",
+                true
+        ));
+
+        assertThat(stream.answer().collectList().block())
+                .containsExactly("下面给出 Java 中 TreeMap 的红黑树使用示例。");
+        assertThat(fixture.knowledgeStore.seenQueries.getLast())
+                .contains("红黑树")
+                .contains("Java")
+                .contains("代码示例");
+        assertThat(fixture.runtime.lastCallTextUserMessage)
+                .contains("红黑树是什么？在 Java 中哪里用到了这个结构？")
+                .contains("给出代码示例");
+        assertThat(fixture.runtime.lastUserMessage).contains("给出代码示例");
+        List<ChatMessage> messages = fixture.chatSessionRepository.findMessages("conversation-rbtree");
+        assertThat(messages)
+                .extracting(ChatMessage::content)
+                .contains("给出代码示例")
+                .doesNotContain("红黑树是什么？在 Java 中哪里用到了这个结构？ 给出代码示例");
+    }
+
+    @Test
+    void contextualizerFallsBackToOriginalQuestionWhenModelReturnsInvalidJson() {
+        AgentFixture fixture = new AgentFixture(new FakeKnowledgeStore(false), Flux.just("仍然可以回答。"));
+        fixture.runtime.contextualizerResponse = "不是 JSON";
+
+        fixture.agent.stream(new AgentRequest(
+                "request-invalid-json",
+                "HashMap 是怎么扩容的？",
+                3,
+                SearchMode.KEYWORD,
+                "conversation-invalid-json",
+                true
+        )).answer().collectList().block();
+
+        assertThat(fixture.knowledgeStore.seenQueries.getLast()).isEqualTo("HashMap 是怎么扩容的？");
+    }
+
     private static ChatPromptProperties defaultPromptProperties() {
         return new ChatPromptProperties(
                 new ChatPromptProperties.PromptTemplate(
@@ -271,6 +333,18 @@ class ChatAgentRouterTests {
                                 请给出简洁、可验证的中文回答。
                                 """,
                         "没有检索到相关知识库片段。"
+                ),
+                new ChatPromptProperties.QueryContextualizer(
+                        """
+                                你是检索问题补全判断器。只返回 JSON。
+                                """,
+                        """
+                                历史消息：
+                                {history}
+
+                                当前问题：
+                                {question}
+                                """
                 ),
                 new ChatPromptProperties.ConnectionTest("请用一句话回答：CogniNote 连接测试是否可用？")
         );
@@ -334,10 +408,18 @@ class ChatAgentRouterTests {
             ModelConfigService modelConfigService = new ModelConfigService(modelConfigRepository);
             FakeAiRuntimeFactory runtimeFactory = new FakeAiRuntimeFactory(runtime);
             PromptAssembler promptAssembler = new PromptAssembler(defaultPromptProperties());
-            CogninoteMemoryAdvisor memoryAdvisor = new CogninoteMemoryAdvisor(new ConversationMemorySnapshotService(
+            ConversationMemorySnapshotService memorySnapshotService = new ConversationMemorySnapshotService(
                     chatSessionRepository,
                     memoryProperties
-            ));
+            );
+            CogninoteMemoryAdvisor memoryAdvisor = new CogninoteMemoryAdvisor(memorySnapshotService);
+            QueryContextualizerAgent queryContextualizerAgent = new QueryContextualizerAgent(
+                    runtimeFactory,
+                    defaultPromptProperties(),
+                    new QueryContextualizerProperties(true, 6, 800),
+                    memorySnapshotService,
+                    new ObjectMapper()
+            );
             this.agent = new ChatAgentRouter(List.of(
                     new GeneralChatAgent(
                             modelConfigService,
@@ -352,7 +434,8 @@ class ChatAgentRouterTests {
                             new KnowledgeContextProvider(knowledgeStore, new FakeDocumentRepository()),
                             promptAssembler,
                             chatSessionService,
-                            memoryAdvisor
+                            memoryAdvisor,
+                            queryContextualizerAgent
                     )
             ));
         }
@@ -399,6 +482,7 @@ class ChatAgentRouterTests {
         private final boolean failHybrid;
         private final SearchHitResponse hit;
         private final List<SearchMode> seenModes = new ArrayList<>();
+        private final List<String> seenQueries = new ArrayList<>();
 
         private FakeKnowledgeStore(boolean failHybrid) {
             this(failHybrid, hit("chunk-1"));
@@ -425,6 +509,7 @@ class ChatAgentRouterTests {
         @Override
         public SearchResponse search(SearchRequest request) {
             seenModes.add(request.modeOrDefault());
+            seenQueries.add(request.query());
             if (failHybrid && request.modeOrDefault() == SearchMode.HYBRID) {
                 throw new EmbeddingUnavailableException("hybrid search is unavailable");
             }
@@ -462,8 +547,13 @@ class ChatAgentRouterTests {
 
     private static final class RecordingAiRuntime implements AiChatRuntime {
         private Flux<String> stream;
+        private String contextualizerResponse = """
+                {"shouldRewrite":false,"rewrittenQuery":"","reason":"test_keep_original","confidence":0.0}
+                """;
         private String lastSystemPrompt;
         private String lastUserMessage;
+        private String lastCallTextSystemPrompt;
+        private String lastCallTextUserMessage;
         private List<Advisor> lastAdvisors = List.of();
         private Map<String, Object> lastAdvisorParams = Map.of();
 
@@ -488,6 +578,13 @@ class ChatAgentRouterTests {
             this.lastAdvisors = advisors == null ? List.of() : List.copyOf(advisors);
             this.lastAdvisorParams = advisorParams == null ? Map.of() : Map.copyOf(advisorParams);
             return stream;
+        }
+
+        @Override
+        public String callText(String systemPrompt, String userMessage) {
+            this.lastCallTextSystemPrompt = systemPrompt;
+            this.lastCallTextUserMessage = userMessage;
+            return contextualizerResponse;
         }
 
         @Override

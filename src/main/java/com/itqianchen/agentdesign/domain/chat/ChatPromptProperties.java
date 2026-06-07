@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record ChatPromptProperties(
         PromptTemplate general,
         Rag rag,
+        QueryContextualizer queryContextualizer,
         ConnectionTest connectionTest
 ) {
 
@@ -15,6 +16,9 @@ public record ChatPromptProperties(
         }
         if (rag == null) {
             throw new IllegalArgumentException("app.chat.prompts.rag must be configured");
+        }
+        if (queryContextualizer == null) {
+            throw new IllegalArgumentException("app.chat.prompts.query-contextualizer must be configured");
         }
         if (connectionTest == null) {
             throw new IllegalArgumentException("app.chat.prompts.connection-test must be configured");
@@ -56,6 +60,25 @@ public record ChatPromptProperties(
             if (user.contains("{context}")) {
                 throw new IllegalArgumentException(
                         "app.chat.prompts.rag.user must not contain {context}; RAG context is injected by Spring AI Advisor");
+            }
+        }
+    }
+
+    public record QueryContextualizer(
+            String system,
+            String user
+    ) {
+
+        public QueryContextualizer {
+            requireText(system, "app.chat.prompts.query-contextualizer.system");
+            requireText(user, "app.chat.prompts.query-contextualizer.user");
+            if (!user.contains("{question}")) {
+                throw new IllegalArgumentException(
+                        "app.chat.prompts.query-contextualizer.user must contain {question}");
+            }
+            if (!user.contains("{history}")) {
+                throw new IllegalArgumentException(
+                        "app.chat.prompts.query-contextualizer.user must contain {history}");
             }
         }
     }

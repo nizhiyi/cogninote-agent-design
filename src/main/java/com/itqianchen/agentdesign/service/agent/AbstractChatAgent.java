@@ -66,7 +66,15 @@ public abstract class AbstractChatAgent implements ChatAgent {
                 requestedMode,
                 topK
         );
-        AgentInvocation invocation = prepareInvocation(question, requestedMode, topK);
+        AgentInvocation invocation = prepareInvocation(new AgentInvocationRequest(
+                requestId,
+                conversationId,
+                question,
+                requestedMode,
+                topK,
+                userMessage,
+                chatConfig
+        ));
         KnowledgeContext knowledgeContext = invocation.knowledgeContext();
         Map<String, Object> advisorParams = Map.of(
                 ChatMemory.CONVERSATION_ID, conversationId,
@@ -135,7 +143,18 @@ public abstract class AbstractChatAgent implements ChatAgent {
         );
     }
 
-    protected abstract AgentInvocation prepareInvocation(String question, SearchMode requestedMode, int topK);
+    protected abstract AgentInvocation prepareInvocation(AgentInvocationRequest request);
+
+    protected record AgentInvocationRequest(
+            String requestId,
+            String conversationId,
+            String question,
+            SearchMode requestedMode,
+            int topK,
+            ChatMessage userMessage,
+            ModelConfig chatConfig
+    ) {
+    }
 
     protected record AgentInvocation(KnowledgeContext knowledgeContext, List<Advisor> advisors) {
     }
