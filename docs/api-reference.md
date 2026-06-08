@@ -613,7 +613,7 @@ PUT /api/chat/settings
 
 | 模式 | 行为 |
 | --- | --- |
-| `AUTO` | 只有像省略式追问或原问题检索较弱时才调用补全 Agent。 |
+| `AUTO` | 只有像省略、指代、动作型追问、英文领域切换或原问题检索较弱时才调用补全 Agent。 |
 | `ALWAYS` | 保持第 21 阶段行为，知识库模式每轮都先判断是否需要补全。 |
 | `OFF` | 完全关闭补全，始终使用用户原问题检索。 |
 
@@ -668,7 +668,7 @@ meta -> delta -> done
 
 - SQLite 会保存全量会话历史。模型输入由“会话摘要 + token 预算内最近原文消息”组成；历史预算优先来自 active Chat 配置的 `contextWindowTokens`，默认 `128000`，并最多使用约 80% 窗口；默认至少保留最近 8 条原文消息，但不会把固定条数作为唯一记忆策略。
 - 同一会话可以在普通对话和知识库模式之间切换。后端会用 `agent_type` 标记消息，并在模型输入里隔离跨 Agent 历史：上一种 Agent 的拒答规则、引用规则和系统规则不能覆盖当前 Agent。
-- 知识库模式下，后端可能按 `AUTO/ALWAYS/OFF` 策略使用 active Chat 模型对省略式追问生成内部 `retrievalQuery`。这个 query 只用于检索，不写入 `chat_messages.content`，也不会通过 SSE 暴露；补全失败、非法 JSON 或 query 过长时会回退原问题检索。
+- 知识库模式下，后端可能按 `AUTO/ALWAYS/OFF` 策略使用 active Chat 模型对省略式追问生成内部 `retrievalQuery`。`AUTO` 本地打分器会综合短句、指代、省略补全、动作型请求、英文领域切换和完整问题反向信号；如果本地判断已触发但补全模型误判不改写，短动作型追问会用最近明确主题的用户问题构造本地兜底 query。这个 query 只用于检索，不写入 `chat_messages.content`，也不会通过 SSE 暴露；补全失败、非法 JSON 或 query 过长时会回退原问题检索。
 - RAG 不再手动把 `{context}` 拼进 user prompt。知识库片段通过 Spring AI `RetrievalAugmentationAdvisor` 和 `CogninoteDocumentRetriever` 注入。
 - Spring AI `Document.metadata` 不允许出现 `null`。后端转换 RAG sources 时会省略缺失的 `heading/pageNumber` 等可选字段，前端仍以 SSE `meta.sources` 作为引用来源展示事实来源。
 - `delta.text` 是模型原始流式文本增量，可能只包含一个空格、换行或缩进。客户端和服务端都不能对它做 `trim()`、`trimStart()` 或 `isBlank()` 过滤，否则 Markdown 标题、列表、代码块和表格可能被破坏。

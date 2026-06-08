@@ -34,8 +34,9 @@ public class ChatSettingsService {
 
     /**
      * 返回前端设置页使用的聊天设置快照。
-     * <p>如果 SQLite 中没有用户设置，则按环境变量和旧开关规则计算默认值。</p>
+     * <p>如果 SQLite 中没有用户设置，会先按配置兜底值写入数据库，再返回实际持久化值。</p>
      */
+    @Transactional
     public ChatSettingsResponse settings() {
         return new ChatSettingsResponse(queryContextualizerMode());
     }
@@ -44,10 +45,11 @@ public class ChatSettingsService {
      * 解析当前生效的追问补全模式。
      * <p>优先级为：SQLite 用户设置、模式环境变量、旧 enabled=false、默认 AUTO。</p>
      */
+    @Transactional
     public QueryContextualizerMode queryContextualizerMode() {
         return appSettingRepository.findValue(QUERY_CONTEXTUALIZER_MODE_KEY)
                 .map(QueryContextualizerMode::fromConfig)
-                .orElseGet(queryContextualizerProperties::resolvedMode);
+                .orElseGet(this::initializeQueryContextualizerMode);
     }
 
     /**
@@ -59,5 +61,15 @@ public class ChatSettingsService {
         QueryContextualizerMode mode = request.queryContextualizerMode();
         appSettingRepository.save(QUERY_CONTEXTUALIZER_MODE_KEY, mode.name());
         return new ChatSettingsResponse(mode);
+    }
+
+    /**
+     * 初始化追问补全模式。
+     * <p>数据库缺失时只在这里落一次默认值，避免前端刷新时看到的值和后端实际执行值来自不同来源。</p>
+     */
+    private QueryContextualizerMode initializeQueryContextualizerMode() {
+        QueryContextualizerMode mode = queryContextualizerProperties.resolvedMode();
+        appSettingRepository.save(QUERY_CONTEXTUALIZER_MODE_KEY, mode.name());
+        return mode;
     }
 }

@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.itqianchen.agentdesign.repository.settings.AppSettingRepository;
 import com.itqianchen.agentdesign.support.TestDatabaseCleaner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,9 @@ class ChatSettingsControllerTests {
     @Autowired
     private TestDatabaseCleaner databaseCleaner;
 
+    @Autowired
+    private AppSettingRepository appSettingRepository;
+
     /**
      * 每个测试前清理本地 SQLite 状态。
      * <p>聊天设置是全局持久化数据，必须避免测试之间互相影响。</p>
@@ -52,6 +56,10 @@ class ChatSettingsControllerTests {
         mockMvc.perform(get("/api/chat/settings"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.queryContextualizerMode").value("AUTO"));
+
+        org.assertj.core.api.Assertions.assertThat(
+                        appSettingRepository.findValue("chat.query-contextualizer.mode"))
+                .contains("AUTO");
     }
 
     /**

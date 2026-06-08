@@ -181,7 +181,7 @@ async function loadActiveItemData(item) {
   }
 
   if (item === 'knowledge-query-contextualizer') {
-    await chatSettingsStore.fetchSettings()
+    await chatSettingsStore.fetchSettings({ force: true })
     return
   }
 

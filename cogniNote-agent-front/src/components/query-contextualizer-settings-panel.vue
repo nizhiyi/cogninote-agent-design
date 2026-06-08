@@ -7,7 +7,7 @@ import { useChatSettingsStore } from '../stores/chat-settings'
 const chatSettingsStore = useChatSettingsStore()
 
 onMounted(() => {
-  chatSettingsStore.fetchSettings()
+  chatSettingsStore.fetchSettings({ force: true })
 })
 
 /**
@@ -21,6 +21,18 @@ async function handleSaveSettings() {
     return
   }
   ElMessage.success(chatSettingsStore.message || '追问补全策略已保存')
+}
+
+/**
+ * 选择并保存追问补全模式。
+ * <p>三张大按钮就是最终设置入口，点击后立即写入后端 SQLite，避免刷新页面回到旧值。</p>
+ */
+async function handleSelectMode(mode) {
+  if (chatSettingsStore.loading || chatSettingsStore.saving) {
+    return
+  }
+  chatSettingsStore.setQueryContextualizerMode(mode)
+  await handleSaveSettings()
 }
 </script>
 
@@ -39,14 +51,14 @@ async function handleSaveSettings() {
             该功能只影响知识库检索 query；不会修改聊天记录中的用户原文，也不会影响纯模型对话。
           </p>
         </div>
-        <el-button
-          type="primary"
-          :loading="chatSettingsStore.saving"
-          :disabled="chatSettingsStore.loading"
-          @click="handleSaveSettings"
-        >
-          保存策略
-        </el-button>
+<!--        <el-button-->
+<!--          type="primary"-->
+<!--          :loading="chatSettingsStore.saving"-->
+<!--          :disabled="chatSettingsStore.loading"-->
+<!--          @click="handleSaveSettings"-->
+<!--        >-->
+<!--          保存策略-->
+<!--        </el-button>-->
       </div>
 
       <div class="query-contextualizer-modes" role="group" aria-label="知识库追问补全策略">
@@ -58,7 +70,7 @@ async function handleSaveSettings() {
           type="button"
           :aria-pressed="chatSettingsStore.queryContextualizerMode === option.value"
           :disabled="chatSettingsStore.loading || chatSettingsStore.saving"
-          @click="chatSettingsStore.setQueryContextualizerMode(option.value)"
+          @click="handleSelectMode(option.value)"
         >
           <span class="query-contextualizer-mode__top">
             <strong>{{ option.label }}</strong>
@@ -69,7 +81,7 @@ async function handleSaveSettings() {
       </div>
 
       <p class="query-contextualizer-note">
-        默认使用“自动”：只有像省略式追问或原问题检索较弱时，才额外调用补全 Agent。
+        点击策略后会立即保存到本地数据库；默认“自动”只在省略式追问或原问题检索较弱时调用补全 Agent。
       </p>
       <p v-if="chatSettingsStore.error" class="error-message">{{ chatSettingsStore.error }}</p>
     </article>

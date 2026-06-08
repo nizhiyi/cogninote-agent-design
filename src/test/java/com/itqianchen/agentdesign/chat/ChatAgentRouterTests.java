@@ -524,6 +524,90 @@ class ChatAgentRouterTests {
     }
 
     /**
+     * 验证 AUTO 模式能识别“实现代码案例”这类缺少主题的动作型追问。
+     * <p>这里固定用户反馈的真实说法，避免只覆盖“给出代码示例”而漏掉同义表达。</p>
+     */
+    @Test
+    void autoModeContextualizesShortImplementationExampleFollowUp() {
+        AgentFixture fixture = new AgentFixture(new FakeKnowledgeStore(false), Flux.just("红黑树说明"));
+        fixture.agent.stream(new AgentRequest(
+                "request-rbtree-implementation-1",
+                "红黑树是什么？",
+                3,
+                SearchMode.KEYWORD,
+                "conversation-rbtree-implementation",
+                true
+        )).answer().collectList().block();
+
+        int callsBeforeFollowUp = fixture.runtime.callTextCalls;
+        fixture.runtime.stream = Flux.just("下面给出红黑树的代码案例。");
+        fixture.runtime.contextualizerResponse = """
+                {"shouldRewrite":true,"rewrittenQuery":"红黑树 实现代码案例","reason":"当前问题是上一轮红黑树主题的动作型追问","confidence":0.92}
+                """;
+        fixture.agent.stream(new AgentRequest(
+                "request-rbtree-implementation-2",
+                "实现代码案例",
+                3,
+                SearchMode.KEYWORD,
+                "conversation-rbtree-implementation",
+                true
+        )).answer().collectList().block();
+
+        assertThat(fixture.runtime.callTextCalls).isEqualTo(callsBeforeFollowUp + 1);
+        assertThat(fixture.knowledgeStore.seenQueries.getLast())
+                .contains("红黑树")
+                .contains("实现")
+                .contains("代码");
+        assertThat(fixture.runtime.lastCallTextUserMessage)
+                .contains("红黑树是什么？")
+                .contains("实现代码案例");
+        assertThat(fixture.chatSessionRepository.findMessages("conversation-rbtree-implementation"))
+                .extracting(ChatMessage::content)
+                .contains("实现代码案例")
+                .doesNotContain("红黑树 实现代码案例");
+    }
+
+    /**
+     * 验证模型误判不改写时，AUTO 模式仍能为动作型追问做本地兜底。
+     * <p>真实模型偶尔会把“实现代码案例”当成完整问题；本地兜底保证检索 query 不丢上一轮主题。</p>
+     */
+    @Test
+    void autoModeFallsBackWhenModelKeepsShortImplementationExampleOriginal() {
+        AgentFixture fixture = new AgentFixture(new FakeKnowledgeStore(false), Flux.just("红黑树说明"));
+        fixture.agent.stream(new AgentRequest(
+                "request-rbtree-fallback-1",
+                "红黑树是什么？",
+                3,
+                SearchMode.KEYWORD,
+                "conversation-rbtree-fallback",
+                true
+        )).answer().collectList().block();
+
+        int callsBeforeFollowUp = fixture.runtime.callTextCalls;
+        fixture.runtime.stream = Flux.just("下面给出红黑树的代码案例。");
+        fixture.runtime.contextualizerResponse = """
+                {"shouldRewrite":false,"rewrittenQuery":"","reason":"模型误判为完整问题","confidence":0.7}
+                """;
+        fixture.agent.stream(new AgentRequest(
+                "request-rbtree-fallback-2",
+                "实现代码案例",
+                3,
+                SearchMode.KEYWORD,
+                "conversation-rbtree-fallback",
+                true
+        )).answer().collectList().block();
+
+        assertThat(fixture.runtime.callTextCalls).isEqualTo(callsBeforeFollowUp + 1);
+        assertThat(fixture.knowledgeStore.seenQueries.getLast())
+                .contains("红黑树是什么？")
+                .contains("实现代码案例");
+        assertThat(fixture.chatSessionRepository.findMessages("conversation-rbtree-fallback"))
+                .extracting(ChatMessage::content)
+                .contains("实现代码案例")
+                .doesNotContain("红黑树是什么？ 实现代码案例");
+    }
+
+    /**
      * 验证 AUTO 模式不会为完整独立问题额外调用补全 Agent。
      * <p>完整问题直接检索，避免在 128K 以上上下文时代为普通知识库问答增加固定延迟。</p>
      */

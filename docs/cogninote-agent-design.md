@@ -334,7 +334,7 @@ POST   /api/model-configs/settings/configs/{id}/activate
 
 第 22 阶段为 Chat 配置新增 `contextWindowTokens`。默认 Chat 配置为 `128000`，Embedding 配置保持 `null`；保存时校验范围为 `1024` 到 `2000000`。该字段不会作为通用上下文参数发送给模型 API，只用于 `ConversationMemorySnapshotService` 的历史预算、压缩策略和前端上下文占用展示。
 
-第 23 阶段新增全局聊天设置 `queryContextualizerMode`，取值为 `AUTO`、`ALWAYS`、`OFF`，保存在 SQLite `app_settings`。该设置在“设置 -> 模型 -> 对话模型”中展示，但不属于单个 `model_configs` 记录；它只控制知识库模式下是否调用追问补全 Agent。
+第 23 阶段新增全局聊天设置 `queryContextualizerMode`，取值为 `AUTO`、`ALWAYS`、`OFF`，保存在 SQLite `app_settings`。该设置在“设置 -> 知识库 -> 知识库追问补全策略”中展示，不属于单个 `model_configs` 记录；它只控制知识库模式下是否调用追问补全 Agent。
 
 模型设置页使用 settings 快照接口作为页面事实来源：顶部 Active 卡片、左侧配置列表和右侧编辑表单由同一份 `ModelConfigSettingsResponse` 驱动。前端 `model-config` store 只保留一个当前编辑 `form`，不要在组件内再复制第二份表单状态；否则容易出现“列表和 Active 有数据，但右侧表单没有回显”的状态分叉。设置页切到“模型”时默认加载 `CHAT` 快照，点击 “Embedding 模型” 时再加载 `EMBEDDING` 快照。模型页不显示整块加载遮罩，避免页签切换时闪烁刺眼。
 
@@ -388,7 +388,11 @@ useKnowledgeBase=true
 
 第 21 阶段后，知识库模式具备内部 `QueryContextualizerAgent`。它复用 active Chat 模型，但使用独立 JSON Prompt 判断当前问题是否是省略式追问；如果需要，会把历史主题补进 `retrievalQuery`，例如把“给出代码示例”补成“红黑树是什么？在 Java 中哪里用到了这个结构？ 给出代码示例”。用户原始消息仍按原文写入 SQLite，最终回答也面向用户原始问题；`retrievalQuery` 只用于知识库检索和 RAG 边界说明。补全 Agent 返回非法 JSON、字段缺失、空 query、过长 query 或调用异常时，会回退原问题检索，不阻断主对话。
 
-第 23 阶段后，追问补全不再默认每轮调用模型，而是由 `queryContextualizerMode` 控制：`AUTO` 为默认值，通过本地打分判断短句、省略、指代、延续动作和完整问题反向信号，必要时才调用补全 Agent；`ALWAYS` 保留第 21 阶段每轮判断行为；`OFF` 完全关闭补全。AUTO 模式下，无历史时不调用补全 Agent，完整独立问题直接检索；如果原问题检索无来源且存在历史，会允许一次弱检索补全重试。补全 Prompt 输入包含“会话摘要 + 最近 N 条原文消息 + 当前问题”，压缩会话不会只看最近消息。
+第 23 阶段后，追问补全不再默认每轮调用模型，而是由 `queryContextualizerMode` 控制：`AUTO` 为默认值，通过本地打分判断短句、省略、指代、延续动作、英文领域切换和完整问题反向信号，必要时才调用补全 Agent；`ALWAYS` 保留第 21 阶段每轮判断行为；`OFF` 完全关闭补全。AUTO 模式下，无历史时不调用补全 Agent，完整独立问题直接检索；如果原问题检索无来源且存在历史，会允许一次弱检索补全重试。补全 Prompt 输入包含“会话摘要 + 最近 N 条原文消息 + 当前问题”，压缩会话不会只看最近消息。
+
+当前 `QueryContextualizerTriggerDecider` 的打分信号按词类维护，而不是精确句子枚举：指代词类覆盖“它/这个/上文/刚提到/你说的/那应该”等；省略补全词类覆盖“哪个更适合/有没有证书/怎么退款/怎么治疗”等；动作型追问覆盖“实现代码案例/给出示例/怎么部署/怎么排查/优缺点/对比/总结”等；英文领域切换覆盖 `in travel`、`what about finance`、`code sample` 等。这样能处理用户自然变体，同时避免把完整新问题统一送去补全模型。
+
+如果 AUTO 本地判断已经触发，但补全模型返回 `shouldRewrite=false`，`QueryContextualizerAgent` 会对短动作型追问做本地兜底：只从最近一条有明确主题的用户问题里补主题，不从助手回答抽取主题。例如“红黑树是什么？”后接“实现代码案例”，兜底检索 query 会变成“红黑树是什么？ 实现代码案例”。兜底结果仍只用于内部检索，不写入 `chat_messages.content`，也不通过 SSE 暴露。
 
 `CogninoteDocumentRetriever` 转换 Spring AI `Document` 时必须保证 metadata 不包含 `null`。`heading`、`pageNumber` 等来源字段允许在 SQLite/Lucene 中为空，但传给 Spring AI 时要省略缺失字段；否则 Spring AI 1.1.x 会在 `Document` 构建阶段抛出 `metadata cannot have null values`，导致 RAG Advisor 流式链路中断。
 
@@ -1030,9 +1034,11 @@ POST   /api/chat/stream/{requestId}/cancel
 - 新增 `QueryContextualizerMode`：`AUTO`、`ALWAYS`、`OFF`，默认 `AUTO`
 - 新增 SQLite `app_settings` 保存全局聊天设置，优先于环境变量和旧 enabled 开关
 - 新增 `GET /api/chat/settings`、`PUT /api/chat/settings`
-- `AUTO` 模式使用本地打分器判断短句、省略、指代、延续动作和完整问题反向信号，不做精确短语命中
+- `AUTO` 模式使用本地打分器判断短句、省略、指代、延续动作、英文领域切换和完整问题反向信号，不做精确短语命中
+- 本地打分器按词类维护中文指代、省略补全、动作型追问、口语化处理请求和英文领域切换追问
+- AUTO 已触发但补全模型误判不改写时，短动作型追问会用最近明确主题用户问题构造本地兜底检索 query
 - 补全 Prompt 输入改为“会话摘要 + 最近原文消息 + 当前问题”
-- 设置页“模型 -> 对话模型”暴露追问补全策略，并说明它只影响知识库检索 query，不改写聊天原文，不影响纯模型对话
+- 设置页“知识库 -> 知识库追问补全策略”暴露全局策略，并说明它只影响知识库检索 query，不改写聊天原文，不影响纯模型对话
 
 ## 12. 后续版本规划
 

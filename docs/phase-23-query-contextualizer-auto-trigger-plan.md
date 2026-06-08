@@ -10,7 +10,7 @@
 
 第 21 阶段解决了“给出代码示例”“继续”“展开”等省略式追问直接检索不准的问题。但在第 22 阶段之后，主流模型上下文窗口已经普遍达到 `128K`、`200K` 甚至 `1M`，完整问题场景没有必要每轮都额外调用一次模型来判断是否需要改写检索问题。
 
-第 23 阶段保留追问补全能力，但把触发权收敛为后端全局聊天设置，并在前端“设置 -> 模型 -> 对话模型”里暴露给用户选择。
+第 23 阶段保留追问补全能力，但把触发权收敛为后端全局聊天设置，并在前端“设置 -> 知识库 -> 知识库追问补全策略”里暴露给用户选择。
 
 ## 模式语义
 
@@ -50,17 +50,22 @@ app:
   - `queryContextualizerMode`: `"AUTO" | "ALWAYS" | "OFF"`
 - 新增 `QueryContextualizerTriggerDecider`：
   - 不做精确短语匹配。
-  - 通过历史存在、短句、省略/指代/延续信号、完整问题反向信号做轻量打分。
+  - 通过历史存在、短句、省略/指代/延续动作、英文领域切换和完整问题反向信号做轻量打分。
+  - 指代信号覆盖“它/这个/那种/上文/刚提到/你说的/那应该”等会话引用。
+  - 省略补全信号覆盖“哪个更适合/有没有证书/怎么退款/怎么治疗/吃什么药”等缺少主体的问题。
+  - 动作型追问信号覆盖“实现代码案例/给出示例/怎么部署/怎么排查/优缺点/对比/总结”等短请求。
+  - 英文追问覆盖 `in travel`、`what about finance`、`code sample`、`implementation` 等约束切换或补充请求。
   - 无历史消息时不调用补全 Agent。
   - 完整独立问题默认直接检索。
 - 补全 Prompt 输入升级为“会话摘要 + 最近 N 条原文消息 + 当前问题”，压缩会话不会只看最近消息。
 - AUTO 模式下，如果原问题检索无来源且存在历史，会允许一次弱检索补全重试。
+- AUTO 模式下，如果本地判断已经触发但补全模型误判 `shouldRewrite=false`，且当前问题是短动作型追问，会使用最近一条有明确主题的用户问题构造本地兜底检索 query。例如先问“红黑树是什么？”，再问“实现代码案例”，兜底 query 为“红黑树是什么？ 实现代码案例”。兜底 query 仍只用于检索，不写入聊天记录。
 
 ## 前端改动
 
 - 新增 `chat-settings-api` 和 `chat-settings` Pinia store。
-- 在“设置 -> 模型 -> 对话模型”中展示“知识库追问补全策略”。
-- 使用单选/分段式控件暴露三个选项：
+- 在“设置 -> 知识库 -> 知识库追问补全策略”中展示该全局策略，不跟随单个对话模型配置。
+- 使用三个大按钮暴露选项，点击后立即保存到后端 SQLite：
   - `自动`：推荐。只有像追问或检索较弱时才补全检索问题。
   - `始终`：每轮知识库问答都先判断是否需要补全，准确性更稳但更慢。
   - `关闭`：不补全追问，成本最低，但“继续/给个例子”等追问可能检索不准。
@@ -111,10 +116,20 @@ Content-Type: application/json
 - `AUTO` 无历史消息时不调用补全 Agent。
 - `AUTO` 完整问题不调用补全 Agent。
 - `AUTO` 省略式追问调用补全 Agent，检索 query 包含历史主题。
+- `AUTO` 能识别中文指代、省略式比较、动作型追问和英文领域切换追问。
+- `AUTO` 在补全模型误判短动作追问为不改写时，使用最近明确主题用户问题做本地兜底。
 - 已有摘要时，补全 Prompt 包含摘要和最近消息。
-- 前端设置页默认显示“自动”，切换保存后刷新仍能回显。
+- 前端“设置 -> 知识库”页默认显示“自动”，切换保存后刷新仍能回显。
 - `mvn test` 通过。
 - `npm --prefix cogniNote-agent-front run build` 通过。
+
+## 资料依据
+
+- [A Surprisingly Simple yet Effective Multi-Query Rewriting Method for Conversational Passage Retrieval](https://arxiv.org/html/2406.18960v1)：对话检索改写需要处理 coreference、ellipsis 和 topic transition。
+- [Learning When to Retrieve, What to Rewrite, and How to Respond in Conversational QA](https://arxiv.org/html/2409.15515v1)：多轮 RAG 不应盲目检索或改写，应判断何时需要检索，并利用会话摘要/上下文提高检索信号完整性。
+- [Query Rewriting in RAG Applications](https://shekhargulati.com/2024/07/17/query-rewriting-in-rag-applications/)：短 query、缩写、历史约束继承和 `in travel` 这类领域切换追问都需要 query rewrite 或 query enrichment。
+- [为什么要问题重写](https://javaup.chat/super-agent/rag/query-rewrite)：中文 RAG 常见问题包括代词指代、省略主语/宾语、口语化表达和短模糊问题。
+- [来自工业界的知识库 RAG 方案：多轮会话优化](https://hustyichi.github.io/2024/12/10/multi-round-rag/)：基于历史会话改写当前追问是多轮 RAG 中性价比较高的优化路径。
 
 ## Assumptions
 

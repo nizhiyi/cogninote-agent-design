@@ -174,7 +174,13 @@ public class QueryContextualizerAgent {
                         promptProperties.queryContextualizer().system(),
                         queryContextualizerUserPrompt(question, history)
                 );
-        QueryContextualization contextualization = parseResponse(question, response);
+        QueryContextualization contextualization = applyLocalFallbackIfNeeded(
+                question,
+                parseResponse(question, response),
+                snapshot,
+                mode,
+                decision
+        );
         log.info(
                 "query_contextualized requestId={} conversationId={} mode={} triggerReason={} triggerScore={} rewritten={} confidence={} originalQuestion={} retrievalQuery={} reason={}",
                 requestId,
@@ -189,6 +195,87 @@ public class QueryContextualizerAgent {
                 contextualization.reason()
         );
         return contextualization;
+    }
+
+    /**
+     * 对模型误判不改写的动作型追问做本地兜底。
+     * <p>例如用户先问“红黑树是什么？”，再问“实现代码案例”，模型若返回不改写，
+     * 检索 query 会缺少“红黑树”主题；这里仅在短动作追问且上一条用户问题有独立主题时拼接兜底。</p>
+     */
+    private QueryContextualization applyLocalFallbackIfNeeded(
+            String question,
+            QueryContextualization contextualization,
+            ConversationMemorySnapshot snapshot,
+            QueryContextualizerMode mode,
+            QueryContextualizerTriggerDecision decision
+    ) {
+        if (contextualization.rewritten()
+                || mode != QueryContextualizerMode.AUTO
+                || !decision.shouldInvoke()
+                || !triggerDecider.looksLikeActionFollowUp(question)) {
+            return contextualization;
+        }
+
+        String previousQuestion = latestStandaloneUserQuestion(snapshot);
+        if (previousQuestion == null || previousQuestion.isBlank()) {
+            return contextualization;
+        }
+
+        String fallbackQuery = buildFallbackRetrievalQuery(previousQuestion, question);
+        if (fallbackQuery.isBlank() || fallbackQuery.equals(question.strip())) {
+            return contextualization;
+        }
+        return new QueryContextualization(
+                question,
+                fallbackQuery,
+                true,
+                "local_action_follow_up_fallback",
+                Math.max(contextualization.confidence(), 0.65)
+        );
+    }
+
+    /**
+     * 读取最近一条有明确主题的用户问题。
+     * <p>只使用用户原文，不从助手回答里抽取主题，避免把模型生成内容误当作知识库检索意图。</p>
+     */
+    private String latestStandaloneUserQuestion(ConversationMemorySnapshot snapshot) {
+        if (snapshot == null || snapshot.recentMessages() == null) {
+            return null;
+        }
+        List<ConversationMemoryEntry> entries = snapshot.recentMessages();
+        for (int index = entries.size() - 1; index >= 0; index--) {
+            ConversationMemoryEntry entry = entries.get(index);
+            if (entry.role() == ChatMessageRole.USER && triggerDecider.hasStandaloneTopic(entry.content())) {
+                return entry.content();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 构建本地兜底检索 query。
+     * <p>前一轮主题放前面，当前动作追问放后面；长度仍遵守补全 query 的最大限制。</p>
+     */
+    private String buildFallbackRetrievalQuery(String previousQuestion, String question) {
+        String current = normalizeQueryText(question);
+        String previous = normalizeQueryText(previousQuestion);
+        int maxLength = properties.resolvedMaxRewrittenQueryLength();
+        int previousLimit = maxLength - current.length() - 1;
+        if (current.isBlank() || previous.isBlank() || previousLimit <= 0) {
+            return "";
+        }
+        if (previous.length() > previousLimit) {
+            previous = previous.substring(0, previousLimit).strip();
+        }
+        return normalizeQueryText(previous + " " + current);
+    }
+
+    /**
+     * 规范化检索 query 文本。
+     * <p>本地兜底只做空白折叠，不改变用户词序，保证检索意图可追溯。</p>
+     */
+    private static String normalizeQueryText(String value) {
+        return value == null ? "" : value.replaceAll("\\s+", " ").strip();
     }
 
     /**

@@ -24,12 +24,12 @@ export const useChatSettingsStore = defineStore('chatSettings', () => {
     {
       value: MODES.AUTO,
       label: '自动',
-      description: '推荐。只有像追问或检索较弱时才补全检索问题。'
+      description: '推荐。只有像追问或检索较弱时才补全检索问题，准确性一般。'
     },
     {
       value: MODES.ALWAYS,
       label: '始终',
-      description: '每轮知识库问答都先判断是否需要补全，准确性更稳但更慢。'
+      description: '每轮知识库问答都先判断是否需要补全，准确性更稳但回答速度稍微要慢点。'
     },
     {
       value: MODES.OFF,
