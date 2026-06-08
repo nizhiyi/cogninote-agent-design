@@ -1,4 +1,5 @@
 <script setup>
+// search-results 负责 业务 页面或组件的状态组织、用户交互和后端同步。
 import { formatScore } from '../utils/formatters'
 
 defineProps({
@@ -8,6 +9,10 @@ defineProps({
   }
 })
 
+/**
+ * 执行 业务 中的 score Label 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 function scoreLabel(mode) {
   if (mode === 'HYBRID') {
     return 'RRF'

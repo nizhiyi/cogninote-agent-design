@@ -16,6 +16,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
+/**
+ * Model 配置 控制器 测试 承担 模型配置 模块的主要职责。
+ * <p>注释说明维护边界，不改变现有运行逻辑。</p>
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
@@ -31,11 +35,19 @@ class ModelConfigControllerTests {
     @Autowired
     private TestDatabaseCleaner databaseCleaner;
 
+    /**
+     * 清理 clear Database 对应的数据。
+     * <p>清理只移除目标内容，保留会话或模块继续运行所需的外壳状态。</p>
+     */
     @BeforeEach
     void clearDatabase() {
         databaseCleaner.clearModelConfigs();
     }
 
+    /**
+     * 拉取 fetch Models Requires Api Key And Returns Unified Error 数据。
+     * <p>外部 HTTP 或模型提供商响应会在这里转换为本地 DTO。</p>
+     */
     @Test
     void fetchModelsRequiresApiKeyAndReturnsUnifiedError() throws Exception {
         mockMvc.perform(post("/api/model-config/models")
@@ -62,6 +74,10 @@ class ModelConfigControllerTests {
                 .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("API Key")));
     }
 
+    /**
+     * 执行 模型配置 中的 active Configs Returns Split Model Configs 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     @Test
     void activeConfigsReturnsSplitModelConfigs() throws Exception {
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/model-configs/active"))
@@ -71,6 +87,10 @@ class ModelConfigControllerTests {
                 .andExpect(jsonPath("$.data.embedding.role").value("EMBEDDING"));
     }
 
+    /**
+     * 设置 settings Snapshot Returns Active Summary And Selected 配置 状态。
+     * <p>状态变更会同步维护当前模块需要的派生信息。</p>
+     */
     @Test
     void settingsSnapshotReturnsActiveSummaryAndSelectedConfig() throws Exception {
         mockMvc.perform(get("/api/model-configs/settings").param("role", "CHAT"))
@@ -82,6 +102,10 @@ class ModelConfigControllerTests {
                 .andExpect(jsonPath("$.data.selectedConfig.role").value("CHAT"));
     }
 
+    /**
+     * 设置 settings Create Returns Created 配置 As Selected 状态。
+     * <p>状态变更会同步维护当前模块需要的派生信息。</p>
+     */
     @Test
     void settingsCreateReturnsCreatedConfigAsSelected() throws Exception {
         mockMvc.perform(post("/api/model-configs/settings/configs")
@@ -106,6 +130,10 @@ class ModelConfigControllerTests {
                 .andExpect(jsonPath("$.data.selectedConfig.defaultTopK").value(6));
     }
 
+    /**
+     * 设置 settings Create And Snapshot Force Open Ai Compatible Embedding Dimensions To1024 状态。
+     * <p>状态变更会同步维护当前模块需要的派生信息。</p>
+     */
     @Test
     void settingsCreateAndSnapshotForceOpenAiCompatibleEmbeddingDimensionsTo1024() throws Exception {
         mockMvc.perform(post("/api/model-configs/settings/configs")
@@ -133,6 +161,10 @@ class ModelConfigControllerTests {
                 .andExpect(jsonPath("$.data.selectedConfig.embeddingDimensions").value(1024));
     }
 
+    /**
+     * 设置 settings Delete Only 配置 Returns Fallback Selected 配置 状态。
+     * <p>状态变更会同步维护当前模块需要的派生信息。</p>
+     */
     @Test
     void settingsDeleteOnlyConfigReturnsFallbackSelectedConfig() throws Exception {
         String body = mockMvc.perform(post("/api/model-configs/settings/configs")
@@ -161,6 +193,10 @@ class ModelConfigControllerTests {
                 .andExpect(jsonPath("$.data.selectedConfig.active").value(true));
     }
 
+    /**
+     * 查询 模型配置 列表。
+     * <p>返回值面向上层展示或接口响应，不暴露底层存储细节。</p>
+     */
     @Test
     void listConfigsRejectsInvalidRoleWithUnifiedBadRequest() throws Exception {
         mockMvc.perform(get("/api/model-configs").param("role", "invalid"))
@@ -170,6 +206,10 @@ class ModelConfigControllerTests {
                 .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Invalid role")));
     }
 
+    /**
+     * 执行 模型配置 中的 embedding Connection 测试 Returns Explicit Skip Message 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     @Test
     void embeddingConnectionTestReturnsExplicitSkipMessage() throws Exception {
         mockMvc.perform(post("/api/model-configs/test")

@@ -1,5 +1,9 @@
 package com.itqianchen.agentdesign.service.search;
 
+/**
+ * Search Field Names 承担 检索索引 模块的主要职责。
+ * <p>注释说明维护边界，不改变现有运行逻辑。</p>
+ */
 final class SearchFieldNames {
 
     static final String CHUNK_ID = "chunk_id";
@@ -15,6 +19,10 @@ final class SearchFieldNames {
     static final String PREVIEW = "preview_text";
     static final String EMBEDDING = "embedding_vector";
 
+    /**
+     * 注入 SearchFieldNames 运行所需的协作者。
+     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     */
     private SearchFieldNames() {
     }
 }

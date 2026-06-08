@@ -1,4 +1,5 @@
 <script setup>
+// app-shell 负责 业务 页面或组件的状态组织、用户交互和后端同步。
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Pencil, Trash2 } from 'lucide-vue-next'
@@ -20,16 +21,28 @@ const pillState = computed(() => {
   return systemStore.error ? 'error' : 'ok'
 })
 
+/**
+ * 创建或启动 create Session 对应的前端流程。
+ * <p>该方法通常会同步本地响应式状态和后端快照。</p>
+ */
 async function createSession() {
   await chatStore.startNewSession()
   router.push({ name: 'chat' })
 }
 
+/**
+ * 执行 业务 中的 open Session 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 async function openSession(sessionId) {
   await chatStore.selectSession(sessionId)
   router.push({ name: 'chat' })
 }
 
+/**
+ * 执行 业务 中的 rename Session 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 async function renameSession(session) {
   if (!canEditSessions.value) {
     return
@@ -41,6 +54,10 @@ async function renameSession(session) {
   await chatStore.renameSession(session.id, title)
 }
 
+/**
+ * 删除指定聊天会话。
+ * <p>清理时同步处理本地缓存，避免界面保留过期状态。</p>
+ */
 async function removeSession(session) {
   if (!canEditSessions.value) {
     return

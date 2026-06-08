@@ -1,6 +1,11 @@
 import { jsonOptions, requestJson } from './http-client'
 
+/**
+ * 发起 聊天会话 的流式请求。
+ * <p>SSE 数据会被逐段解析并交给调用方处理。</p>
+ */
 export async function streamChatAnswer(payload, { signal, onEvent }) {
+  // 这里进入浏览器网络请求边界，后续统一解析响应和错误。
   const response = await fetch('/api/chat/stream', {
     ...jsonOptions('POST', payload),
     signal
@@ -18,37 +23,76 @@ export async function streamChatAnswer(payload, { signal, onEvent }) {
   await readSseStream(response.body, onEvent)
 }
 
+/**
+ * 取消正在进行的 聊天会话 任务。
+ * <p>后端取消和浏览器 Abort 需要配合，避免留下悬挂请求。</p>
+ */
 export async function cancelChatAnswer(requestId) {
   if (!requestId) {
     return false
   }
+  // 后端请求统一走 API helper，避免各组件重复处理错误。
   return requestJson(`/api/chat/stream/${encodeURIComponent(requestId)}/cancel`, jsonOptions('POST', {}))
 }
 
+/**
+ * 加载 list Chat Sessions 对应的数据。
+ * <p>接口结果会被转换为页面或 Store 可直接消费的结构。</p>
+ */
 export function listChatSessions() {
+  // 后端请求统一走 API helper，避免各组件重复处理错误。
   return requestJson('/api/chat/sessions')
 }
 
+/**
+ * 创建或启动 create Chat Session 对应的前端流程。
+ * <p>该方法通常会同步本地响应式状态和后端快照。</p>
+ */
 export function createChatSession(payload = {}) {
+  // 后端请求统一走 API helper，避免各组件重复处理错误。
   return requestJson('/api/chat/sessions', jsonOptions('POST', payload))
 }
 
+/**
+ * 加载 get Chat Session 对应的数据。
+ * <p>接口结果会被转换为页面或 Store 可直接消费的结构。</p>
+ */
 export function getChatSession(conversationId) {
+  // 后端请求统一走 API helper，避免各组件重复处理错误。
   return requestJson(`/api/chat/sessions/${encodeURIComponent(conversationId)}`)
 }
 
+/**
+ * 更新 update Chat Session 对应的状态。
+ * <p>状态写入后需要保持控件、Store 和后端快照一致。</p>
+ */
 export function updateChatSession(conversationId, payload) {
+  // 后端请求统一走 API helper，避免各组件重复处理错误。
   return requestJson(`/api/chat/sessions/${encodeURIComponent(conversationId)}`, jsonOptions('PATCH', payload))
 }
 
+/**
+ * 删除或清理 delete Chat Session 对应的数据。
+ * <p>清理时同步处理本地缓存，避免界面保留过期状态。</p>
+ */
 export function deleteChatSession(conversationId) {
+  // 后端请求统一走 API helper，避免各组件重复处理错误。
   return requestJson(`/api/chat/sessions/${encodeURIComponent(conversationId)}`, { method: 'DELETE' })
 }
 
+/**
+ * 删除或清理 clear Chat Session Messages 对应的数据。
+ * <p>清理时同步处理本地缓存，避免界面保留过期状态。</p>
+ */
 export function clearChatSessionMessages(conversationId) {
+  // 后端请求统一走 API helper，避免各组件重复处理错误。
   return requestJson(`/api/chat/sessions/${encodeURIComponent(conversationId)}/messages`, { method: 'DELETE' })
 }
 
+/**
+ * 执行 聊天会话 中的 read Sse Stream 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 async function readSseStream(body, onEvent) {
   const reader = body.getReader()
   const decoder = new TextDecoder('utf-8')
@@ -57,6 +101,10 @@ async function readSseStream(body, onEvent) {
   let dataLines = []
   let terminalEventReceived = false
 
+  /**
+   * 执行 聊天会话 中的 dispatch 事件 步骤。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   const dispatchEvent = () => {
     if (dataLines.length === 0) {
       eventName = 'message'
@@ -71,6 +119,10 @@ async function readSseStream(body, onEvent) {
     dataLines = []
   }
 
+  /**
+   * 处理 handle Line 交互。
+   * <p>事件处理函数只保留必要副作用，复杂状态交给 Store 维护。</p>
+   */
   const handleLine = (line) => {
     if (line === '') {
       dispatchEvent()
@@ -118,6 +170,10 @@ async function readSseStream(body, onEvent) {
   }
 }
 
+/**
+ * 执行 聊天会话 中的 parse Payload 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 function parsePayload(rawData) {
   try {
     return JSON.parse(rawData)

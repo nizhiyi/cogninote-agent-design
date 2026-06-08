@@ -7,6 +7,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Document Management 服务 承载 文档管理 的应用服务流程。
+ * <p>这里集中编排仓储、模型运行时和 DTO 映射，保证控制器保持轻量。</p>
+ */
 @Service
 public class DocumentManagementService {
 
@@ -15,11 +19,19 @@ public class DocumentManagementService {
     private final DocumentRepository documentRepository;
     private final KnowledgeStore knowledgeStore;
 
+    /**
+     * 注入 DocumentManagementService 运行所需的协作者。
+     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     */
     public DocumentManagementService(DocumentRepository documentRepository, KnowledgeStore knowledgeStore) {
         this.documentRepository = documentRepository;
         this.knowledgeStore = knowledgeStore;
     }
 
+    /**
+     * 删除 delete Document 对应的数据。
+     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     */
     @Transactional
     public boolean deleteDocument(String documentId) {
         boolean deleted = documentRepository.deleteById(documentId);

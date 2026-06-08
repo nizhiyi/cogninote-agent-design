@@ -17,11 +17,19 @@ const POST_ERROR_REFRESH_DELAYS = [600, 1800, 4200, 9000, 18000, 36000]
 
 let localIdSeed = 0
 
+/**
+ * 生成本地临时 id。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 function nextId(prefix) {
   localIdSeed += 1
   return `${prefix}-${Date.now()}-${localIdSeed}`
 }
 
+/**
+ * 规范化知识库开关输入。
+ * <p>把后端、表单或浏览器传入的异常值收敛为安全范围。</p>
+ */
 function normalizeKnowledgeBaseFlag(value) {
   if (typeof value === 'boolean') {
     return value
@@ -33,6 +41,10 @@ function normalizeKnowledgeBaseFlag(value) {
   return value !== false
 }
 
+/**
+ * 规范化 Top K 输入。
+ * <p>把后端、表单或浏览器传入的异常值收敛为安全范围。</p>
+ */
 function normalizeTopK(value) {
   const parsed = Number(value)
   if (!Number.isFinite(parsed)) {
@@ -41,6 +53,10 @@ function normalizeTopK(value) {
   return Math.min(50, Math.max(1, Math.trunc(parsed)))
 }
 
+/**
+ * 规范化消息角色输入。
+ * <p>把后端、表单或浏览器传入的异常值收敛为安全范围。</p>
+ */
 function normalizeRole(role) {
   const value = String(role || '').toUpperCase()
   if (value === 'USER') {
@@ -52,6 +68,10 @@ function normalizeRole(role) {
   return value.toLowerCase() || 'assistant'
 }
 
+/**
+ * 规范化消息状态输入。
+ * <p>把后端、表单或浏览器传入的异常值收敛为安全范围。</p>
+ */
 function normalizeStatus(status, role) {
   if (role === 'user') {
     return 'done'
@@ -59,6 +79,10 @@ function normalizeStatus(status, role) {
   return String(status || 'done').toLowerCase()
 }
 
+/**
+ * 规范化消息快照输入。
+ * <p>把后端、表单或浏览器传入的异常值收敛为安全范围。</p>
+ */
 function normalizeMessage(message, fallbackRole = 'assistant') {
   const role = normalizeRole(message?.role || fallbackRole)
   return {
@@ -74,6 +98,10 @@ function normalizeMessage(message, fallbackRole = 'assistant') {
   }
 }
 
+/**
+ * 规范化上下文用量输入。
+ * <p>把后端、表单或浏览器传入的异常值收敛为安全范围。</p>
+ */
 function normalizeContextUsage(usage) {
   if (!usage) {
     return null
@@ -99,17 +127,29 @@ function normalizeContextUsage(usage) {
   }
 }
 
+/**
+ * 规范化非负整数输入。
+ * <p>把后端、表单或浏览器传入的异常值收敛为安全范围。</p>
+ */
 function normalizeNonNegativeInteger(value) {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0
 }
 
+/**
+ * 规范化比例输入。
+ * <p>把后端、表单或浏览器传入的异常值收敛为安全范围。</p>
+ */
 function normalizeRatio(value, fallback = 0) {
   const parsed = Number(value)
   const ratio = Number.isFinite(parsed) ? parsed : fallback
   return Math.min(1, Math.max(0, ratio))
 }
 
+/**
+ * 规范化会话快照输入。
+ * <p>把后端、表单或浏览器传入的异常值收敛为安全范围。</p>
+ */
 function normalizeSession(session) {
   return {
     id: session?.id || nextId('session'),
@@ -126,6 +166,10 @@ function normalizeSession(session) {
   }
 }
 
+/**
+ * 创建本地消息快照。
+ * <p>该方法通常会同步本地响应式状态和后端快照。</p>
+ */
 function createLocalMessage(role, content = '') {
   return normalizeMessage({
     id: nextId(role),
@@ -136,12 +180,21 @@ function createLocalMessage(role, content = '') {
   }, role)
 }
 
+/**
+ * 等待指定毫秒数。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 function delay(ms) {
   return new Promise((resolve) => {
+    // 等待下一轮渲染后再读写 DOM，避免滚动位置计算使用旧布局。
     window.setTimeout(resolve, ms)
   })
 }
 
+/**
+ * 定义 聊天会话 的 Pinia Store。
+ * <p>集中维护响应式状态、派生值和异步动作，组件只消费 Store 暴露的接口。</p>
+ */
 export const useChatStore = defineStore('chat', () => {
   const sessions = ref([])
   const activeSessionId = ref('')
@@ -187,6 +240,10 @@ export const useChatStore = defineStore('chat', () => {
   })
   const knowledgeDisabledHint = computed(() => '')
 
+  /**
+   * 初始化会话列表并选中当前会话。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   async function initializeSessions() {
     isLoadingSessions.value = true
     error.value = ''
@@ -208,6 +265,10 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /**
+   * 创建一个新的聊天会话。
+   * <p>该方法通常会同步本地响应式状态和后端快照。</p>
+   */
   async function startNewSession() {
     if (isStreaming.value) {
       return
@@ -223,6 +284,10 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /**
+   * 切换当前聊天会话。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   async function selectSession(sessionId, options = {}) {
     if (isStreaming.value && !options.force) {
       return
@@ -244,6 +309,10 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /**
+   * 重命名指定聊天会话。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   async function renameSession(sessionId, title) {
     const session = sessions.value.find((item) => item.id === sessionId)
     if (!session) {
@@ -261,6 +330,10 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /**
+   * 删除指定聊天会话。
+   * <p>清理时同步处理本地缓存，避免界面保留过期状态。</p>
+   */
   async function removeSession(sessionId) {
     if (isStreaming.value) {
       return
@@ -279,6 +352,10 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /**
+   * 清空当前会话的消息。
+   * <p>清理时同步处理本地缓存，避免界面保留过期状态。</p>
+   */
   async function clearActiveMessages() {
     if (!activeSession.value || isStreaming.value) {
       return
@@ -292,6 +369,10 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /**
+   * 发起 聊天会话 的流式请求。
+   * <p>SSE 数据会被逐段解析并交给调用方处理。</p>
+   */
   async function streamChat() {
     const trimmedQuestion = draft.value.trim()
     if (!trimmedQuestion) {
@@ -325,6 +406,7 @@ export const useChatStore = defineStore('chat', () => {
 
     try {
       await updateChatSession(session.id, sessionPayload(session))
+      // 这里建立对话 SSE 流，后端事件会持续驱动助手消息更新。
       await streamChatAnswer(
         {
           conversationId: session.id,
@@ -370,14 +452,24 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /**
+   * 停止当前正在生成的回答。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   function stopChat() {
     const requestId = streamingContext.value?.requestId
     if (requestId) {
+      // 停止生成需要同时通知后端并中止当前浏览器请求。
       streamingContext.value.cancelPromise = cancelChatAnswer(requestId).catch(() => {})
     }
+    // 停止生成需要同时通知后端并中止当前浏览器请求。
     abortController.value?.abort()
   }
 
+  /**
+   * 处理后端 SSE 事件。
+   * <p>事件处理函数只保留必要副作用，复杂状态交给 Store 维护。</p>
+   */
   function handleEvent(eventName, payload) {
     if (eventName === 'meta') {
       updateAssistantMessage((message) => {
@@ -411,6 +503,10 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /**
+   * 标记助手消息为错误状态。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   function markAssistantError(messageText) {
     error.value = `对话失败：${messageText}`
     updateAssistantMessage((message) => {
@@ -423,6 +519,10 @@ export const useChatStore = defineStore('chat', () => {
     })
   }
 
+  /**
+   * 追加流式错误提示。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   function appendErrorNotice(content, messageText) {
     if (content.includes(messageText)) {
       return content
@@ -430,10 +530,18 @@ export const useChatStore = defineStore('chat', () => {
     return `${content}\n\n> ${messageText}`
   }
 
+  /**
+   * 根据来源片段生成追问草稿。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   function askAboutSource(source) {
     draft.value = `请解释 ${source.fileName} 中和这段内容相关的要点。`
   }
 
+  /**
+   * 保存会话滚动位置。
+   * <p>状态写入后需要保持控件、Store 和后端快照一致。</p>
+   */
   function saveSessionScrollPosition(sessionId, position) {
     if (!sessionId || !position) {
       return
@@ -454,10 +562,18 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /**
+   * 读取会话滚动位置。
+   * <p>接口结果会被转换为页面或 Store 可直接消费的结构。</p>
+   */
   function getSessionScrollPosition(sessionId) {
     return sessionScrollPositions.value[sessionId] || null
   }
 
+  /**
+   * 维护聊天滚动锚点。
+   * <p>长对话切换、流式输出和 DOM 高度变化时都依赖该逻辑恢复阅读位置。</p>
+   */
   function forgetSessionScrollPosition(sessionId) {
     if (!sessionId || !sessionScrollPositions.value[sessionId]) {
       return
@@ -467,18 +583,34 @@ export const useChatStore = defineStore('chat', () => {
     sessionScrollPositions.value = nextPositions
   }
 
+  /**
+   * 设置是否使用知识库。
+   * <p>状态写入后需要保持控件、Store 和后端快照一致。</p>
+   */
   function setUseKnowledgeBase(value) {
     useKnowledgeBase.value = value
   }
 
+  /**
+   * 设置检索模式。
+   * <p>状态写入后需要保持控件、Store 和后端快照一致。</p>
+   */
   function setMode(value) {
     mode.value = value
   }
 
+  /**
+   * 设置检索 Top K。
+   * <p>状态写入后需要保持控件、Store 和后端快照一致。</p>
+   */
   function setTopK(value) {
     topK.value = value
   }
 
+  /**
+   * 刷新当前会话详情。
+   * <p>接口结果会被转换为页面或 Store 可直接消费的结构。</p>
+   */
   async function refreshActiveSession() {
     if (!activeSessionId.value) {
       return
@@ -486,6 +618,10 @@ export const useChatStore = defineStore('chat', () => {
     await refreshSessionById(activeSessionId.value)
   }
 
+  /**
+   * 按会话 id 刷新会话详情。
+   * <p>接口结果会被转换为页面或 Store 可直接消费的结构。</p>
+   */
   async function refreshSessionById(sessionId, options = {}) {
     if (!sessionId) {
       return false
@@ -501,6 +637,10 @@ export const useChatStore = defineStore('chat', () => {
     return true
   }
 
+  /**
+   * 流式错误后延迟刷新会话详情。
+   * <p>接口结果会被转换为页面或 Store 可直接消费的结构。</p>
+   */
   async function refreshSessionAfterStreamError(sessionId, requestId) {
     if (!sessionId || !requestId) {
       return
@@ -524,12 +664,20 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /**
+   * 判断会话内是否存在指定助手消息。
+   * <p>集中维护 UI 分支使用的同一套判定规则。</p>
+   */
   function hasAssistantMessage(session, requestId) {
     return session.messages.some((message) =>
       message.role === 'assistant' && message.requestId === requestId
     )
   }
 
+  /**
+   * 刷新会话摘要列表。
+   * <p>接口结果会被转换为页面或 Store 可直接消费的结构。</p>
+   */
   async function refreshSessionList() {
     const response = await listChatSessions()
     const summaries = (response || []).map(normalizeSession)
@@ -539,12 +687,20 @@ export const useChatStore = defineStore('chat', () => {
     })
   }
 
+  /**
+   * 向会话追加本地消息。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   function appendMessage(session, message) {
     session.messages.push(message)
     session.messageCount = session.messages.length
     session.updatedAt = Date.now()
   }
 
+  /**
+   * 根据首条问题更新会话标题。
+   * <p>状态写入后需要保持控件、Store 和后端快照一致。</p>
+   */
   function updateSessionTitle(session, question) {
     if (session.title !== '新对话') {
       return
@@ -552,6 +708,10 @@ export const useChatStore = defineStore('chat', () => {
     session.title = question.length > 18 ? `${question.slice(0, 18)}...` : question
   }
 
+  /**
+   * 同步当前会话的检索选项。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   function syncSessionOptions(session = activeSession.value) {
     if (!session) {
       return
@@ -562,6 +722,10 @@ export const useChatStore = defineStore('chat', () => {
     session.updatedAt = Date.now()
   }
 
+  /**
+   * 更新当前流式助手消息。
+   * <p>状态写入后需要保持控件、Store 和后端快照一致。</p>
+   */
   function updateAssistantMessage(updater) {
     const context = streamingContext.value
     if (!context) {
@@ -576,6 +740,10 @@ export const useChatStore = defineStore('chat', () => {
     session.updatedAt = Date.now()
   }
 
+  /**
+   * 更新会话上下文占用快照。
+   * <p>状态写入后需要保持控件、Store 和后端快照一致。</p>
+   */
   function updateSessionContextUsage(sessionId, contextUsage) {
     const normalized = normalizeContextUsage(contextUsage)
     if (!sessionId || !normalized) {
@@ -591,6 +759,10 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /**
+   * 插入或替换会话快照。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   function upsertSession(session) {
     const index = sessions.value.findIndex((item) => item.id === session.id)
     if (index >= 0) {
@@ -601,12 +773,20 @@ export const useChatStore = defineStore('chat', () => {
     sessions.value.sort((left, right) => Number(right.updatedAt) - Number(left.updatedAt))
   }
 
+  /**
+   * 应用会话保存的检索选项。
+   * <p>状态写入后需要保持控件、Store 和后端快照一致。</p>
+   */
   function applySessionOptions(session) {
     useKnowledgeBaseValue.value = normalizeKnowledgeBaseFlag(session.useKnowledgeBase)
     modeValue.value = session.mode || DEFAULT_RETRIEVAL_MODE
     topKValue.value = normalizeTopK(session.topK)
   }
 
+  /**
+   * 构造新会话默认请求载荷。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   function defaultSessionPayload() {
     return {
       useKnowledgeBase: useKnowledgeBase.value,
@@ -615,6 +795,10 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /**
+   * 构造会话更新请求载荷。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   function sessionPayload(session) {
     return {
       title: session.title,

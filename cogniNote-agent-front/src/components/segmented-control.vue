@@ -1,4 +1,5 @@
 <script setup>
+// segmented-control 负责 业务 页面或组件的状态组织、用户交互和后端同步。
 defineProps({
   modelValue: {
     type: String,

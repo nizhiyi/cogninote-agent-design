@@ -5,6 +5,10 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
+/**
+ * Model 配置 Upsert 请求 定义 模型配置 接口允许接收的请求字段。
+ * <p>字段校验应和前端表单、接口文档保持一致。</p>
+ */
 public record ModelConfigUpsertRequest(
         @NotBlank @Size(max = 32) String role,
         @NotBlank @Size(max = 32) String provider,
@@ -17,6 +21,10 @@ public record ModelConfigUpsertRequest(
         @Min(1) @Max(8192) Integer embeddingDimensions,
         @Min(1024) @Max(2000000) Integer contextWindowTokens
 ) {
+    /**
+     * 执行 模型配置 中的 to Model 配置 请求 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     public ModelConfigRequest toModelConfigRequest() {
         String normalizedRole = role == null ? "" : role.trim().toUpperCase();
         return new ModelConfigRequest(

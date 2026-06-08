@@ -22,6 +22,10 @@ const DEFAULT_CONTEXT_WINDOW_TOKENS = 128000
 const MIN_CONTEXT_WINDOW_TOKENS = 1024
 const MAX_CONTEXT_WINDOW_TOKENS = 2000000
 
+/**
+ * 定义 模型配置 的 Pinia Store。
+ * <p>集中维护响应式状态、派生值和异步动作，组件只消费 Store 暴露的接口。</p>
+ */
 export const useModelConfigStore = defineStore('modelConfig', () => {
   const providerOptions = [
     {
@@ -105,21 +109,37 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
   const isDeleting = computed(() => currentState.value.deleting)
   const error = computed(() => currentState.value.error)
 
+  /**
+   * 加载 fetch Model 配置 对应的数据。
+   * <p>接口结果会被转换为页面或 Store 可直接消费的结构。</p>
+   */
   async function fetchModelConfig() {
     await refreshActiveSummary()
   }
 
+  /**
+   * 执行 模型配置 中的 ensure Model 配置 Loaded 步骤。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   async function ensureModelConfigLoaded() {
     if (!activeSummary.value.chat || !activeSummary.value.embedding) {
       await refreshActiveSummary()
     }
   }
 
+  /**
+   * 执行 模型配置 中的 enter Model Settings 步骤。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   async function enterModelSettings() {
     activeRole.value = ROLES.CHAT
     return await loadRoleSettings(ROLES.CHAT, { showMask: true })
   }
 
+  /**
+   * 执行 模型配置 中的 initialize Editor 步骤。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   async function initializeEditor() {
     if (!currentState.value.loaded) {
       return await loadRoleSettings(activeRole.value, { showMask: true })
@@ -127,10 +147,18 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     return roleSnapshot(activeRole.value)
   }
 
+  /**
+   * 执行 模型配置 中的 reload Editor 步骤。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   async function reloadEditor() {
     return await loadRoleSettings(activeRole.value, { showMask: true })
   }
 
+  /**
+   * 执行 模型配置 中的 switch Role 步骤。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   async function switchRole(role) {
     const normalizedRole = normalizeRoleValue(role)
     activeRole.value = normalizedRole
@@ -138,11 +166,19 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     return await loadRoleSettings(normalizedRole, { showMask: true })
   }
 
+  /**
+   * 执行 模型配置 中的 select Active 配置 步骤。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   function selectActiveConfig(role = activeRole.value) {
     activeRole.value = role
     applySelectedConfig(role, activeConfigFor(role))
   }
 
+  /**
+   * 创建或启动 start Create 对应的前端流程。
+   * <p>该方法通常会同步本地响应式状态和后端快照。</p>
+   */
   function startCreate(role = activeRole.value) {
     const normalizedRole = normalizeRoleValue(role)
     activeRole.value = normalizedRole
@@ -155,6 +191,10 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     message.value = ''
   }
 
+  /**
+   * 执行 模型配置 中的 edit 配置 步骤。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   function editConfig(config) {
     if (!config) {
       return
@@ -167,10 +207,18 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     message.value = ''
   }
 
+  /**
+   * 执行 模型配置 中的 mark Form Touched 步骤。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   function markFormTouched() {
     // 新 store 不再依赖 touched 状态。保留此方法是为了兼容模板事件绑定。
   }
 
+  /**
+   * 更新 save Model 配置 对应的状态。
+   * <p>状态写入后需要保持控件、Store 和后端快照一致。</p>
+   */
   async function saveModelConfig(formOverride = null) {
     const role = activeRole.value
     const state = roleState.value[role]
@@ -198,6 +246,10 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     }
   }
 
+  /**
+   * 执行 模型配置 中的 activate 配置 步骤。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   async function activateConfig(config) {
     if (!config) {
       return
@@ -227,6 +279,10 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     }
   }
 
+  /**
+   * 删除或清理 remove 配置 对应的数据。
+   * <p>清理时同步处理本地缓存，避免界面保留过期状态。</p>
+   */
   async function removeConfig(config) {
     if (!config) {
       return
@@ -250,6 +306,10 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     }
   }
 
+  /**
+   * 加载 fetch Models 对应的数据。
+   * <p>接口结果会被转换为页面或 Store 可直接消费的结构。</p>
+   */
   async function fetchModels(formOverride = null) {
     const role = activeRole.value
     const state = roleState.value[role]
@@ -272,6 +332,10 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     }
   }
 
+  /**
+   * 执行 模型配置 中的 test Model 配置 步骤。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   async function testModelConfig(formOverride = null) {
     const role = activeRole.value
     const state = roleState.value[role]
@@ -289,6 +353,10 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     }
   }
 
+  /**
+   * 执行 模型配置 中的 change Provider 步骤。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   function changeProvider(provider) {
     const currentForm = form.value
     const normalizedProvider = normalizeProviderValue(provider, currentForm.baseUrl)
@@ -319,10 +387,18 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     message.value = ''
   }
 
+  /**
+   * 切换 toggle Api Key Visible 状态。
+   * <p>状态切换只影响当前组件，不改变后端数据。</p>
+   */
   function toggleApiKeyVisible(role = activeRole.value) {
     visibleApiKeyByRole.value[role] = !visibleApiKeyByRole.value[role]
   }
 
+  /**
+   * 复制代码块内容。
+   * <p>优先使用 Clipboard API，失败时回退到传统 textarea 方案。</p>
+   */
   async function copyApiKey(formOverride = null, role = activeRole.value) {
     const apiKey = formOverride
       ? formOverride.apiKey
@@ -334,6 +410,7 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
       return
     }
     try {
+      // 复制能力依赖浏览器权限，失败时走兼容兜底。
       await navigator.clipboard.writeText(apiKey)
       message.value = 'API Key 已复制'
       roleState.value[role].error = ''
@@ -342,6 +419,10 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     }
   }
 
+  /**
+   * 加载 refresh Active Summary 对应的数据。
+   * <p>接口结果会被转换为页面或 Store 可直接消费的结构。</p>
+   */
   async function refreshActiveSummary() {
     const active = await getActiveModelConfigs()
     activeSummary.value = {
@@ -350,6 +431,10 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     }
   }
 
+  /**
+   * 加载 load Role Settings 对应的数据。
+   * <p>接口结果会被转换为页面或 Store 可直接消费的结构。</p>
+   */
   async function loadRoleSettings(role, { showMask = false } = {}) {
     const state = roleState.value[role]
     if (showMask) {
@@ -370,6 +455,10 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     }
   }
 
+  /**
+   * 更新 apply Snapshot 对应的状态。
+   * <p>状态写入后需要保持控件、Store 和后端快照一致。</p>
+   */
   function applySnapshot(snapshot) {
     if (!snapshot) {
       return
@@ -391,6 +480,10 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     state.revision += 1
   }
 
+  /**
+   * 更新 apply Selected 配置 对应的状态。
+   * <p>状态写入后需要保持控件、Store 和后端快照一致。</p>
+   */
   function applySelectedConfig(role, config) {
     const normalizedRole = normalizeRoleValue(role)
     const state = roleState.value[normalizedRole]
@@ -400,6 +493,10 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     state.revision += 1
   }
 
+  /**
+   * 执行 模型配置 中的 form Payload 步骤。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   function formPayload(role = activeRole.value, formOverride = null) {
     const current = formOverride || roleState.value[role].form
     return {
@@ -418,6 +515,10 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     }
   }
 
+  /**
+   * 更新 set Context Window Tokens 对应的状态。
+   * <p>状态写入后需要保持控件、Store 和后端快照一致。</p>
+   */
   function setContextWindowTokens(value, role = activeRole.value) {
     if (role !== ROLES.CHAT) {
       return
@@ -428,6 +529,10 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     })
   }
 
+  /**
+   * 执行 模型配置 中的 auto Select Model 步骤。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   function autoSelectModel(role) {
     if (role !== ROLES.CHAT) {
       return
@@ -442,10 +547,18 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     }
   }
 
+  /**
+   * 执行 模型配置 中的 active 配置 For 步骤。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   function activeConfigFor(role) {
     return role === ROLES.CHAT ? activeSummary.value.chat : activeSummary.value.embedding
   }
 
+  /**
+   * 执行 模型配置 中的 replace Editor Form 步骤。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   function replaceEditorForm(role, nextForm) {
     // 每个 role 只保留一份编辑表单。组件通过 computed form 读取当前 role，
     // 避免“全局表单”和“role 表单”互相覆盖导致 Provider select 停在旧值。
@@ -453,6 +566,10 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     roleState.value[role].form = { ...normalizedForm }
   }
 
+  /**
+   * 执行 模型配置 中的 role Snapshot 步骤。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   function roleSnapshot(role) {
     const state = roleState.value[role]
     return {
@@ -524,6 +641,10 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
   }
 })
 
+/**
+ * 执行 模型配置 中的 empty Role State 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 function emptyRoleState(role) {
   return {
     configs: [],
@@ -539,6 +660,10 @@ function emptyRoleState(role) {
   }
 }
 
+/**
+ * 执行 模型配置 中的 default Form 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 function defaultForm(role) {
   return {
     role,
@@ -554,6 +679,10 @@ function defaultForm(role) {
   }
 }
 
+/**
+ * 执行 模型配置 中的 form From 配置 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 function formFromConfig(config) {
   const role = normalizeRoleValue(config.role)
   const defaults = defaultForm(role)
@@ -580,10 +709,18 @@ function formFromConfig(config) {
   }
 }
 
+/**
+ * 规范化 normalize Role Value 输入。
+ * <p>把后端、表单或浏览器传入的异常值收敛为安全范围。</p>
+ */
 function normalizeRoleValue(role) {
   return String(role || '').trim().toUpperCase() === ROLES.EMBEDDING ? ROLES.EMBEDDING : ROLES.CHAT
 }
 
+/**
+ * 规范化 normalize 配置 For Role 输入。
+ * <p>把后端、表单或浏览器传入的异常值收敛为安全范围。</p>
+ */
 function normalizeConfigForRole(config, role = normalizeRoleValue(config?.role)) {
   if (!config) {
     return null
@@ -599,6 +736,10 @@ function normalizeConfigForRole(config, role = normalizeRoleValue(config?.role))
   }
 }
 
+/**
+ * 规范化 normalize Form For Role 输入。
+ * <p>把后端、表单或浏览器传入的异常值收敛为安全范围。</p>
+ */
 function normalizeFormForRole(nextForm, role = normalizeRoleValue(nextForm?.role)) {
   const defaults = defaultForm(role)
   const provider = normalizeProviderValue(nextForm?.provider, nextForm?.baseUrl)
@@ -618,6 +759,10 @@ function normalizeFormForRole(nextForm, role = normalizeRoleValue(nextForm?.role
   }
 }
 
+/**
+ * 规范化 normalize Context Window Tokens 输入。
+ * <p>把后端、表单或浏览器传入的异常值收敛为安全范围。</p>
+ */
 function normalizeContextWindowTokens(value) {
   const parsed = Number(value)
   if (!Number.isFinite(parsed)) {
@@ -629,6 +774,10 @@ function normalizeContextWindowTokens(value) {
   )
 }
 
+/**
+ * 格式化 format Context Window Tokens 展示文本。
+ * <p>统一页面上的数字、时间或语言标签展示口径。</p>
+ */
 function formatContextWindowTokens(value) {
   const normalized = normalizeContextWindowTokens(value)
   if (normalized >= 1000000) {
@@ -640,10 +789,18 @@ function formatContextWindowTokens(value) {
   return String(normalized)
 }
 
+/**
+ * 格式化 format Compact Number 展示文本。
+ * <p>统一页面上的数字、时间或语言标签展示口径。</p>
+ */
 function formatCompactNumber(value) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '')
 }
 
+/**
+ * 规范化 normalize Provider Value 输入。
+ * <p>把后端、表单或浏览器传入的异常值收敛为安全范围。</p>
+ */
 function normalizeProviderValue(provider, baseUrl = '') {
   const normalized = String(provider || '').trim().toUpperCase()
   if (normalized === 'OPENAI_COMPATIBLE' || normalized === 'OPENAI' || normalized.includes('OPENAI')) {

@@ -30,6 +30,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+/**
+ * Document Ingestion 服务 承载 文档管理 的应用服务流程。
+ * <p>这里集中编排仓储、模型运行时和 DTO 映射，保证控制器保持轻量。</p>
+ */
 @Service
 public class DocumentIngestionService {
 
@@ -42,6 +46,10 @@ public class DocumentIngestionService {
     private final DocumentIdentity documentIdentity;
     private final KnowledgeStore knowledgeStore;
 
+    /**
+     * 注入 DocumentIngestionService 运行所需的协作者。
+     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     */
     public DocumentIngestionService(
             DocumentRepository documentRepository,
             DocumentIngestionPersistence ingestionPersistence,
@@ -58,10 +66,18 @@ public class DocumentIngestionService {
         this.knowledgeStore = knowledgeStore;
     }
 
+    /**
+     * 执行 文档管理 中的 ingest Folder 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     public IngestDocumentsResponse ingestFolder(String folderPath, boolean recursive) {
         return ingestFolder(folderPath, recursive, null);
     }
 
+    /**
+     * 执行 文档管理 中的 ingest Knowledge Folder 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     public IngestDocumentsResponse ingestKnowledgeFolder(String knowledgeFolderId, String folderPath, boolean recursive) {
         if (knowledgeFolderId == null || knowledgeFolderId.isBlank()) {
             throw new DocumentParseException("Knowledge folder id is required");
@@ -69,6 +85,10 @@ public class DocumentIngestionService {
         return ingestFolder(folderPath, recursive, knowledgeFolderId, FailedDocumentPolicy.REPLACE_WITH_FAILED_RECORD);
     }
 
+    /**
+     * 执行 文档管理 中的 rebuild Knowledge Folder 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     public IngestDocumentsResponse rebuildKnowledgeFolder(String knowledgeFolderId, String folderPath, boolean recursive) {
         if (knowledgeFolderId == null || knowledgeFolderId.isBlank()) {
             throw new DocumentParseException("Knowledge folder id is required");
@@ -80,10 +100,18 @@ public class DocumentIngestionService {
         return ingestFolder(folderPath, recursive, knowledgeFolderId, FailedDocumentPolicy.PRESERVE_EXISTING_RECORD);
     }
 
+    /**
+     * 执行 文档管理 中的 ingest Folder 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private IngestDocumentsResponse ingestFolder(String folderPath, boolean recursive, String knowledgeFolderId) {
         return ingestFolder(folderPath, recursive, knowledgeFolderId, FailedDocumentPolicy.REPLACE_WITH_FAILED_RECORD);
     }
 
+    /**
+     * 执行 文档管理 中的 ingest Folder 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private IngestDocumentsResponse ingestFolder(
             String folderPath,
             boolean recursive,
@@ -91,6 +119,7 @@ public class DocumentIngestionService {
             FailedDocumentPolicy failedDocumentPolicy
     ) {
         Path folder = Path.of(folderPath).toAbsolutePath().normalize();
+        // 文件系统访问可能抛出 IO 异常，调用方需要保留失败上下文。
         if (!Files.isDirectory(folder)) {
             throw new DocumentParseException("Folder does not exist or is not a directory: " + folder);
         }
@@ -98,14 +127,23 @@ public class DocumentIngestionService {
         List<Path> files = scanSupportedFiles(folder, recursive);
         IngestAccumulator accumulator = new IngestAccumulator(files.size());
         for (Path file : files) {
+            /**
+             * 执行 文档管理 中的 ingest File 步骤。
+             * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+             */
             ingestFile(file, accumulator, knowledgeFolderId, failedDocumentPolicy);
         }
 
         return accumulator.toResponse();
     }
 
+    /**
+     * 执行 文档管理 中的 scan Document Ids 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     public Set<String> scanDocumentIds(String folderPath, boolean recursive) {
         Path folder = Path.of(folderPath).toAbsolutePath().normalize();
+        // 文件系统访问可能抛出 IO 异常，调用方需要保留失败上下文。
         if (!Files.isDirectory(folder)) {
             throw new DocumentParseException("Folder does not exist or is not a directory: " + folder);
         }
@@ -117,8 +155,13 @@ public class DocumentIngestionService {
         return documentIds;
     }
 
+    /**
+     * 执行 文档管理 中的 scan Supported Files 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private List<Path> scanSupportedFiles(Path folder, boolean recursive) {
         int maxDepth = recursive ? Integer.MAX_VALUE : 1;
+        // 文件系统访问可能抛出 IO 异常，调用方需要保留失败上下文。
         try (Stream<Path> stream = Files.walk(folder, maxDepth)) {
             return stream
                     .filter(Files::isRegularFile)
@@ -130,6 +173,10 @@ public class DocumentIngestionService {
         }
     }
 
+    /**
+     * 执行 文档管理 中的 ingest File 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private void ingestFile(
             Path file,
             IngestAccumulator accumulator,
@@ -150,9 +197,17 @@ public class DocumentIngestionService {
             Optional<KnowledgeDocument> existing = documentRepository.findById(documentId);
 
             if (existing.isPresent() && isUnchanged(existing.get(), metadata)) {
+                /**
+                 * 执行 文档管理 中的 assign Knowledge Folder If Needed 步骤。
+                 * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+                 */
                 assignKnowledgeFolderIfNeeded(existing.get(), knowledgeFolderId, now);
                 if (existing.get().indexedAt() == null) {
                     // SQLite 已有解析结果但索引缺失时，跳过重新解析，只补 Lucene 索引。
+                    /**
+                     * 执行 文档管理 中的 index Existing Document 步骤。
+                     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+                     */
                     indexExistingDocument(documentId);
                 }
                 accumulator.skippedCount++;
@@ -182,13 +237,25 @@ public class DocumentIngestionService {
             );
             List<KnowledgeChunk> chunks = toKnowledgeChunks(documentId, documentChunks, now);
             ingestionPersistence.replaceParsedDocument(document, chunks);
+            /**
+             * 执行 文档管理 中的 index Parsed Document 步骤。
+             * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+             */
             indexParsedDocument(toIndexedDocument(document, chunks));
             accumulator.parsedCount++;
         } catch (RuntimeException ex) {
+            /**
+             * 执行 文档管理 中的 record Failure 步骤。
+             * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+             */
             recordFailure(normalizedFile, fileType, knowledgeFolderId, now, ex, accumulator, failedDocumentPolicy);
         }
     }
 
+    /**
+     * 执行 文档管理 中的 assign Knowledge Folder If Needed 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private void assignKnowledgeFolderIfNeeded(KnowledgeDocument existing, String knowledgeFolderId, long now) {
         if (knowledgeFolderId == null || knowledgeFolderId.isBlank() || knowledgeFolderId.equals(existing.knowledgeFolderId())) {
             return;
@@ -201,9 +268,15 @@ public class DocumentIngestionService {
         documentRepository.updateKnowledgeFolderId(existing.id(), knowledgeFolderId, now);
     }
 
+    /**
+     * 执行 文档管理 中的 read Metadata 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private FileMetadata readMetadata(Path path) {
         try {
+            // 文件系统访问可能抛出 IO 异常，调用方需要保留失败上下文。
             long fileSize = Files.size(path);
+            // 文件系统访问可能抛出 IO 异常，调用方需要保留失败上下文。
             FileTime lastModifiedTime = Files.getLastModifiedTime(path);
             return new FileMetadata(
                     fileSize,
@@ -215,6 +288,10 @@ public class DocumentIngestionService {
         }
     }
 
+    /**
+     * 判断 is Unchanged 条件是否成立。
+     * <p>业务判定集中在这里，避免调用方重复实现同一规则。</p>
+     */
     private boolean isUnchanged(KnowledgeDocument existing, FileMetadata metadata) {
         return existing.fileSize() == metadata.fileSize()
                 && existing.lastModified() == metadata.lastModified()
@@ -222,6 +299,10 @@ public class DocumentIngestionService {
                 && existing.status() == DocumentStatus.PARSED;
     }
 
+    /**
+     * 执行 文档管理 中的 to Knowledge Chunks 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private List<KnowledgeChunk> toKnowledgeChunks(String documentId, List<DocumentChunk> documentChunks, long now) {
         return documentChunks.stream()
                 .map(chunk -> new KnowledgeChunk(
@@ -238,6 +319,10 @@ public class DocumentIngestionService {
                 .toList();
     }
 
+    /**
+     * 执行 文档管理 中的 record Failure 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private void recordFailure(
             Path normalizedFile,
             FileType fileType,
@@ -281,6 +366,10 @@ public class DocumentIngestionService {
                         persistenceEx
                 );
             }
+            /**
+             * 删除 delete Document Index 对应的数据。
+             * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+             */
             deleteDocumentIndex(documentId);
         } else {
             log.warn("document_rebuild_parse_failed_preserve_existing documentId={} fileName={}",
@@ -293,6 +382,10 @@ public class DocumentIngestionService {
         accumulator.failures.add(new IngestFailureResponse(normalizedFile.toString(), ex.getMessage()));
     }
 
+    /**
+     * 执行 文档管理 中的 existing Created At Or Now 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private long existingCreatedAtOrNow(String documentId, long now) {
         try {
             return documentRepository.findById(documentId)
@@ -305,11 +398,19 @@ public class DocumentIngestionService {
         }
     }
 
+    /**
+     * 执行 文档管理 中的 index Existing Document 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private void indexExistingDocument(String documentId) {
         documentRepository.findParsedDocumentForIndexing(documentId)
                 .ifPresent(this::indexParsedDocument);
     }
 
+    /**
+     * 执行 文档管理 中的 index Parsed Document 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private void indexParsedDocument(IndexedDocument document) {
         try {
             knowledgeStore.indexDocument(document);
@@ -322,6 +423,10 @@ public class DocumentIngestionService {
         }
     }
 
+    /**
+     * 删除 delete Document Index 对应的数据。
+     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     */
     private void deleteDocumentIndex(String documentId) {
         try {
             knowledgeStore.deleteByDocumentId(documentId);
@@ -330,6 +435,10 @@ public class DocumentIngestionService {
         }
     }
 
+    /**
+     * 执行 文档管理 中的 to Indexed Document 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private IndexedDocument toIndexedDocument(KnowledgeDocument document, List<KnowledgeChunk> chunks) {
         return new IndexedDocument(
                 document.id(),
@@ -350,22 +459,36 @@ public class DocumentIngestionService {
         );
     }
 
+    /**
+     * 执行 文档管理 中的 safe File Size 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private long safeFileSize(Path path) {
         try {
+            // 文件系统访问可能抛出 IO 异常，调用方需要保留失败上下文。
             return Files.size(path);
         } catch (IOException ex) {
             return 0L;
         }
     }
 
+    /**
+     * 执行 文档管理 中的 safe Last Modified 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private long safeLastModified(Path path) {
         try {
+            // 文件系统访问可能抛出 IO 异常，调用方需要保留失败上下文。
             return Files.getLastModifiedTime(path).toMillis();
         } catch (IOException ex) {
             return 0L;
         }
     }
 
+    /**
+     * 执行 文档管理 中的 safe Content Hash 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private String safeContentHash(Path path) {
         try {
             return documentIdentity.hashFile(path);
@@ -374,14 +497,26 @@ public class DocumentIngestionService {
         }
     }
 
+    /**
+     * File Metadata 是 文档管理 的不可变数据快照。
+     * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+     */
     private record FileMetadata(long fileSize, long lastModified, String contentHash) {
     }
 
+    /**
+     * Failed Document Policy 枚举 文档管理 的稳定取值。
+     * <p>枚举值可能进入数据库或 API 响应，修改时需要考虑兼容性。</p>
+     */
     private enum FailedDocumentPolicy {
         REPLACE_WITH_FAILED_RECORD,
         PRESERVE_EXISTING_RECORD
     }
 
+    /**
+     * Ingest Accumulator 承担 文档管理 模块的主要职责。
+     * <p>注释说明维护边界，不改变现有运行逻辑。</p>
+     */
     private static class IngestAccumulator {
         private final int scannedCount;
         private final List<IngestFailureResponse> failures = new ArrayList<>();
@@ -389,10 +524,18 @@ public class DocumentIngestionService {
         private int skippedCount;
         private int failedCount;
 
+        /**
+         * 执行 文档管理 中的 Ingest Accumulator 步骤。
+         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+         */
         private IngestAccumulator(int scannedCount) {
             this.scannedCount = scannedCount;
         }
 
+        /**
+         * 执行 文档管理 中的 to 响应 步骤。
+         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+         */
         private IngestDocumentsResponse toResponse() {
             return new IngestDocumentsResponse(scannedCount, parsedCount, skippedCount, failedCount, List.copyOf(failures));
         }

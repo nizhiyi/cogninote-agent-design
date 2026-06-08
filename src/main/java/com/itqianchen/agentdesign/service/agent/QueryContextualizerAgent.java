@@ -15,6 +15,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+/**
+ * Query Contextualizer 智能体 定义一个智能体执行路径。
+ * <p>负责把用户问题、系统提示词、记忆和检索上下文组合成模型调用。</p>
+ */
 @Service
 public class QueryContextualizerAgent {
 
@@ -26,6 +30,10 @@ public class QueryContextualizerAgent {
     private final ConversationMemorySnapshotService memorySnapshotService;
     private final ObjectMapper objectMapper;
 
+    /**
+     * 注入 QueryContextualizerAgent 运行所需的协作者。
+     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     */
     public QueryContextualizerAgent(
             AiRuntimeFactory aiRuntimeFactory,
             ChatPromptProperties promptProperties,
@@ -40,6 +48,10 @@ public class QueryContextualizerAgent {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 执行 智能体编排 中的 contextualize 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     public QueryContextualization contextualize(
             String requestId,
             String conversationId,
@@ -56,9 +68,14 @@ public class QueryContextualizerAgent {
                     maxMessageSequenceInclusive
             );
             String history = formatHistory(snapshot.recentMessages());
+            // 这里开始真正的模型对话调用，后续 Flux 事件会驱动前端流式展示。
             String response = aiRuntimeFactory.chatRuntime(chatConfig)
                     .callText(
                             promptProperties.queryContextualizer().system(),
+                            /**
+                             * 执行 智能体编排 中的 query Contextualizer User Prompt 步骤。
+                             * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+                             */
                             queryContextualizerUserPrompt(question, history)
                     );
             QueryContextualization contextualization = parseResponse(question, response);
@@ -86,12 +103,20 @@ public class QueryContextualizerAgent {
         }
     }
 
+    /**
+     * 执行 智能体编排 中的 query Contextualizer User Prompt 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private String queryContextualizerUserPrompt(String question, String history) {
         return promptProperties.queryContextualizer().user()
                 .replace("{question}", question)
                 .replace("{history}", history);
     }
 
+    /**
+     * 执行 智能体编排 中的 format History 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private String formatHistory(List<ConversationMemoryEntry> entries) {
         int maxMessages = properties.resolvedMaxHistoryMessages();
         if (maxMessages == 0 || entries.isEmpty()) {
@@ -115,10 +140,15 @@ public class QueryContextualizerAgent {
         return builder.isEmpty() ? "无历史消息。" : builder.toString();
     }
 
+    /**
+     * 解析 parse 响应 输入。
+     * <p>将外部文本或结构转换为模块内部可直接使用的对象。</p>
+     */
     private QueryContextualization parseResponse(String question, String response) {
         String json = extractJson(response);
         ContextualizerModelResponse parsed;
         try {
+            // JSON 编解码在边界层完成，避免序列化细节泄漏到业务对象。
             parsed = objectMapper.readValue(json, ContextualizerModelResponse.class);
         } catch (JsonProcessingException ex) {
             throw new IllegalArgumentException("invalid contextualizer json", ex);
@@ -141,10 +171,18 @@ public class QueryContextualizerAgent {
                 rewrittenQuery,
                 true,
                 nullToReason(parsed.reason(), "model_rewrote_query"),
+                /**
+                 * 规范化 normalize Confidence 输入。
+                 * <p>后续逻辑只处理受控取值，减少重复分支和边界判断。</p>
+                 */
                 normalizeConfidence(parsed.confidence())
         );
     }
 
+    /**
+     * 执行 智能体编排 中的 extract Json 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private static String extractJson(String response) {
         if (response == null || response.isBlank()) {
             throw new IllegalArgumentException("contextualizer response is blank");
@@ -158,10 +196,18 @@ public class QueryContextualizerAgent {
         return stripped.substring(start, end + 1);
     }
 
+    /**
+     * 执行 智能体编排 中的 null To Reason 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private static String nullToReason(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value.strip();
     }
 
+    /**
+     * 规范化 normalize Confidence 输入。
+     * <p>后续逻辑只处理受控取值，减少重复分支和边界判断。</p>
+     */
     private static double normalizeConfidence(Double confidence) {
         if (confidence == null || confidence.isNaN()) {
             return 0.0;
@@ -169,6 +215,10 @@ public class QueryContextualizerAgent {
         return Math.clamp(confidence, 0.0, 1.0);
     }
 
+    /**
+     * Contextualizer Model 响应 定义返回给前端的 智能体编排 响应结构。
+     * <p>该结构属于接口契约，调整字段时需要兼容已有调用方。</p>
+     */
     private record ContextualizerModelResponse(
             Boolean shouldRewrite,
             String rewrittenQuery,

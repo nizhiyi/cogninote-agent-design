@@ -1,4 +1,5 @@
 <script setup>
+// App 负责 业务 页面或组件的状态组织、用户交互和后端同步。
 import { onMounted } from 'vue'
 import AppShell from './components/app-shell.vue'
 import { useChatStore } from './stores/chat'

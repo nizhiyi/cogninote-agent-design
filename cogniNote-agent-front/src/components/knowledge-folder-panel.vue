@@ -1,4 +1,5 @@
 <script setup>
+// knowledge-folder-panel 负责 知识库 页面或组件的状态组织、用户交互和后端同步。
 import { ChevronDown, ChevronRight, FolderOpen, FolderPlus, RefreshCw, Trash2 } from 'lucide-vue-next'
 import StatGrid from './stat-grid.vue'
 import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
@@ -8,6 +9,10 @@ import { formatFileSize, formatTime } from '../utils/formatters'
 const knowledgeStore = useKnowledgeFoldersStore()
 const searchStore = useSearchStore()
 
+/**
+ * 执行 知识库 中的 rebuild All Indexes 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 async function rebuildAllIndexes() {
   await searchStore.rebuildIndex()
   if (!searchStore.indexError) {

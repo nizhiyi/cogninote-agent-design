@@ -1,4 +1,5 @@
 <script setup>
+// markdown-renderer 负责 业务 页面或组件的状态组织、用户交互和后端同步。
 import { computed } from 'vue'
 import MarkdownIt from 'markdown-it'
 
@@ -31,6 +32,10 @@ markdown.renderer.rules.link_open = (tokens, index, options, env, self) => {
 
 const renderedHtml = computed(() => markdown.render(props.content || props.emptyText || ''))
 
+/**
+ * 更新 set Token Attr 对应的状态。
+ * <p>状态写入后需要保持控件、Store 和后端快照一致。</p>
+ */
 function setTokenAttr(token, name, value) {
   const attrIndex = token.attrIndex(name)
   if (attrIndex < 0) {

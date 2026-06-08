@@ -1,4 +1,5 @@
 <script setup>
+// ai-markdown-renderer 负责 业务 页面或组件的状态组织、用户交互和后端同步。
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import MarkdownRender, { enableMermaid, setCustomComponents } from 'markstream-vue'
 import 'markstream-vue/index.css'
@@ -99,6 +100,10 @@ watch(
   { flush: 'post' }
 )
 
+/**
+ * 执行 业务 中的 queue Mermaid Source Highlight 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 function queueMermaidSourceHighlight() {
   if (mermaidSourceEnhanceQueued) {
     return
@@ -110,11 +115,16 @@ function queueMermaidSourceHighlight() {
   })
 }
 
+/**
+ * 执行 业务 中的 highlight Mermaid Source Blocks 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 async function highlightMermaidSourceBlocks() {
   const root = markdownRoot.value
   if (!root) {
     return
   }
+  // DOM 查询使用转义后的 id，避免特殊字符破坏选择器。
   const sourceBlocks = Array.from(root.querySelectorAll('.mermaid-source-code'))
   if (sourceBlocks.length === 0) {
     return
@@ -125,6 +135,10 @@ async function highlightMermaidSourceBlocks() {
   }
 }
 
+/**
+ * 执行 业务 中的 enhance Mermaid Source Block 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 function enhanceMermaidSourceBlock(sourceBlock) {
   const source = trimFenceBoundaryBlankLines(sourceBlock.textContent ?? '')
   if (!source) {
@@ -148,6 +162,10 @@ function enhanceMermaidSourceBlock(sourceBlock) {
   }
 }
 
+/**
+ * 执行 业务 中的 render Mermaid Source Html 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 function renderMermaidSourceHtml(source) {
   const parts = String(source).split(/(\r?\n)/)
   return parts.map((part) => {
@@ -158,6 +176,10 @@ function renderMermaidSourceHtml(source) {
   }).join('')
 }
 
+/**
+ * 执行 业务 中的 highlight Mermaid Line 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 function highlightMermaidLine(line) {
   if (!line) {
     return ''
@@ -176,6 +198,10 @@ function highlightMermaidLine(line) {
   return `${escapeHtml(leadingWhitespace)}${tokens.map(renderMermaidToken).join('')}`
 }
 
+/**
+ * 执行 业务 中的 tokenize Mermaid Line 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 function tokenizeMermaidLine(line) {
   const tokenPattern = /("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\[[^\]]*]|\([^)]*\)|\{[^}]*}|-->|---|==>|-.->|~~>|-\.-|--|==|:::+|[A-Za-z_][\w.-]*|\d+(?:\.\d+)?|[^\sA-Za-z_\d]+)/g
   const tokens = []
@@ -197,6 +223,10 @@ function tokenizeMermaidLine(line) {
   return tokens
 }
 
+/**
+ * 执行 业务 中的 classify Mermaid Token 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 function classifyMermaidToken(token, previousTokens) {
   const lower = token.toLowerCase()
   const previousMeaningful = [...previousTokens].reverse().find((item) => item.type !== 'text' && item.value.trim())
@@ -231,6 +261,10 @@ function classifyMermaidToken(token, previousTokens) {
   return 'punctuation'
 }
 
+/**
+ * 执行 业务 中的 render Mermaid Token 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 function renderMermaidToken(token) {
   if (token.type === 'text') {
     return escapeHtml(token.value)
@@ -307,10 +341,18 @@ const MERMAID_SECTION_KEYWORDS = new Set([
   'todaymarker'
 ])
 
+/**
+ * 执行 业务 中的 trim Fence Boundary Blank Lines 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 function trimFenceBoundaryBlankLines(value) {
   return String(value).replace(/^(?:\r?\n)+/, '').replace(/(?:\r?\n)+$/, '')
 }
 
+/**
+ * 清理 escape Html 文本。
+ * <p>渲染模型输出前先处理特殊字符，避免破坏 HTML 或 Mermaid 结构。</p>
+ */
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, '&amp;')

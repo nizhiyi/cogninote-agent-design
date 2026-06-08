@@ -3,6 +3,10 @@ package com.itqianchen.agentdesign.dto.model;
 import com.itqianchen.agentdesign.domain.model.ModelConfig;
 import com.itqianchen.agentdesign.domain.model.ModelConfigRole;
 
+/**
+ * Model 配置 响应 定义返回给前端的 模型配置 响应结构。
+ * <p>该结构属于接口契约，调整字段时需要兼容已有调用方。</p>
+ */
 public record ModelConfigResponse(
         String id,
         String role,
@@ -20,6 +24,10 @@ public record ModelConfigResponse(
         Long createdAt,
         Long updatedAt
 ) {
+    /**
+     * 将领域对象转换为 ModelConfigResponse。
+     * <p>字段映射集中在这里，减少控制器和服务层的重复拼装。</p>
+     */
     public static ModelConfigResponse from(ModelConfig config) {
         return new ModelConfigResponse(
                 config.id(),

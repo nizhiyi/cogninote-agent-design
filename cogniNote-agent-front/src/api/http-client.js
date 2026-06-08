@@ -1,3 +1,7 @@
+/**
+ * 执行 业务 中的 json Options 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 export function jsonOptions(method, body) {
   return {
     method,
@@ -8,7 +12,12 @@ export function jsonOptions(method, body) {
   }
 }
 
+/**
+ * 封装基础 HTTP 请求。
+ * <p>统一处理 JSON 解析、空响应和后端错误消息。</p>
+ */
 export async function requestJson(url, options = {}) {
+  // 这里进入浏览器网络请求边界，后续统一解析响应和错误。
   const response = await fetch(url, options)
   const payload = await response.json().catch(() => null)
 
@@ -28,7 +37,12 @@ export async function requestJson(url, options = {}) {
   return payload
 }
 
+/**
+ * 封装基础 HTTP 请求。
+ * <p>统一处理 JSON 解析、空响应和后端错误消息。</p>
+ */
 export async function requestNoContent(url, options = {}) {
+  // 这里进入浏览器网络请求边界，后续统一解析响应和错误。
   const response = await fetch(url, options)
   if (!response.ok) {
     const payload = await response.json().catch(() => null)

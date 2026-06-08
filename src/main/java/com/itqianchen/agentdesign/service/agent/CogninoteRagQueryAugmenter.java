@@ -5,18 +5,30 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
 import org.springframework.ai.rag.generation.augmentation.QueryAugmenter;
 
+/**
+ * Cogninote Rag Query Augmenter 承担 智能体编排 模块的主要职责。
+ * <p>注释说明维护边界，不改变现有运行逻辑。</p>
+ */
 public final class CogninoteRagQueryAugmenter implements QueryAugmenter {
 
     private final String emptyContextPrompt;
     private final String originalQuestion;
     private final String retrievalQuery;
 
+    /**
+     * 注入 CogninoteRagQueryAugmenter 运行所需的协作者。
+     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     */
     public CogninoteRagQueryAugmenter(String emptyContextPrompt, String originalQuestion, String retrievalQuery) {
         this.emptyContextPrompt = emptyContextPrompt;
         this.originalQuestion = originalQuestion;
         this.retrievalQuery = retrievalQuery;
     }
 
+    /**
+     * 执行 智能体编排 中的 augment 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     @Override
     public Query augment(Query query, List<Document> documents) {
         if (documents == null || documents.isEmpty()) {
@@ -49,6 +61,10 @@ public final class CogninoteRagQueryAugmenter implements QueryAugmenter {
                 """.formatted(originalQuestion, retrievalQuery, formatDocuments(documents)));
     }
 
+    /**
+     * 执行 智能体编排 中的 format Documents 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private static String formatDocuments(List<Document> documents) {
         StringBuilder builder = new StringBuilder();
         for (Document document : documents) {

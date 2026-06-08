@@ -18,6 +18,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
+/**
+ * Document 控制器 测试 承担 文档管理 模块的主要职责。
+ * <p>注释说明维护边界，不改变现有运行逻辑。</p>
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
@@ -42,14 +46,23 @@ class DocumentControllerTests {
     @TempDir
     private Path tempDir;
 
+    /**
+     * 清理 clear Database 对应的数据。
+     * <p>清理只移除目标内容，保留会话或模块继续运行所需的外壳状态。</p>
+     */
     @BeforeEach
     void clearDatabase() {
         databaseCleaner.clearDocuments();
     }
 
+    /**
+     * 删除 delete Document Returns No Content Or Not Found 对应的数据。
+     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     */
     @Test
     void deleteDocumentReturnsNoContentOrNotFound() throws Exception {
         Path note = tempDir.resolve("delete-api.txt");
+        // 文件系统访问可能抛出 IO 异常，调用方需要保留失败上下文。
         Files.writeString(note, "Delete through the REST API.");
         ingestionService.ingestFolder(tempDir.toString(), true);
         KnowledgeDocument document = documentRepository.findAllOrderByUpdatedAtDesc().getFirst();

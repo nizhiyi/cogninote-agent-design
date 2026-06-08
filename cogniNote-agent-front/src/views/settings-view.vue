@@ -1,4 +1,5 @@
 <script setup>
+// settings-view 负责 业务 页面或组件的状态组织、用户交互和后端同步。
 import { computed, onMounted, ref, watch } from 'vue'
 import { ArrowLeft, ChevronUp } from 'lucide-vue-next'
 import KnowledgeFolderPanel from '../components/knowledge-folder-panel.vue'
@@ -89,27 +90,51 @@ onMounted(() => {
   loadDesktopVersion()
 })
 
+/**
+ * 判断 is Item Active 条件。
+ * <p>集中维护 UI 分支使用的同一套判定规则。</p>
+ */
 function isItemActive(itemId) {
   return activeItem.value === itemId
 }
 
+/**
+ * 执行 业务 中的 select Item 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 function selectItem(itemId) {
   activeItem.value = itemId
 }
 
+/**
+ * 更新 set Theme 对应的状态。
+ * <p>状态写入后需要保持控件、Store 和后端快照一致。</p>
+ */
 function setTheme(theme) {
   themeStore.setTheme(theme)
 }
 
+/**
+ * 处理 handle Settings Scroll 交互。
+ * <p>事件处理函数只保留必要副作用，复杂状态交给 Store 维护。</p>
+ */
 function handleSettingsScroll(event) {
   showBackToTop.value = event.target.scrollTop > 280
 }
 
+/**
+ * 维护聊天滚动锚点。
+ * <p>长对话切换、流式输出和 DOM 高度变化时都依赖该逻辑恢复阅读位置。</p>
+ */
 function scrollSettingsToTop() {
   pageRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
   contentRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
+/**
+ * 加载 load Desktop Version 对应的数据。
+ * <p>接口结果会被转换为页面或 Store 可直接消费的结构。</p>
+ */
 async function loadDesktopVersion() {
   try {
     const { getVersion } = await import('@tauri-apps/api/app')
@@ -119,6 +144,10 @@ async function loadDesktopVersion() {
   }
 }
 
+/**
+ * 加载 load Active Item Data 对应的数据。
+ * <p>接口结果会被转换为页面或 Store 可直接消费的结构。</p>
+ */
 async function loadActiveItemData(item) {
   if (item === 'system-info') {
     await Promise.all([

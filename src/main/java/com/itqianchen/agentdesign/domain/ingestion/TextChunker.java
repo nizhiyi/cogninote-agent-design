@@ -5,6 +5,10 @@ import java.util.List;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
 
+/**
+ * Text Chunker 承担 文档解析 模块的主要职责。
+ * <p>注释说明维护边界，不改变现有运行逻辑。</p>
+ */
 @Component
 public class TextChunker {
 
@@ -16,6 +20,10 @@ public class TextChunker {
             "^\\s*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|journey|gantt|pie|mindmap|timeline|@startuml)\\b.*$"
     );
 
+    /**
+     * 执行 文档解析 中的 chunk 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     public List<DocumentChunk> chunk(ParsedDocument document) {
         List<DocumentChunk> chunks = new ArrayList<>();
 
@@ -25,12 +33,20 @@ public class TextChunker {
                 continue;
             }
 
+            /**
+             * 执行 文档解析 中的 split Section 步骤。
+             * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+             */
             splitSection(cleaned, section, chunks);
         }
 
         return chunks;
     }
 
+    /**
+     * 执行 文档解析 中的 clean 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     public String clean(String text) {
         String normalized = text
                 .replace("\r\n", "\n")
@@ -42,6 +58,10 @@ public class TextChunker {
         return cleaned.toString().trim();
     }
 
+    /**
+     * 执行 文档解析 中的 split Section 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private void splitSection(String text, ParsedSection section, List<DocumentChunk> chunks) {
         StringBuilder current = new StringBuilder();
         for (TextBlock block : splitBlocks(text)) {
@@ -51,6 +71,10 @@ public class TextChunker {
             }
 
             if (blockText.length() > MAX_CHUNK_CHARS) {
+                /**
+                 * 执行 文档解析 中的 flush Chunk 步骤。
+                 * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+                 */
                 flushChunk(current, section, chunks);
                 List<String> oversizedChunks = block.protectedBlock()
                         ? splitOversizedProtectedBlock(blockText)
@@ -61,13 +85,29 @@ public class TextChunker {
 
             int separatorLength = current.isEmpty() ? 0 : 1;
             if (current.length() + separatorLength + blockText.length() > MAX_CHUNK_CHARS) {
+                /**
+                 * 执行 文档解析 中的 flush Chunk 步骤。
+                 * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+                 */
                 flushChunk(current, section, chunks);
             }
+            /**
+             * 追加 append Block 数据。
+             * <p>追加时维护顺序、状态和关联元数据，保证会话历史可追踪。</p>
+             */
             appendBlock(current, blockText);
         }
+        /**
+         * 执行 文档解析 中的 flush Chunk 步骤。
+         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+         */
         flushChunk(current, section, chunks);
     }
 
+    /**
+     * 执行 文档解析 中的 split Blocks 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private List<TextBlock> splitBlocks(String text) {
         List<TextBlock> blocks = new ArrayList<>();
         StringBuilder current = new StringBuilder();
@@ -81,6 +121,10 @@ public class TextChunker {
                     current.setLength(0);
                     inFence = false;
                 } else {
+                    /**
+                     * 执行 文档解析 中的 flush Block 步骤。
+                     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+                     */
                     flushBlock(blocks, current, false);
                     current.append(line).append('\n');
                     inFence = true;
@@ -91,10 +135,18 @@ public class TextChunker {
             current.append(line).append('\n');
         }
 
+        /**
+         * 执行 文档解析 中的 flush Block 步骤。
+         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+         */
         flushBlock(blocks, current, inFence);
         return blocks;
     }
 
+    /**
+     * 执行 文档解析 中的 clean Plain Text 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private String cleanPlainText(String text) {
         return text
                 .replaceAll("[\\t\\x0B\\f]+", " ")
@@ -102,6 +154,10 @@ public class TextChunker {
                 .replaceAll("\\n{3,}", "\n\n");
     }
 
+    /**
+     * 执行 文档解析 中的 flush Block 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private void flushBlock(List<TextBlock> blocks, StringBuilder current, boolean protectedBlock) {
         if (current.isEmpty()) {
             return;
@@ -110,6 +166,10 @@ public class TextChunker {
         current.setLength(0);
     }
 
+    /**
+     * 追加 append Block 数据。
+     * <p>追加时维护顺序、状态和关联元数据，保证会话历史可追踪。</p>
+     */
     private void appendBlock(StringBuilder current, String blockText) {
         if (!current.isEmpty()) {
             current.append('\n');
@@ -117,14 +177,26 @@ public class TextChunker {
         current.append(blockText);
     }
 
+    /**
+     * 执行 文档解析 中的 flush Chunk 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private void flushChunk(StringBuilder current, ParsedSection section, List<DocumentChunk> chunks) {
         if (current.isEmpty()) {
             return;
         }
+        /**
+         * 执行 文档解析 中的 add Chunk 步骤。
+         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+         */
         addChunk(current.toString(), section, chunks);
         current.setLength(0);
     }
 
+    /**
+     * 执行 文档解析 中的 add Chunk 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private void addChunk(String chunkText, ParsedSection section, List<DocumentChunk> chunks) {
         String normalizedChunk = chunkText.trim();
         if (normalizedChunk.isBlank()) {
@@ -135,10 +207,18 @@ public class TextChunker {
                 normalizedChunk,
                 section.pageNumber(),
                 section.heading(),
+                /**
+                 * 估算 estimate Token Count 的 token 用量。
+                 * <p>估算值用于上下文预算、裁剪和前端占用展示。</p>
+                 */
                 estimateTokenCount(normalizedChunk)
         ));
     }
 
+    /**
+     * 执行 文档解析 中的 split Plain Window 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private List<String> splitPlainWindow(String text) {
         List<String> chunks = new ArrayList<>();
         int start = 0;
@@ -159,6 +239,10 @@ public class TextChunker {
         return chunks;
     }
 
+    /**
+     * 执行 文档解析 中的 split Oversized Protected Block 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private List<String> splitOversizedProtectedBlock(String text) {
         String[] lines = text.split("\n", -1);
         String openingFence = lines.length == 0 ? "```" : lines[0];
@@ -188,6 +272,10 @@ public class TextChunker {
         return chunks;
     }
 
+    /**
+     * 执行 文档解析 中的 repeated Protected Headers 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private List<String> repeatedProtectedHeaders(String[] lines) {
         if (lines.length <= 1 || !DIAGRAM_HEADER.matcher(lines[1]).matches()) {
             return List.of();
@@ -196,6 +284,10 @@ public class TextChunker {
         return List.of(lines[1]);
     }
 
+    /**
+     * 执行 文档解析 中的 new Protected Chunk 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private StringBuilder newProtectedChunk(String openingFence, List<String> repeatedHeaders) {
         StringBuilder current = new StringBuilder(openingFence).append('\n');
         for (String header : repeatedHeaders) {
@@ -204,6 +296,10 @@ public class TextChunker {
         return current;
     }
 
+    /**
+     * 判断 has Protected Body 条件是否成立。
+     * <p>业务判定集中在这里，避免调用方重复实现同一规则。</p>
+     */
     private boolean hasProtectedBody(StringBuilder current, String openingFence, List<String> repeatedHeaders) {
         int headerLength = openingFence.length() + 1;
         for (String header : repeatedHeaders) {
@@ -212,6 +308,10 @@ public class TextChunker {
         return current.length() > headerLength;
     }
 
+    /**
+     * 读取 find Closing Fence 对应的数据。
+     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     */
     private String findClosingFence(String[] lines) {
         if (hasClosingFence(lines)) {
             return lines[lines.length - 1];
@@ -220,14 +320,26 @@ public class TextChunker {
         return "```";
     }
 
+    /**
+     * 判断 has Closing Fence 条件是否成立。
+     * <p>业务判定集中在这里，避免调用方重复实现同一规则。</p>
+     */
     private boolean hasClosingFence(String[] lines) {
         return lines.length > 1 && FENCE_MARKER.matcher(lines[lines.length - 1]).matches();
     }
 
+    /**
+     * 估算 estimate Token Count 的 token 用量。
+     * <p>估算值用于上下文预算、裁剪和前端占用展示。</p>
+     */
     private int estimateTokenCount(String text) {
         return (int) Math.ceil((double) text.length() / ESTIMATED_CHARS_PER_TOKEN);
     }
 
+    /**
+     * Text Block 是 文档解析 的不可变数据快照。
+     * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+     */
     private record TextBlock(String text, boolean protectedBlock) {
     }
 }

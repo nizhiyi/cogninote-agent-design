@@ -1,4 +1,5 @@
 <script setup>
+// chat-settings-popover 负责 聊天会话 页面或组件的状态组织、用户交互和后端同步。
 import { computed } from 'vue'
 import SegmentedControl from './segmented-control.vue'
 
@@ -28,6 +29,10 @@ const activeModeLabel = computed(() =>
   props.modes.find((item) => item.value === props.mode)?.label || props.mode
 )
 
+/**
+ * 更新 update Top K 对应的状态。
+ * <p>状态写入后需要保持控件、Store 和后端快照一致。</p>
+ */
 function updateTopK(event) {
   emit('update:topK', event.target.value)
 }

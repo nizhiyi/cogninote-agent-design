@@ -8,6 +8,10 @@ export const SEARCH_MODES = [
   { label: '混合', value: 'HYBRID' }
 ]
 
+/**
+ * 定义 业务 的 Pinia Store。
+ * <p>集中维护响应式状态、派生值和异步动作，组件只消费 Store 暴露的接口。</p>
+ */
 export const useSearchStore = defineStore('search', () => {
   const indexStatus = ref(null)
   const rebuildResult = ref(null)
@@ -21,6 +25,10 @@ export const useSearchStore = defineStore('search', () => {
   const mode = ref('KEYWORD')
   const topK = ref(8)
 
+  /**
+   * 加载 fetch Index Status 对应的数据。
+   * <p>接口结果会被转换为页面或 Store 可直接消费的结构。</p>
+   */
   async function fetchIndexStatus() {
     isLoadingIndexStatus.value = true
     indexError.value = ''
@@ -34,6 +42,10 @@ export const useSearchStore = defineStore('search', () => {
     }
   }
 
+  /**
+   * 执行 业务 中的 ensure Index Status Loaded 步骤。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   function ensureIndexStatusLoaded() {
     if (indexStatus.value || isLoadingIndexStatus.value) {
       return Promise.resolve()
@@ -41,6 +53,10 @@ export const useSearchStore = defineStore('search', () => {
     return fetchIndexStatus()
   }
 
+  /**
+   * 执行 业务 中的 rebuild Index 步骤。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   async function rebuildIndex() {
     isRebuildingIndex.value = true
     rebuildResult.value = null
@@ -56,6 +72,10 @@ export const useSearchStore = defineStore('search', () => {
     }
   }
 
+  /**
+   * 执行 业务 中的 search Knowledge 步骤。
+   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+   */
   async function searchKnowledge() {
     const trimmedQuery = query.value.trim()
     if (!trimmedQuery) {

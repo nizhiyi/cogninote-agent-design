@@ -1,4 +1,5 @@
 <script setup>
+// knowledge-search-panel 负责 知识库 页面或组件的状态组织、用户交互和后端同步。
 import SearchResults from './search-results.vue'
 import SegmentedControl from './segmented-control.vue'
 import StatGrid from './stat-grid.vue'
@@ -9,6 +10,10 @@ import { formatTime } from '../utils/formatters'
 const knowledgeStore = useKnowledgeFoldersStore()
 const searchStore = useSearchStore()
 
+/**
+ * 执行 知识库 中的 rebuild All 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 async function rebuildAll() {
   await searchStore.rebuildIndex()
   await knowledgeStore.fetchFolders()

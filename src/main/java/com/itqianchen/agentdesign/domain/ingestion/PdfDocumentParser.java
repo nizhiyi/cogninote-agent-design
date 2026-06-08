@@ -10,14 +10,26 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Component;
 
+/**
+ * Pdf Document 解析器 将来源内容解析为后续 ingestion 可消费的结构。
+ * <p>解析结果会进入切块、索引和检索链路，格式稳定性很重要。</p>
+ */
 @Component
 public class PdfDocumentParser implements DocumentParser {
 
+    /**
+     * 执行 文档管理 中的 supports 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     @Override
     public boolean supports(FileType fileType) {
         return fileType == FileType.PDF;
     }
 
+    /**
+     * 解析 parse 输入。
+     * <p>将外部文本或结构转换为模块内部可直接使用的对象。</p>
+     */
     @Override
     public ParsedDocument parse(Path path) {
         try (PDDocument document = Loader.loadPDF(path.toFile())) {

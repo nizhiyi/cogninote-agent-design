@@ -15,12 +15,20 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
+/**
+ * Knowledge Context Provider 承担 智能体编排 模块的主要职责。
+ * <p>注释说明维护边界，不改变现有运行逻辑。</p>
+ */
 @Service
 public class KnowledgeContextProvider {
 
     private final KnowledgeStore knowledgeStore;
     private final DocumentRepository documentRepository;
 
+    /**
+     * 注入 KnowledgeContextProvider 运行所需的协作者。
+     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     */
     public KnowledgeContextProvider(
             KnowledgeStore knowledgeStore,
             DocumentRepository documentRepository
@@ -29,12 +37,20 @@ public class KnowledgeContextProvider {
         this.documentRepository = documentRepository;
     }
 
+    /**
+     * 执行 智能体编排 中的 retrieve 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     public KnowledgeContext retrieve(String question, SearchMode requestedMode, int topK) {
         SearchResponse searchResponse = searchWithFallback(question, requestedMode, topK);
         List<RagSourceResponse> sources = hydrateSources(toSources(searchResponse.hits()));
         return new KnowledgeContext(searchResponse.mode(), sources);
     }
 
+    /**
+     * 执行 智能体编排 中的 search With Fallback 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private SearchResponse searchWithFallback(String question, SearchMode requestedMode, int topK) {
         try {
             return knowledgeStore.search(new SearchRequest(question, requestedMode, topK));
@@ -50,6 +66,10 @@ public class KnowledgeContextProvider {
         }
     }
 
+    /**
+     * 执行 智能体编排 中的 to Sources 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private List<RagSourceResponse> toSources(List<SearchHitResponse> hits) {
         List<RagSourceResponse> sources = new ArrayList<>();
         for (int index = 0; index < hits.size(); index++) {
@@ -58,6 +78,10 @@ public class KnowledgeContextProvider {
         return sources;
     }
 
+    /**
+     * 执行 智能体编排 中的 hydrate Sources 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private List<RagSourceResponse> hydrateSources(List<RagSourceResponse> sources) {
         if (sources.isEmpty()) {
             return sources;

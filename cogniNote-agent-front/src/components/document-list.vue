@@ -1,4 +1,5 @@
 <script setup>
+// document-list 负责 文档管理 页面或组件的状态组织、用户交互和后端同步。
 import { formatFileSize, formatTime } from '../utils/formatters'
 
 defineProps({

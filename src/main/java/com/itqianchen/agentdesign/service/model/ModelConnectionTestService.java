@@ -9,12 +9,20 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
 
+/**
+ * Model Connection 测试 服务 承载 模型配置 的应用服务流程。
+ * <p>这里集中编排仓储、模型运行时和 DTO 映射，保证控制器保持轻量。</p>
+ */
 @Service
 public class ModelConnectionTestService {
 
     private final AiRuntimeFactory aiRuntimeFactory;
     private final ChatPromptProperties promptProperties;
 
+    /**
+     * 注入 ModelConnectionTestService 运行所需的协作者。
+     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     */
     public ModelConnectionTestService(
             AiRuntimeFactory aiRuntimeFactory,
             ChatPromptProperties promptProperties
@@ -23,6 +31,10 @@ public class ModelConnectionTestService {
         this.promptProperties = promptProperties;
     }
 
+    /**
+     * 测试 test 是否可用。
+     * <p>使用最小请求验证配置、网络和模型服务是否连通。</p>
+     */
     public ModelConfigTestResponse test(ModelConfig config) {
         if (config.role() == ModelConfigRole.CHAT) {
             /*

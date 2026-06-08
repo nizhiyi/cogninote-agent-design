@@ -1,4 +1,5 @@
 <script setup>
+// model-config-view 负责 模型配置 页面或组件的状态组织、用户交互和后端同步。
 import { computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useModelConfigStore } from '../stores/model-config'
@@ -28,12 +29,20 @@ watch(
   { immediate: true }
 )
 
+/**
+ * 执行 模型配置 中的 role Active 配置 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 function roleActiveConfig(role) {
   return role === modelConfigStore.ROLES.CHAT
     ? modelConfigStore.activeChatConfig
     : modelConfigStore.activeEmbeddingConfig
 }
 
+/**
+ * 加载 load Initial Settings 对应的数据。
+ * <p>接口结果会被转换为页面或 Store 可直接消费的结构。</p>
+ */
 async function loadInitialSettings() {
   const role = normalizeInitialRole(props.initialRole)
   if (role) {
@@ -42,36 +51,68 @@ async function loadInitialSettings() {
   await modelConfigStore.initializeEditor()
 }
 
+/**
+ * 处理 handle Start Create 交互。
+ * <p>事件处理函数只保留必要副作用，复杂状态交给 Store 维护。</p>
+ */
 function handleStartCreate() {
   modelConfigStore.startCreate()
 }
 
+/**
+ * 处理 handle Edit 配置 交互。
+ * <p>事件处理函数只保留必要副作用，复杂状态交给 Store 维护。</p>
+ */
 function handleEditConfig(config) {
   modelConfigStore.editConfig(config)
 }
 
+/**
+ * 处理 handle Reload 交互。
+ * <p>事件处理函数只保留必要副作用，复杂状态交给 Store 维护。</p>
+ */
 async function handleReload() {
   await modelConfigStore.reloadEditor()
 }
 
+/**
+ * 处理 handle Save 交互。
+ * <p>事件处理函数只保留必要副作用，复杂状态交给 Store 维护。</p>
+ */
 async function handleSave() {
   const snapshot = await modelConfigStore.saveModelConfig()
   await promptRebuildIndexIfVectorConfigChanged(snapshot)
 }
 
+/**
+ * 处理 handle Activate 交互。
+ * <p>事件处理函数只保留必要副作用，复杂状态交给 Store 维护。</p>
+ */
 async function handleActivate() {
   const snapshot = await modelConfigStore.activateConfig(modelConfigStore.selectedConfig)
   await promptRebuildIndexIfVectorConfigChanged(snapshot)
 }
 
+/**
+ * 处理 handle Remove 交互。
+ * <p>事件处理函数只保留必要副作用，复杂状态交给 Store 维护。</p>
+ */
 async function handleRemove() {
   await modelConfigStore.removeConfig(modelConfigStore.selectedConfig)
 }
 
+/**
+ * 执行 模型配置 中的 provider Label 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 function providerLabel(provider) {
   return modelConfigStore.providerOptions.find(option => option.value === provider)?.label || provider
 }
 
+/**
+ * 执行 模型配置 中的 prompt Rebuild Index If Vector 配置 Changed 步骤。
+ * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ */
 async function promptRebuildIndexIfVectorConfigChanged(snapshot) {
   if (!snapshot || snapshot.role !== modelConfigStore.ROLES.EMBEDDING) {
     return
@@ -100,6 +141,10 @@ async function promptRebuildIndexIfVectorConfigChanged(snapshot) {
   }
 }
 
+/**
+ * 规范化 normalize Initial Role 输入。
+ * <p>把后端、表单或浏览器传入的异常值收敛为安全范围。</p>
+ */
 function normalizeInitialRole(role) {
   const normalized = String(role || '').trim().toUpperCase()
   return [modelConfigStore.ROLES.CHAT, modelConfigStore.ROLES.EMBEDDING].includes(normalized)

@@ -4,7 +4,9 @@ import java.util.ArrayList;
 import java.util.List;
 import com.itqianchen.agentdesign.domain.agent.AgentType;
 import com.itqianchen.agentdesign.domain.chat.ChatMessageRole;
+// Spring AI ChatClient 负责把本地 Prompt 转为模型提供商请求。
 import org.springframework.ai.chat.client.ChatClientRequest;
+// Spring AI ChatClient 负责把本地 Prompt 转为模型提供商请求。
 import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.client.advisor.api.AdvisorChain;
@@ -18,6 +20,10 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Component;
 
+/**
+ * Cogninote Memory Advisor 承担 聊天会话 模块的主要职责。
+ * <p>注释说明维护边界，不改变现有运行逻辑。</p>
+ */
 @Component
 public class CogninoteMemoryAdvisor implements BaseAdvisor {
 
@@ -26,11 +32,20 @@ public class CogninoteMemoryAdvisor implements BaseAdvisor {
 
     private final ConversationMemorySnapshotService memorySnapshotService;
 
+    /**
+     * 注入 CogninoteMemoryAdvisor 运行所需的协作者。
+     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     */
     public CogninoteMemoryAdvisor(ConversationMemorySnapshotService memorySnapshotService) {
         this.memorySnapshotService = memorySnapshotService;
     }
 
+    /**
+     * 执行 聊天会话 中的 before 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     @Override
+    // Spring AI ChatClient 负责把本地 Prompt 转为模型提供商请求。
     public ChatClientRequest before(ChatClientRequest request, AdvisorChain chain) {
         String conversationId = stringParam(request, ChatMemory.CONVERSATION_ID);
         if (conversationId == null || conversationId.isBlank()) {
@@ -39,6 +54,10 @@ public class CogninoteMemoryAdvisor implements BaseAdvisor {
 
         ConversationMemorySnapshot snapshot = memorySnapshotService.snapshot(
                 conversationId,
+                /**
+                 * 执行 聊天会话 中的 int Param 步骤。
+                 * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+                 */
                 intParam(request, MAX_MESSAGE_SEQUENCE, Integer.MAX_VALUE)
         );
         AgentType currentAgentType = agentTypeParam(request, AGENT_TYPE);
@@ -46,6 +65,7 @@ public class CogninoteMemoryAdvisor implements BaseAdvisor {
             return request;
         }
 
+        // Spring AI ChatClient 负责把本地 Prompt 转为模型提供商请求。
         List<Message> promptMessages = request.prompt().getInstructions();
         List<Message> merged = new ArrayList<>(promptMessages.size() + snapshot.recentMessages().size() + 1);
 
@@ -73,25 +93,43 @@ public class CogninoteMemoryAdvisor implements BaseAdvisor {
         }
 
         return request.mutate()
+                // Spring AI ChatClient 负责把本地 Prompt 转为模型提供商请求。
                 .prompt(new Prompt(merged, request.prompt().getOptions()))
                 .build();
     }
 
+    /**
+     * 执行 聊天会话 中的 after 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     @Override
+    // Spring AI ChatClient 负责把本地 Prompt 转为模型提供商请求。
     public ChatClientResponse after(ChatClientResponse response, AdvisorChain chain) {
         return response;
     }
 
+    /**
+     * 读取 get Order 对应的数据。
+     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     */
     @Override
     public int getOrder() {
         return Advisor.DEFAULT_CHAT_MEMORY_PRECEDENCE_ORDER;
     }
 
+    /**
+     * 执行 聊天会话 中的 string Param 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private static String stringParam(ChatClientRequest request, String key) {
         Object value = request.context().get(key);
         return value == null ? null : String.valueOf(value);
     }
 
+    /**
+     * 执行 聊天会话 中的 int Param 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private static int intParam(ChatClientRequest request, String key, int defaultValue) {
         Object value = request.context().get(key);
         if (value instanceof Number number) {
@@ -107,6 +145,10 @@ public class CogninoteMemoryAdvisor implements BaseAdvisor {
         }
     }
 
+    /**
+     * 执行 聊天会话 中的 agent Type Param 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private static AgentType agentTypeParam(ChatClientRequest request, String key) {
         Object value = request.context().get(key);
         if (value instanceof AgentType agentType) {
@@ -122,12 +164,20 @@ public class CogninoteMemoryAdvisor implements BaseAdvisor {
         }
     }
 
+    /**
+     * 执行 聊天会话 中的 memory Messages 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private static List<Message> memoryMessages(List<ConversationMemoryEntry> entries, AgentType currentAgentType) {
         return entries.stream()
                 .map(entry -> memoryMessage(entry, currentAgentType))
                 .toList();
     }
 
+    /**
+     * 执行 聊天会话 中的 memory Message 步骤。
+     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     */
     private static Message memoryMessage(ConversationMemoryEntry entry, AgentType currentAgentType) {
         if (entry.role() == ChatMessageRole.USER || entry.agentType() == currentAgentType || entry.agentType() == null) {
             return entry.role() == ChatMessageRole.ASSISTANT
