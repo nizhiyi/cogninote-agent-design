@@ -271,14 +271,14 @@ function normalizeInitialRole(role) {
             <el-input-number v-model="modelConfigStore.form.defaultTopK" :min="1" :max="50" controls-position="right" />
           </label>
 
-          <label v-if="modelConfigStore.activeRole === modelConfigStore.ROLES.CHAT" class="field field--full">
+          <label v-if="modelConfigStore.activeRole === modelConfigStore.ROLES.CHAT" class="field">
             <span>上下文长度</span>
             <div class="context-window-field">
               <el-input-number
                 v-model="modelConfigStore.form.contextWindowTokens"
                 :min="1024"
                 :max="2000000"
-                :step="1000"
+                :step="1"
                 controls-position="right"
               />
               <div class="context-window-presets" aria-label="上下文长度预设">

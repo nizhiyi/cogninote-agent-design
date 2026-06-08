@@ -25,6 +25,15 @@ spring: # Spring Boot 与 Spring AI 自动配置入口。
       embedding: # DashScope Embedding 自动配置分组；仅作为环境变量 fallback 使用。
         options: # DashScope Embedding 默认选项。
           model: ${COGNINOTE_EMBEDDING_MODEL:text-embedding-v4} # 环境变量 fallback 的 Embedding 模型名，默认 text-embedding-v4。
+    chat: # Spring AI 对话观测日志配置。
+      client: # ChatClient 层观测；当前对话链路通过 ChatClient 组装 system/user/advisor。
+        observations: # 打印前后文内容，便于在控制台排查最终 Prompt 和模型回复。
+          log-prompt: ${COGNINOTE_SPRING_AI_LOG_PROMPT:true} # 输出 ChatClient 请求中的 prompt 内容。
+          log-completion: ${COGNINOTE_SPRING_AI_LOG_COMPLETION:true} # 输出 ChatClient 聚合后的 completion 内容。
+      observations: # ChatModel 层观测；动态创建的 DashScope/OpenAI-compatible 模型都会接入 ObservationRegistry。
+        log-prompt: ${COGNINOTE_SPRING_AI_LOG_PROMPT:true} # 输出底层模型调用 prompt。
+        log-completion: ${COGNINOTE_SPRING_AI_LOG_COMPLETION:true} # 输出底层模型 completion。
+        include-error-logging: ${COGNINOTE_SPRING_AI_LOG_ERRORS:true} # 模型调用异常时打印观测错误日志。
 
 server: # Spring Boot 内置 Web 服务配置。
   address: 127.0.0.1 # 仅监听本机回环地址，桌面应用和本地前端通过 localhost 访问。
@@ -40,6 +49,9 @@ logging: # 日志配置。
       max-history: 10 # 最多保留 10 个历史日志文件，避免本地日志无限增长。
   level: # 包级别日志等级配置。
     org.springframework.ai: debug # Spring AI 相关日志设为 debug，便于定位模型运行时、Advisor 和 Embedding 问题。
+    org.springframework.ai.chat.client.observation: debug # ChatClient 观测日志包含 prompt/completion 内容。
+    org.springframework.ai.chat.observation: debug # ChatModel 观测日志包含底层模型请求/响应内容。
+    org.springframework.ai.model.observation: debug # 模型调用异常观测日志输出到控制台。
     com.itqianchen.agentdesign: debug # 项目业务日志设为 debug，便于本地桌面测试和问题排查。
 
 mybatis: # MyBatis 配置。

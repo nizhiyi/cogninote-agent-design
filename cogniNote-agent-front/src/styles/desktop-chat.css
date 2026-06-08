@@ -332,24 +332,6 @@
   white-space: nowrap;
 }
 
-.conversation-meta__context {
-  max-width: min(42vw, 320px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.conversation-meta__context.is-warning {
-  color: #fde68a;
-  background: rgba(245, 158, 11, 0.16);
-}
-
-.conversation-meta__context.is-compressed,
-.conversation-meta__compressed {
-  color: #bfdbfe;
-  background: rgba(59, 130, 246, 0.16);
-}
-
 .conversation-action-button {
   width: 30px;
   height: 30px;
@@ -500,18 +482,50 @@
   align-items: stretch;
 }
 
+.composer-resize-handle {
+  position: absolute;
+  top: -13px;
+  left: 50%;
+  z-index: 4;
+  display: grid;
+  width: min(180px, 42%);
+  height: 18px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  cursor: ns-resize;
+  transform: translateX(-50%);
+  touch-action: none;
+}
+
+.composer-resize-handle span {
+  width: 54px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.46);
+  transition:
+    width 140ms ease,
+    background 140ms ease;
+}
+
+.composer-resize-handle:hover span,
+.composer-resize-handle:focus-visible span {
+  width: 72px;
+  background: rgba(45, 212, 191, 0.78);
+}
+
 .composer-input-row textarea {
   flex: 1 1 auto;
   width: 100%;
   min-height: 76px;
   max-height: 220px;
-  padding: 14px 116px 14px 16px;
+  padding: 14px 162px 14px 16px;
   border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 10px;
   color: #f8fafc;
   background: rgba(17, 24, 39, 0.86);
   line-height: 1.45;
-  resize: vertical;
+  resize: none;
   box-shadow: 0 14px 44px rgba(0, 0, 0, 0.16);
 }
 
@@ -595,7 +609,8 @@
 }
 
 .composer-settings-button,
-.composer-icon-button {
+.composer-icon-button,
+.composer-context-indicator {
   display: grid;
   width: 38px;
   height: 38px;
@@ -612,6 +627,83 @@
     background 160ms ease,
     color 160ms ease,
     opacity 160ms ease;
+}
+
+.composer-context-indicator {
+  --context-progress: 0%;
+  --context-ring-color: #14b8a6;
+  position: relative;
+  overflow: visible;
+  background: conic-gradient(
+    var(--context-ring-color) var(--context-progress),
+    rgba(148, 163, 184, 0.18) 0
+  );
+  cursor: help;
+}
+
+.composer-context-indicator::after {
+  content: "";
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(17, 24, 39, 0.92);
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.18) inset;
+}
+
+.composer-context-indicator.is-compressed {
+  --context-ring-color: #60a5fa;
+}
+
+.composer-context-indicator.is-warning {
+  --context-ring-color: #f59e0b;
+}
+
+.composer-context-tooltip {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  z-index: 30;
+  display: grid;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 48px));
+  gap: 4px;
+  padding: 9px 11px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  color: #e7edf3;
+  background: rgba(17, 24, 39, 0.96);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.composer-context-tooltip strong,
+.composer-context-tooltip em {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+.composer-context-tooltip strong {
+  color: #f8fafc;
+  font-size: 12px;
+}
+
+.composer-context-tooltip em {
+  color: #9fb0c3;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 750;
+}
+
+.composer-context-indicator:hover .composer-context-tooltip,
+.composer-context-indicator:focus-visible .composer-context-tooltip {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .composer-settings-button svg,
@@ -799,6 +891,8 @@
 .desktop-shell .collapse-button:focus-visible,
 .desktop-shell .composer-settings-button:focus-visible,
 .desktop-shell .composer-icon-button:focus-visible,
+.desktop-shell .composer-context-indicator:focus-visible,
+.desktop-shell .composer-resize-handle:focus-visible,
 .back-link:focus-visible,
 .desktop-shell input:focus-visible,
 .desktop-shell textarea:focus-visible {

@@ -141,17 +141,6 @@ body {
   display: inline-block;
 }
 
-.conversation-meta__context.is-warning {
-  color: var(--color-warning);
-  background: var(--color-warning-soft);
-}
-
-.conversation-meta__context.is-compressed,
-.conversation-meta__compressed {
-  color: var(--color-accent-strong);
-  background: var(--color-accent-soft);
-}
-
 .status-pill--loading,
 .status-chip--skipped {
   color: var(--color-warning);
@@ -252,6 +241,15 @@ body {
   box-shadow: var(--shadow-soft);
 }
 
+.composer-resize-handle span {
+  background: color-mix(in srgb, var(--color-text-muted) 42%, transparent);
+}
+
+.composer-resize-handle:hover span,
+.composer-resize-handle:focus-visible span {
+  background: var(--color-accent);
+}
+
 .composer-input-row textarea::placeholder,
 .field > input::placeholder,
 .field > textarea::placeholder {
@@ -270,6 +268,43 @@ body {
   border-color: var(--color-border);
   color: var(--color-text-muted);
   background: color-mix(in srgb, var(--color-surface-muted) 70%, transparent);
+}
+
+.composer-context-indicator {
+  --context-ring-color: var(--color-accent);
+  border-color: var(--color-border);
+  background: conic-gradient(
+    var(--context-ring-color) var(--context-progress),
+    color-mix(in srgb, var(--color-surface-muted) 70%, transparent) 0
+  );
+}
+
+.composer-context-indicator::after {
+  background: var(--color-input);
+  box-shadow: 0 0 0 1px var(--color-border) inset;
+}
+
+.composer-context-indicator.is-compressed {
+  --context-ring-color: var(--color-accent-strong);
+}
+
+.composer-context-indicator.is-warning {
+  --context-ring-color: var(--color-warning);
+}
+
+.composer-context-tooltip {
+  border-color: var(--color-border);
+  color: var(--color-text);
+  background: var(--color-surface-strong);
+  box-shadow: var(--shadow-panel);
+}
+
+.composer-context-tooltip strong {
+  color: var(--color-text-strong);
+}
+
+.composer-context-tooltip em {
+  color: var(--color-text-muted);
 }
 
 .composer-settings-button:hover,

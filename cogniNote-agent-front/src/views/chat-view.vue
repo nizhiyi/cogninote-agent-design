@@ -17,7 +17,11 @@ const shouldFollowBottom = ref(true)
 const BOTTOM_THRESHOLD_PX = 80
 const ANCHOR_VIEWPORT_RATIO = 0.35
 const DEFAULT_CONTEXT_WINDOW_TOKENS = 128000
+const COMPOSER_MIN_HEIGHT = 76
+const COMPOSER_MAX_HEIGHT = 220
 let restoreRunId = 0
+let composerResizeState = null
+const composerTextareaHeight = ref(COMPOSER_MIN_HEIGHT)
 const composerActionTitle = computed(() => (chatStore.isStreaming ? '停止对话' : '发送信息'))
 const activeModelSummary = computed(() => {
   const chat = modelConfigStore.activeChatConfig?.modelName || '未配置对话模型'
@@ -55,10 +59,82 @@ const contextUsageTitle = computed(() => {
 })
 const isContextUsageWarning = computed(() => activeContextUsage.value.usageRatio >= 0.8)
 const isContextCompressed = computed(() => activeContextUsage.value.compressed)
+const contextUsageDetails = computed(() => {
+  const compressed = isContextCompressed.value ? '已压缩' : '未压缩'
+  return `${contextUsageLabel.value} · ${contextUsagePercentLabel.value}；${compressed}；${contextUsageTitle.value}`
+})
+const contextUsageStyle = computed(() => ({
+  '--context-progress': `${Math.round(activeContextUsage.value.usageRatio * 100)}%`
+}))
+const composerTextareaStyle = computed(() => ({
+  height: `${composerTextareaHeight.value}px`
+}))
 
 function handleComposerAction() {
   if (chatStore.isStreaming) {
     chatStore.stopChat()
+  }
+}
+
+function startComposerResize(event) {
+  if (event.button != null && event.button !== 0) {
+    return
+  }
+  event.preventDefault()
+  composerResizeState = {
+    startY: event.clientY,
+    startHeight: composerTextareaHeight.value
+  }
+  window.addEventListener('pointermove', handleComposerResize)
+  window.addEventListener('pointerup', stopComposerResize)
+  window.addEventListener('pointercancel', stopComposerResize)
+}
+
+function handleComposerResize(event) {
+  if (!composerResizeState) {
+    return
+  }
+  const nextHeight = composerResizeState.startHeight + composerResizeState.startY - event.clientY
+  composerTextareaHeight.value = Math.min(
+    COMPOSER_MAX_HEIGHT,
+    Math.max(COMPOSER_MIN_HEIGHT, nextHeight)
+  )
+}
+
+function stopComposerResize() {
+  if (!composerResizeState) {
+    return
+  }
+  composerResizeState = null
+  window.removeEventListener('pointermove', handleComposerResize)
+  window.removeEventListener('pointerup', stopComposerResize)
+  window.removeEventListener('pointercancel', stopComposerResize)
+}
+
+function resetComposerHeight() {
+  composerTextareaHeight.value = COMPOSER_MIN_HEIGHT
+}
+
+function handleComposerResizeKeydown(event) {
+  const step = event.shiftKey ? 24 : 8
+  if (event.key === 'ArrowUp') {
+    event.preventDefault()
+    composerTextareaHeight.value = Math.min(COMPOSER_MAX_HEIGHT, composerTextareaHeight.value + step)
+    return
+  }
+  if (event.key === 'ArrowDown') {
+    event.preventDefault()
+    composerTextareaHeight.value = Math.max(COMPOSER_MIN_HEIGHT, composerTextareaHeight.value - step)
+    return
+  }
+  if (event.key === 'Home') {
+    event.preventDefault()
+    composerTextareaHeight.value = COMPOSER_MIN_HEIGHT
+    return
+  }
+  if (event.key === 'End') {
+    event.preventDefault()
+    composerTextareaHeight.value = COMPOSER_MAX_HEIGHT
   }
 }
 
@@ -346,6 +422,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  stopComposerResize()
   saveCurrentSessionScrollPosition()
 })
 </script>
@@ -359,14 +436,6 @@ onBeforeUnmount(() => {
       <div class="conversation-meta">
         <span>{{ chatStore.useKnowledgeBase ? '知识库已启用' : '纯模型对话' }}</span>
         <span>{{ chatStore.mode }}</span>
-        <span
-          class="conversation-meta__context"
-          :class="{ 'is-warning': isContextUsageWarning, 'is-compressed': isContextCompressed }"
-          :title="contextUsageTitle"
-        >
-          {{ contextUsageLabel }} · {{ contextUsagePercentLabel }}
-        </span>
-        <span v-if="isContextCompressed" class="conversation-meta__compressed">已压缩</span>
         <span class="conversation-meta__model">{{ activeModelSummary }}</span>
         <button
           class="conversation-action-button"
@@ -421,15 +490,42 @@ onBeforeUnmount(() => {
 
     <form class="composer-bar" @submit.prevent="chatStore.streamChat">
       <div class="composer-input-row">
+        <div
+          class="composer-resize-handle"
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="调整输入框高度"
+          tabindex="0"
+          title="拖动调整输入框高度"
+          @dblclick="resetComposerHeight"
+          @keydown="handleComposerResizeKeydown"
+          @pointerdown="startComposerResize"
+        >
+          <span aria-hidden="true"></span>
+        </div>
         <textarea
           v-model="chatStore.draft"
           rows="1"
+          :style="composerTextareaStyle"
           :placeholder="chatStore.useKnowledgeBase ? '向知识库提问...' : '直接和模型对话...'"
           :disabled="chatStore.isStreaming"
           @keydown="handleDraftKeydown"
         ></textarea>
 
         <div class="composer-side-actions">
+          <span
+            class="composer-context-indicator"
+            :class="{ 'is-warning': isContextUsageWarning, 'is-compressed': isContextCompressed }"
+            :style="contextUsageStyle"
+            :aria-label="contextUsageDetails"
+            role="img"
+            tabindex="0"
+          >
+            <span class="composer-context-tooltip" role="tooltip">
+              <strong>{{ contextUsageLabel }} · {{ contextUsagePercentLabel }}</strong>
+              <em>{{ isContextCompressed ? '已压缩' : '未压缩' }} · {{ contextUsageTitle }}</em>
+            </span>
+          </span>
           <button
             class="composer-settings-button"
             type="button"
