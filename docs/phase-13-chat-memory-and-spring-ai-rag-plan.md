@@ -183,4 +183,4 @@ npm --prefix cogniNote-agent-front run build
 - SQLite 是会话和消息事实来源；Spring AI `ChatMemory`/Advisor 是调用层适配。
 - 现有 Lucene/SQLite 知识库不迁移到外部向量库。
 - RAG 增强必须经过 Spring AI Advisor/ChatClient API，不再手动把知识库上下文拼进 user prompt。
-- 默认 token 预算配置由 `application.yaml` 管理，后续可在设置页暴露。
+- 默认 token 预算配置已在第 22 阶段升级为 Chat 模型配置项 `contextWindowTokens`，并在设置页暴露；`application.yaml` 中的 `max-history-tokens` 仅保留为兼容兜底。

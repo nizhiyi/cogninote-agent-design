@@ -307,6 +307,7 @@ app:
 - API Key
 - 模型 ID
 - 配置类型：`CHAT` 或 `EMBEDDING`
+- Chat 上下文窗口：默认 `128000` tokens，前端显示 `128K`，仅用于本地历史裁剪、压缩和上下文占用展示
 
 后端接口：
 
@@ -330,6 +331,8 @@ POST   /api/model-configs/settings/configs/{id}/activate
 第五阶段先把模型配置页做扎实：用户选择 `DASHSCOPE` 时使用默认百炼通道，配置页展示 `https://dashscope.aliyuncs.com/api/v1`；选择 `OPENAI_COMPATIBLE` 时输入自定义 Base URL，后端按 `Base URL + /models`、`Base URL + /chat/completions`、`Base URL + /embeddings` 调用通用接口。
 
 第八阶段把单个 active 模型配置拆成多配置中心：`CHAT` 和 `EMBEDDING` 独立维护、独立激活。RAG 回答读取 active Chat 配置；文档向量化、向量检索和混合检索读取 active Embedding 配置。旧 `/api/model-config` 只作为过渡兼容接口保留。
+
+第 22 阶段为 Chat 配置新增 `contextWindowTokens`。默认 Chat 配置为 `128000`，Embedding 配置保持 `null`；保存时校验范围为 `1024` 到 `2000000`。该字段不会作为通用上下文参数发送给模型 API，只用于 `ConversationMemorySnapshotService` 的历史预算、压缩策略和前端上下文占用展示。
 
 模型设置页使用 settings 快照接口作为页面事实来源：顶部 Active 卡片、左侧配置列表和右侧编辑表单由同一份 `ModelConfigSettingsResponse` 驱动。前端 `model-config` store 只保留一个当前编辑 `form`，不要在组件内再复制第二份表单状态；否则容易出现“列表和 Active 有数据，但右侧表单没有回显”的状态分叉。设置页切到“模型”时默认加载 `CHAT` 快照，点击 “Embedding 模型” 时再加载 `EMBEDDING` 快照。模型页不显示整块加载遮罩，避免页签切换时闪烁刺眼。
 
@@ -385,13 +388,15 @@ useKnowledgeBase=true
 
 `CogninoteDocumentRetriever` 转换 Spring AI `Document` 时必须保证 metadata 不包含 `null`。`heading`、`pageNumber` 等来源字段允许在 SQLite/Lucene 中为空，但传给 Spring AI 时要省略缺失字段；否则 Spring AI 1.1.x 会在 `Document` 构建阶段抛出 `metadata cannot have null values`，导致 RAG Advisor 流式链路中断。
 
-聊天记忆采用分层策略：SQLite 保存全量消息；模型输入只注入会话摘要和 token 预算内最近原文消息，默认至少保留最近 8 条原文消息，避免长会话简单截断成固定最近 20 条。第十八阶段后，每条消息记录 `agent_type`，同一会话在普通对话和知识库模式之间切换时，跨 Agent 的 assistant 历史只作为带标签参考注入，不能把上一种 Agent 的系统规则、拒答规则或引用规则带到当前 Agent。旧 SQLite 消息读取时会兼容推断：assistant 有 `retrieval_mode` 视为 `KNOWLEDGE_BASE`，否则视为 `GENERAL_CHAT`；旧 user 消息按中性历史处理。
+聊天记忆采用分层策略：SQLite 保存全量消息；模型输入只注入会话摘要和 token 预算内最近原文消息，默认至少保留最近 8 条原文消息，避免长会话简单截断成固定最近 20 条。第 22 阶段后，历史预算优先来自 active Chat 配置的 `contextWindowTokens`，默认 `128000`，历史消息最多使用约 80% 窗口；`max-history-tokens=6000` 仅作为旧配置兼容兜底。压缩触发优先看 token 是否超预算，`summarize-after-messages=200` 只作为消息数兜底。第十八阶段后，每条消息记录 `agent_type`，同一会话在普通对话和知识库模式之间切换时，跨 Agent 的 assistant 历史只作为带标签参考注入，不能把上一种 Agent 的系统规则、拒答规则或引用规则带到当前 Agent。旧 SQLite 消息读取时会兼容推断：assistant 有 `retrieval_mode` 视为 `KNOWLEDGE_BASE`，否则视为 `GENERAL_CHAT`；旧 user 消息按中性历史处理。
+
+Token 估算优先使用本地 JTokkit。DashScope/Qwen 默认采用 `o200k_base`，OpenAI-compatible 优先按模型名匹配 tokenizer，识别不到时使用 `cl100k_base`；单条 chat message 会追加 framing overhead，避免低估上下文。聊天页通过 `ChatContextUsageResponse` 展示当前会话占用，已压缩会话按“摘要 + 最近原文消息”重新估算。`ChatSessionResponse`、SSE `meta` 和 SSE `done` 都携带同一口径的 `contextUsage`。
 
 ### 5.7 流式输出与 Markdown 合同
 
 AI 回答的 Markdown 质量不只取决于前端渲染器，也取决于后端流式传输是否保留模型原文。第十二阶段后，流式输出遵循以下合同：
 
-- SSE 事件顺序保持 `meta -> delta -> done/error`；`meta` 包含 `requestId`、`conversationId`、实际检索模式和引用来源。
+- SSE 事件顺序保持 `meta -> delta -> done/error`；`meta` 包含 `requestId`、`conversationId`、实际检索模式、引用来源和当前上下文占用 `contextUsage`。
 - `delta.text` 是模型原始增量，可能只包含一个空格、换行或缩进。后端 runtime、SSE mapper 和前端 parser 都不能对它做 `trim()`、`trimStart()` 或 `isBlank()` 过滤。
 - 前端手写 SSE parser 只能移除 `data:` 后一个协议分隔空格，不能移除内容本身的前导空白。
 - Prompt 在 `application.yaml` 中要求模型输出标准 Markdown：标题符号后带空格、列表符号后带空格、代码块使用 fenced code block、禁止原始 HTML。
@@ -592,6 +597,7 @@ CREATE TABLE model_configs (
     embedding_dimensions INTEGER,
     temperature REAL,
     default_top_k INTEGER,
+    context_window_tokens INTEGER,
     is_active INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
@@ -629,7 +635,9 @@ CREATE TABLE chat_messages (
 
 `knowledge_folders` 是第十阶段新增的知识库目录表。`documents.knowledge_folder_id` 只记录明确通过目录导入产生的归属；历史散落文档不自动猜测目录，继续作为未归属文档保留。
 
-`chat_sessions` 与 `chat_messages` 是第十三阶段新增的聊天记忆事实来源。SQLite 保存全量消息；`summary` 和 `summary_message_sequence` 只描述已被摘要覆盖的历史范围，模型输入仍由 `ConversationMemorySnapshotService` 按 token 预算选择“摘要 + 最近原文消息”，不写死固定条数。删除会话是物理删除，会同时移除会话行和对应消息；第十八阶段新增 `chat_messages.agent_type`，用于标记消息所属 Agent，并在普通对话和知识库模式切换时隔离跨 Agent 记忆污染。
+`model_configs.context_window_tokens` 是第 22 阶段新增的 Chat 上下文窗口字段。默认 Chat 配置为 `128000`，Embedding 配置为 `null`；旧库启动时由 schema 初始化自动补列。
+
+`chat_sessions` 与 `chat_messages` 是第十三阶段新增的聊天记忆事实来源。SQLite 保存全量消息；`summary` 和 `summary_message_sequence` 只描述已被摘要覆盖的历史范围，模型输入仍由 `ConversationMemorySnapshotService` 按 active Chat 上下文窗口选择“摘要 + 最近原文消息”，不写死固定条数。删除会话是物理删除，会同时移除会话行和对应消息；第十八阶段新增 `chat_messages.agent_type`，用于标记消息所属 Agent，并在普通对话和知识库模式切换时隔离跨 Agent 记忆污染。
 
 `chunks.content` 会额外占用一份解析后的文本空间，这是有意设计。
 
@@ -996,6 +1004,16 @@ POST   /api/chat/stream/{requestId}/cancel
 - `CogninoteDocumentRetriever` 区分 `originalQuestion` 和 `retrievalQuery`，检索使用补全后的 query，最终回答仍面向原始问题
 - `CogninoteRagQueryAugmenter` 注入“用户原始问题 / 知识库检索问题”边界，防止模型被无关片段带偏
 - 非法 JSON、字段缺失、空 query、过长 query 或模型调用异常时统一回退原问题检索，不阻断主对话
+
+### Milestone 22：对话上下文窗口与 Token 估算优化
+
+- Chat 模型配置新增 `contextWindowTokens`，默认 `128000`，前端显示 `128K`
+- `model_configs` 新增 `context_window_tokens`，Embedding 配置保持 `null`
+- 聊天历史预算从固定 `6000` token 改为基于 active Chat 上下文窗口动态计算，历史最多使用约 80% 窗口
+- `minimum-recent-messages` 默认保持 `8`，`summarize-after-messages` 默认调整为 `200`，token 超预算优先触发压缩
+- 引入 JTokkit 作为本地 tokenizer，DashScope/Qwen 默认 `o200k_base`，OpenAI-compatible 识别失败时回退 `cl100k_base`
+- 新增 `ChatContextUsageResponse`，并在 `ChatSessionResponse`、SSE `meta` 和 SSE `done` 中返回当前上下文占用
+- 聊天页发送区以圆环进度展示上下文占用和“已压缩”状态，悬停展示详细估算数据
 
 ## 12. 后续版本规划
 

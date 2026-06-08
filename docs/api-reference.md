@@ -281,6 +281,7 @@ GET /api/model-configs/active
     "modelName": "qwen-plus",
     "temperature": 0.7,
     "defaultTopK": 8,
+    "contextWindowTokens": 128000,
     "active": true
   },
   "embedding": {
@@ -315,6 +316,7 @@ GET /api/model-configs/settings?role=EMBEDDING
       "role": "CHAT",
       "displayName": "DashScope Chat",
       "modelName": "qwen-plus",
+      "contextWindowTokens": 128000,
       "active": true
     },
     "embedding": {
@@ -328,7 +330,9 @@ GET /api/model-configs/settings?role=EMBEDDING
   },
   "role": "CHAT",
   "configs": [],
-  "selectedConfig": {}
+  "selectedConfig": {
+    "contextWindowTokens": 128000
+  }
 }
 ```
 
@@ -362,7 +366,8 @@ Chat 请求体示例：
   "apiKey": "sk-...",
   "modelName": "qwen-plus",
   "temperature": 0.7,
-  "defaultTopK": 8
+  "defaultTopK": 8,
+  "contextWindowTokens": 128000
 }
 ```
 
@@ -443,9 +448,12 @@ POST /api/model-config/models
   "embeddingModel": "text-embedding-v4",
   "embeddingDimensions": 1024,
   "temperature": 0.7,
-  "topK": 8
+  "topK": 8,
+  "contextWindowTokens": 128000
 }
 ```
+
+`contextWindowTokens` 只对 Chat 配置生效，默认 `128000`，合法范围为 `1024` 到 `2000000`。Embedding 配置会返回 `null`，不会参与聊天上下文预算。
 
 ## 聊天会话
 
@@ -457,7 +465,7 @@ POST /api/model-config/models
 GET /api/chat/sessions
 ```
 
-返回按 `updatedAt` 倒序排列的会话摘要。摘要不携带完整消息，只包含 `messageCount`：
+返回按 `updatedAt` 倒序排列的会话摘要。摘要不携带完整消息，只包含 `messageCount`，并携带当前上下文占用 `contextUsage`：
 
 ```json
 [
@@ -471,6 +479,19 @@ GET /api/chat/sessions
     "createdAt": 1780000000000,
     "updatedAt": 1780000000000,
     "messageCount": 2,
+    "contextUsage": {
+      "contextWindowTokens": 128000,
+      "usedTokens": 680,
+      "availableTokens": 127320,
+      "usageRatio": 0.0053,
+      "compressed": false,
+      "summaryTokens": 0,
+      "recentMessageTokens": 680,
+      "recentMessageCount": 2,
+      "totalMessageCount": 2,
+      "summaryMessageSequence": 0,
+      "estimationMethod": "jtokkit:o200k_base"
+    },
     "messages": []
   }
 ]
@@ -499,7 +520,23 @@ POST /api/chat/sessions
 GET /api/chat/sessions/{conversationId}
 ```
 
-返回会话详情和完整消息列表。assistant 消息会带回 `sources`，用于刷新页面后恢复引用来源。
+返回会话详情、完整消息列表和 `contextUsage`。assistant 消息会带回 `sources`，用于刷新页面后恢复引用来源；`contextUsage` 会按当前 active Chat 配置重新估算上下文窗口、摘要和最近原文消息占用。
+
+`ChatContextUsageResponse` 字段说明：
+
+| 字段 | 说明 |
+| --- | --- |
+| `contextWindowTokens` | 当前 active Chat 配置的上下文窗口，默认 `128000` |
+| `usedTokens` | 本轮展示口径下已使用 token，压缩后按“摘要 + 最近原文消息”计算 |
+| `availableTokens` | `contextWindowTokens - usedTokens` 的非负值 |
+| `usageRatio` | 使用比例，范围 `0` 到 `1` |
+| `compressed` | 当前会话是否已有摘要压缩 |
+| `summaryTokens` | 会话摘要估算 token |
+| `recentMessageTokens` | 最近原文消息估算 token |
+| `recentMessageCount` | 当前纳入上下文展示口径的最近原文消息数 |
+| `totalMessageCount` | 会话总消息数 |
+| `summaryMessageSequence` | 摘要已覆盖到的消息序号 |
+| `estimationMethod` | 估算方式，例如 `jtokkit:o200k_base` 或 fallback |
 
 ### 更新会话
 
@@ -559,13 +596,13 @@ SSE 事件格式：
 
 ```text
 event: meta
-data: {"requestId":"...","conversationId":"...","retrievalMode":"HYBRID","sources":[...]}
+data: {"requestId":"...","conversationId":"...","retrievalMode":"HYBRID","sources":[...],"contextUsage":{"contextWindowTokens":128000,"usedTokens":680,"availableTokens":127320,"usageRatio":0.0053,"compressed":false,"summaryTokens":0,"recentMessageTokens":680,"recentMessageCount":2,"totalMessageCount":2,"summaryMessageSequence":0,"estimationMethod":"jtokkit:o200k_base"}}
 
 event: delta
 data: {"text":"..."}
 
 event: done
-data: {"usage":null}
+data: {"usage":null,"contextUsage":{"contextWindowTokens":128000,"usedTokens":1240,"availableTokens":126760,"usageRatio":0.0097,"compressed":false,"summaryTokens":0,"recentMessageTokens":1240,"recentMessageCount":4,"totalMessageCount":4,"summaryMessageSequence":0,"estimationMethod":"jtokkit:o200k_base"}}
 
 event: error
 data: {"message":"..."}
@@ -581,7 +618,7 @@ meta -> delta -> done
 
 重要约束：
 
-- SQLite 会保存全量会话历史。模型输入由“会话摘要 + token 预算内最近原文消息”组成；默认至少保留最近 8 条原文消息，但不会把固定条数作为唯一记忆策略。
+- SQLite 会保存全量会话历史。模型输入由“会话摘要 + token 预算内最近原文消息”组成；历史预算优先来自 active Chat 配置的 `contextWindowTokens`，默认 `128000`，并最多使用约 80% 窗口；默认至少保留最近 8 条原文消息，但不会把固定条数作为唯一记忆策略。
 - 同一会话可以在普通对话和知识库模式之间切换。后端会用 `agent_type` 标记消息，并在模型输入里隔离跨 Agent 历史：上一种 Agent 的拒答规则、引用规则和系统规则不能覆盖当前 Agent。
 - 知识库模式下，后端可能使用 active Chat 模型对省略式追问生成内部 `retrievalQuery`。这个 query 只用于检索，不写入 `chat_messages.content`，也不会通过 SSE 暴露；补全失败、非法 JSON 或 query 过长时会回退原问题检索。
 - RAG 不再手动把 `{context}` 拼进 user prompt。知识库片段通过 Spring AI `RetrievalAugmentationAdvisor` 和 `CogninoteDocumentRetriever` 注入。
