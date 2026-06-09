@@ -4,11 +4,27 @@
   Pop $0
 !macroend
 
+!macro COGNINOTE_ABORT_IF_EXISTS PATH MESSAGE
+  IfFileExists "${PATH}" 0 +2
+    Abort "${MESSAGE}"
+!macroend
+
 !macro COGNINOTE_CLEAN_INSTALL_DIR
   DetailPrint "Cleaning previous CogniNote installation resources..."
+  /*
+   * Treat the install directory as one immutable version snapshot. NSIS can continue after a
+   * partially locked cleanup, but that leaves old frontend/backend bits mixed with the new build.
+   */
+  SetOverwrite on
+  Sleep 1500
   RMDir /r "$INSTDIR\backend"
+  Delete "$INSTDIR\${MAINBINARYNAME}.exe"
   Delete "$INSTDIR\CogniNote.exe"
   Delete "$INSTDIR\cogninote-agent.exe"
+  !insertmacro COGNINOTE_ABORT_IF_EXISTS "$INSTDIR\backend\CogniNoteBackend\CogniNoteBackend.exe" "旧版 CogniNote 后端仍被占用，安装已中止。请关闭 CogniNote 后重新运行安装器。"
+  !insertmacro COGNINOTE_ABORT_IF_EXISTS "$INSTDIR\backend\CogniNoteBackend\app\cogninote-agent-design.jar" "旧版 CogniNote 后端资源未能清理，安装已中止。请关闭 CogniNote 后重新运行安装器。"
+  !insertmacro COGNINOTE_ABORT_IF_EXISTS "$INSTDIR\${MAINBINARYNAME}.exe" "旧版 CogniNote 主程序仍被占用，安装已中止。请关闭 CogniNote 后重新运行安装器。"
+  !insertmacro COGNINOTE_ABORT_IF_EXISTS "$INSTDIR\CogniNote.exe" "旧版 CogniNote 主程序仍被占用，安装已中止。请关闭 CogniNote 后重新运行安装器。"
 !macroend
 
 !macro COGNINOTE_DELETE_SHORTCUTS

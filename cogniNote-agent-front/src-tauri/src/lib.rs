@@ -60,6 +60,13 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            #[cfg(target_os = "macos")]
+            app.dialog()
+                .message("CogniNote 已经在运行。升级或降级后，请先完全退出旧版本，再从 /Applications 打开新版本。")
+                .kind(MessageDialogKind::Info)
+                .title("CogniNote 已在运行")
+                .blocking_show();
+
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();
                 let _ = window.show();

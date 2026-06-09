@@ -88,8 +88,14 @@ if (process.env.APPLE_PROVIDER_SHORT_NAME) {
 fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
 NODE
 
+  rm -rf \
+    "$TAURI_DIR/target/release/bundle/macos/CogniNote.app" \
+    "$TAURI_DIR/target/release/bundle/dmg"
   npm --prefix cogniNote-agent-front run desktop:build:macos:signed
 else
+  rm -rf \
+    "$TAURI_DIR/target/release/bundle/macos/CogniNote.app" \
+    "$TAURI_DIR/target/release/bundle/dmg"
   npm --prefix cogniNote-agent-front run desktop:build:macos
 fi
 
