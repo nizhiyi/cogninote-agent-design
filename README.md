@@ -82,11 +82,11 @@ Vite 会把 `/api` 代理到 `http://127.0.0.1:18080`。
 ### 构建整包 Jar
 
 ```powershell
-mvn -Pwith-frontend package
+mvn clean -Pwith-frontend package
 java -jar target/cogninote-agent-design.jar
 ```
 
-`with-frontend` profile 会构建 Vue，并把 `cogniNote-agent-front/dist` 复制进 Spring Boot 静态资源目录。
+`with-frontend` profile 会构建 Vue，并把 `cogniNote-agent-front/dist` 复制进 Spring Boot 静态资源目录。手动切换版本或验证前端静态资源时建议带 `clean`，避免旧 Vite hash 文件残留在 `target/classes/static`。
 
 ### 更新发布版本号
 
@@ -115,7 +115,7 @@ cogniNote-agent-front/src-tauri/target/release/bundle/nsis/CogniNote_0.1.3_x64-s
 
 手动触发 workflow 时可设置 `publish_release=true`，把真实安装包 `.exe` 和便携包 `.zip` 发布到 GitHub Release；`release_tag` 留空时，unsigned 构建默认发布到 `v0.1.3-test.1`，signed 构建默认发布到 `v0.1.3`。
 
-Windows 安装器会在升级、降级重装或卸载前尝试关闭旧主程序和 `CogniNoteBackend.exe`，并清理旧安装目录里的主程序和 backend 资源；旧资源清理失败时安装会中止，避免新旧版本混装。卸载默认保留 `%APPDATA%\CogniNote` 用户数据。
+Windows 安装器会在升级、降级重装或卸载前尝试关闭旧主程序和 `CogniNoteBackend.exe`，并清理旧安装目录里的主程序、backend 资源和 WebView2 HTTP/字节码缓存；旧资源清理失败时安装会中止，避免新旧版本混装或安装完成后仍显示旧前端。卸载默认保留 `%APPDATA%\CogniNote` 用户数据。
 
 ### 构建 macOS 桌面应用
 
@@ -136,7 +136,7 @@ cogniNote-agent-front/src-tauri/target/release/bundle/dmg/CogniNote_0.1.3_aarch6
 
 macOS 可以在 GitHub Actions `Desktop macOS` workflow 构建。未配置 Apple Developer 证书时会上传 `CogniNote-0.1.3-macos-arm64-unsigned-*` 技术测试 artifacts；普通用户分发必须使用配置 Developer ID 和公证 Secrets 后生成的 signed artifacts，避免 GitHub 下载后被 Gatekeeper 判定“已损坏，无法打开”。
 
-手动触发 workflow 时可设置 `publish_release=true`，把真实 `.dmg` 和 `.app.zip` 发布到 GitHub Release；`release_tag` 留空时，unsigned 构建默认发布到 `v0.1.3-test.1`，signed 构建默认发布到 `v0.1.3`。macOS 升级或降级时应先完全退出旧版，再把 `CogniNote.app` 拖入 `/Applications` 并选择替换；不要直接从 DMG 挂载目录运行，也不要用 `cp -R` 合并覆盖旧 `.app`。
+手动触发 workflow 时可设置 `publish_release=true`，把真实 `.dmg` 和 `.app.zip` 发布到 GitHub Release；`release_tag` 留空时，unsigned 构建默认发布到 `v0.1.3-test.1`，signed 构建默认发布到 `v0.1.3`。macOS 升级或降级时应先完全退出旧版，再把 `CogniNote.app` 拖入 `/Applications` 并选择替换；不要直接从 DMG 挂载目录运行，也不要用 `cp -R` 合并覆盖旧 `.app`。DMG 拖拽安装没有安装前 hook，桌面壳会在启动时按版本处理 WKWebView 缓存。
 
 ## 使用流程
 
@@ -213,7 +213,7 @@ mvn test
 npm --prefix cogniNote-agent-front run build
 
 # 后端 + 前端整包
-mvn -Pwith-frontend package
+mvn clean -Pwith-frontend package
 
 # 桌面工具链检查
 .\scripts\verify-desktop-toolchain.ps1

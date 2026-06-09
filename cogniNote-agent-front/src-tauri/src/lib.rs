@@ -12,14 +12,17 @@ use std::{
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
-use tauri::{
-    path::BaseDirectory,
-    App, AppHandle, Manager, WebviewUrl, WebviewWindowBuilder,
-};
+use tauri::{path::BaseDirectory, App, AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 const APP_NAME: &str = "CogniNote";
 const DESKTOP_VERSION: &str = env!("CARGO_PKG_VERSION");
+#[cfg(target_os = "macos")]
+const APP_IDENTIFIER: &str = "com.itqianchen.cogninote";
+#[cfg(target_os = "macos")]
+const MACOS_WEBVIEW_DATA_STORE_NAMESPACE: [u8; 16] = [
+    0x6b, 0xb0, 0x86, 0x8c, 0x8e, 0xb5, 0x49, 0xc8, 0xad, 0x8b, 0x25, 0xc8, 0x6c, 0x25, 0x40, 0x13,
+];
 #[cfg(windows)]
 const BACKEND_RESOURCE_DIR: &str = "backend/CogniNoteBackend";
 #[cfg(target_os = "macos")]
@@ -113,6 +116,7 @@ fn start_backend_and_open_window(app: &mut App) -> Result<(), String> {
     let backend_exe = resolve_backend_exe(app)?;
     let log_path = prepare_backend_log_path()?;
     append_desktop_startup_log(app, &backend_exe, port, &log_path);
+    let reset_webview_cache = prepare_webview_cache_for_current_version(&log_path);
     let child = spawn_backend(&backend_exe, port, &log_path)?;
 
     if let Err(error) = wait_until_backend_ready(port) {
@@ -124,7 +128,7 @@ fn start_backend_and_open_window(app: &mut App) -> Result<(), String> {
 
     // Tauri 配置里不预创建窗口，避免后端未就绪时显示一个不可用的空白页面。
     // 健康检查通过后再把 WebView 指到 Spring Boot 同源页面，前端现有 /api 相对路径即可继续工作。
-    if let Err(error) = open_main_window(app.handle(), port) {
+    if let Err(error) = open_main_window(app.handle(), port, reset_webview_cache, &log_path) {
         let mut child = child;
         let _ = child.kill();
         let _ = child.wait();
@@ -173,6 +177,175 @@ fn prepare_backend_log_path() -> Result<PathBuf, String> {
     fs::create_dir_all(&log_dir)
         .map_err(|error| format!("无法创建日志目录 {}：{error}", log_dir.display()))?;
     Ok(log_dir.join("desktop-backend.log"))
+}
+
+#[cfg(target_os = "macos")]
+fn prepare_webview_cache_for_current_version(log_path: &Path) -> bool {
+    let marker_path = match app_support_dir() {
+        Ok(path) => path.join("desktop-webview-version.txt"),
+        Err(error) => {
+            append_log_line(
+                log_path,
+                &format!("macOS WebView cache marker unavailable: {error}"),
+            );
+            return true;
+        }
+    };
+    let previous_version = fs::read_to_string(&marker_path)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    if previous_version.as_deref() == Some(DESKTOP_VERSION) {
+        return false;
+    }
+
+    append_log_line(
+        log_path,
+        &format!(
+            "macOS WebView cache reset requested: previousVersion={} currentVersion={}",
+            previous_version.as_deref().unwrap_or("<missing>"),
+            DESKTOP_VERSION
+        ),
+    );
+    remove_macos_webview_cache_dirs(log_path);
+
+    if let Some(parent) = marker_path.parent() {
+        if let Err(error) = fs::create_dir_all(parent) {
+            append_log_line(
+                log_path,
+                &format!(
+                    "Unable to create WebView version marker directory {}: {error}",
+                    parent.display()
+                ),
+            );
+            return true;
+        }
+    }
+    if let Err(error) = fs::write(&marker_path, DESKTOP_VERSION) {
+        append_log_line(
+            log_path,
+            &format!(
+                "Unable to write WebView version marker {}: {error}",
+                marker_path.display()
+            ),
+        );
+    }
+    true
+}
+
+#[cfg(not(target_os = "macos"))]
+fn prepare_webview_cache_for_current_version(_log_path: &Path) -> bool {
+    false
+}
+
+#[cfg(target_os = "macos")]
+fn remove_macos_webview_cache_dirs(log_path: &Path) {
+    let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
+        append_log_line(
+            log_path,
+            "Unable to clean macOS WebView cache: HOME is unavailable",
+        );
+        return;
+    };
+    let library_dir = home.join("Library");
+    let webkit_data_dir = library_dir
+        .join("WebKit")
+        .join(APP_IDENTIFIER)
+        .join("WebsiteData");
+    let container_library_dir = library_dir
+        .join("Containers")
+        .join(APP_IDENTIFIER)
+        .join("Data")
+        .join("Library");
+    let container_webkit_data_dir = container_library_dir
+        .join("WebKit")
+        .join(APP_IDENTIFIER)
+        .join("WebsiteData");
+    let cache_dirs = [
+        library_dir.join("Caches").join(APP_IDENTIFIER),
+        library_dir.join("Caches").join(APP_NAME),
+        webkit_data_dir.join("NetworkCache"),
+        webkit_data_dir.join("CacheStorage"),
+        webkit_data_dir.join("ServiceWorkers"),
+        container_library_dir.join("Caches").join(APP_IDENTIFIER),
+        container_library_dir.join("Caches").join(APP_NAME),
+        container_library_dir.join("Caches").join("WebKit"),
+        container_webkit_data_dir.join("NetworkCache"),
+        container_webkit_data_dir.join("CacheStorage"),
+        container_webkit_data_dir.join("ServiceWorkers"),
+    ];
+
+    for cache_dir in cache_dirs {
+        remove_cache_path_under(&library_dir, &cache_dir, log_path);
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn remove_cache_path_under(allowed_root: &Path, path: &Path, log_path: &Path) {
+    if !path.exists() {
+        return;
+    }
+
+    let allowed_root = match allowed_root.canonicalize() {
+        Ok(root) => root,
+        Err(error) => {
+            append_log_line(
+                log_path,
+                &format!(
+                    "Skipping WebView cache cleanup because {} cannot be resolved: {error}",
+                    allowed_root.display()
+                ),
+            );
+            return;
+        }
+    };
+    let resolved_path = match path.canonicalize() {
+        Ok(path) => path,
+        Err(error) => {
+            append_log_line(
+                log_path,
+                &format!(
+                    "Skipping unresolved WebView cache path {}: {error}",
+                    path.display()
+                ),
+            );
+            return;
+        }
+    };
+
+    if !resolved_path.starts_with(&allowed_root) {
+        append_log_line(
+            log_path,
+            &format!(
+                "Skipping WebView cache path outside ~/Library: {}",
+                resolved_path.display()
+            ),
+        );
+        return;
+    }
+
+    let result = if resolved_path.is_dir() {
+        fs::remove_dir_all(&resolved_path)
+    } else {
+        fs::remove_file(&resolved_path)
+    };
+    match result {
+        Ok(()) => append_log_line(
+            log_path,
+            &format!(
+                "Removed macOS WebView cache path: {}",
+                resolved_path.display()
+            ),
+        ),
+        Err(error) => append_log_line(
+            log_path,
+            &format!(
+                "Unable to remove macOS WebView cache path {}: {error}",
+                resolved_path.display()
+            ),
+        ),
+    }
 }
 
 fn app_support_dir() -> Result<PathBuf, String> {
@@ -274,10 +447,7 @@ fn configure_macos_backend_environment(command: &mut Command) {
     if let Ok(app_dir) = app_support_dir() {
         command
             .env("COGNINOTE_DATA_DIR", &app_dir)
-            .env(
-                "COGNINOTE_LOG_FILE",
-                app_dir.join("logs").join("app.log"),
-            );
+            .env("COGNINOTE_LOG_FILE", app_dir.join("logs").join("app.log"));
     }
 }
 
@@ -322,7 +492,8 @@ fn is_system_status_ready(port: u16) -> bool {
     let _ = stream.set_read_timeout(Some(Duration::from_millis(800)));
     let _ = stream.set_write_timeout(Some(Duration::from_millis(800)));
 
-    let request = b"GET /api/system/status HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n";
+    let request =
+        b"GET /api/system/status HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n";
     if stream.write_all(request).is_err() {
         return false;
     }
@@ -331,22 +502,88 @@ fn is_system_status_ready(port: u16) -> bool {
     stream.read_to_string(&mut response).is_ok() && response.starts_with("HTTP/1.1 200")
 }
 
-fn open_main_window(app: &AppHandle, port: u16) -> Result<(), String> {
-    let url = format!("http://127.0.0.1:{port}/");
-    WebviewWindowBuilder::new(
-        app,
-        "main",
-        WebviewUrl::External(url.parse().map_err(|error| {
-            format!("无法生成桌面窗口 URL：{error}")
-        })?),
-    )
-    .title(APP_NAME)
-    .inner_size(1280.0, 820.0)
-    .min_inner_size(960.0, 640.0)
-    .center()
-    .build()
-    .map_err(|error| format!("无法创建桌面窗口：{error}"))?;
+fn open_main_window(
+    app: &AppHandle,
+    port: u16,
+    reset_webview_cache: bool,
+    log_path: &Path,
+) -> Result<(), String> {
+    let url = format!("http://127.0.0.1:{port}/")
+        .parse()
+        .map_err(|error| format!("无法生成桌面窗口 URL：{error}"))?;
+    let initial_url = initial_webview_url(&url, reset_webview_cache)?;
+    let builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(initial_url))
+        .title(APP_NAME)
+        .inner_size(1280.0, 820.0)
+        .min_inner_size(960.0, 640.0)
+        .center();
+
+    #[cfg(target_os = "macos")]
+    let builder = {
+        // WKWebView does not support WebView2-style data_directory on macOS.
+        // A version-scoped store prevents an older desktop release from reusing
+        // stale HTTP/Vite caches while business data stays in Application Support.
+        let builder = builder.data_store_identifier(macos_webview_data_store_identifier());
+        if reset_webview_cache {
+            builder.visible(false)
+        } else {
+            builder
+        }
+    };
+
+    let window = builder
+        .build()
+        .map_err(|error| format!("无法创建桌面窗口：{error}"))?;
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = &window;
+        let _ = log_path;
+    }
+
+    #[cfg(target_os = "macos")]
+    if reset_webview_cache {
+        match window.clear_all_browsing_data() {
+            Ok(()) => append_log_line(log_path, "Requested macOS WKWebView browsing data cleanup"),
+            Err(error) => append_log_line(
+                log_path,
+                &format!("Unable to request macOS WKWebView browsing data cleanup: {error}"),
+            ),
+        }
+        window
+            .navigate(url)
+            .map_err(|error| format!("无法加载桌面页面：{error}"))?;
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
     Ok(())
+}
+
+fn initial_webview_url(
+    target_url: &tauri::Url,
+    _reset_webview_cache: bool,
+) -> Result<tauri::Url, String> {
+    #[cfg(target_os = "macos")]
+    if _reset_webview_cache {
+        return "about:blank"
+            .parse()
+            .map_err(|error| format!("无法生成 macOS WebView 初始 URL：{error}"));
+    }
+
+    Ok(target_url.clone())
+}
+
+#[cfg(target_os = "macos")]
+fn macos_webview_data_store_identifier() -> [u8; 16] {
+    let mut identifier = MACOS_WEBVIEW_DATA_STORE_NAMESPACE;
+    for (index, byte) in DESKTOP_VERSION.as_bytes().iter().enumerate() {
+        let slot = index % identifier.len();
+        identifier[slot] = identifier[slot]
+            .wrapping_mul(31)
+            .wrapping_add(*byte)
+            .rotate_left((index % 7) as u32);
+    }
+    identifier
 }
 
 fn shutdown_backend(app: &AppHandle) {

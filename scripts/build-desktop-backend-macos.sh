@@ -34,9 +34,12 @@ cd "$PROJECT_ROOT"
 
 JAR_NAME="cogninote-agent-design.jar"
 JAR_PATH="$PROJECT_ROOT/target/$JAR_NAME"
+COMPILED_STATIC_DIR="$PROJECT_ROOT/target/classes/static"
 DESKTOP_BACKEND_DIR="$PROJECT_ROOT/target/desktop-macos/backend"
 BACKEND_IMAGE_DIR="$DESKTOP_BACKEND_DIR/CogniNoteBackend.app"
 JPACKAGE_INPUT_DIR="$PROJECT_ROOT/target/desktop-macos/jpackage-input"
+
+rm -rf "$COMPILED_STATIC_DIR"
 
 if [[ "$SKIP_TESTS" == "true" ]]; then
   mvn -Pwith-frontend package -DskipTests

@@ -56,6 +56,7 @@ $javaExe = Join-Path $JdkHome 'bin\java.exe'
 $jpackageExe = Join-Path $JdkHome 'bin\jpackage.exe'
 $jarName = 'cogninote-agent-design.jar'
 $jarPath = Join-Path $projectRoot "target\$jarName"
+$compiledStaticDir = Join-Path $projectRoot 'target\classes\static'
 $desktopBackendDir = Join-Path $projectRoot 'target\desktop\backend'
 $backendImageDir = Join-Path $desktopBackendDir 'CogniNoteBackend'
 $jpackageInputDir = Join-Path $projectRoot 'target\desktop\jpackage-input'
@@ -121,6 +122,14 @@ try {
     $env:Path = "$JdkHome\bin;$env:Path"
 
     Stop-ProjectFrontendDevServer
+
+    # Maven package is not a clean build. Remove the previously copied Vite
+    # output first, otherwise old hashed assets can survive in BOOT-INF/classes/static
+    # and make an upgraded desktop app render an older frontend from WebView cache.
+    if (Test-Path -LiteralPath $compiledStaticDir) {
+        Assert-InProject $compiledStaticDir
+        Remove-Item -LiteralPath $compiledStaticDir -Recurse -Force
+    }
 
     if ($SkipTests) {
         Invoke-Native -FilePath 'mvn' -ArgumentList @('-Pwith-frontend', 'package', '-DskipTests')

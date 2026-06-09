@@ -765,6 +765,13 @@ CI 无证书时上传 unsigned 测试包；有证书时公证并 staple .app / .
 
 注意：`jpackage --type app-image` 的产物依赖完整 app-image 目录，不能只复制启动器。Windows 后端资源目录是 `target/desktop/backend/CogniNoteBackend/`，启动器是 `CogniNoteBackend.exe`；macOS 后端资源目录是 `target/desktop-macos/backend/CogniNoteBackend.app/`，启动器是 `Contents/MacOS/CogniNoteBackend`。
 
+升级可靠性约束：
+
+- Windows NSIS 安装/卸载 hook 负责关闭旧进程、清理旧安装目录资源，并清理 WebView2 HTTP、Code Cache、GPU、Service Worker 和 CacheStorage 等缓存目录。业务数据目录 `%APPDATA%\CogniNote` 保留。
+- macOS DMG 拖拽安装没有安装前 hook，不能在“安装时”运行清理逻辑。桌面壳启动时按 `DESKTOP_VERSION` 对比 `~/Library/Application Support/CogniNote/desktop-webview-version.txt`，版本变化时先处理 WKWebView 缓存；macOS 14+ 还使用版本相关的 `data_store_identifier` 隔离 WebView 数据仓库。
+- Spring Boot 对桌面前端入口、SPA 路由和 `/assets/**` 返回 `Cache-Control: no-store, no-cache, max-age=0, must-revalidate`，避免持久 WebView 缓存掩盖新安装的静态资源。
+- Windows 和 macOS 桌面后端打包脚本都在 `mvn -Pwith-frontend package` 前删除 `target/classes/static`，避免 Maven 非 clean 构建把旧 Vite hash 资源带进新 jar。
+
 桌面构建和运行脚本统一放在项目根目录 `scripts/` 下。Windows 使用 `.ps1`，macOS 使用 `.sh`。具体命令、执行策略处理、产物路径和常见故障排查见 `docs/desktop-build-guide.md`。
 
 后端 Jar 使用稳定文件名 `target/cogninote-agent-design.jar`，避免分发版本升级后桌面脚本仍引用旧 `SNAPSHOT` 文件名。GitHub Actions 中 Windows 和 macOS workflow 仍然手动触发；证书材料只来自 Secrets，不进入仓库。未配置证书时 CI 仍会产出明确标记为 `unsigned` 的测试 artifacts。
@@ -998,7 +1005,9 @@ POST   /api/chat/stream/{requestId}/cancel
 - macOS CI signed 模式验证主 app、嵌套后端 app 和 DMG 的签名、公证、staple 与 Gatekeeper 状态
 - Tauri 桌面壳增加 single-instance，第二次启动会聚焦现有窗口
 - Tauri 启动日志记录桌面壳版本、包版本、实际启动路径、后端资源路径和端口
-- Windows NSIS 安装/卸载钩子负责关闭旧主程序和后端进程，并清理旧安装目录中的 backend 资源和常见快捷方式残留
+- Windows NSIS 安装/卸载钩子负责关闭旧主程序和后端进程，并清理旧安装目录中的 backend 资源、常见快捷方式残留和 WebView2 缓存
+- macOS 桌面壳启动时按版本处理 WKWebView 缓存；macOS 14+ 使用版本相关 `data_store_identifier` 隔离 WebView 数据仓库
+- Spring Boot 禁用桌面前端静态资源 HTTP 缓存，桌面后端打包脚本清理 `target/classes/static` 后再执行 Maven package
 - 设置中心系统信息显示后端版本、前端版本、桌面壳版本和桌面模式，便于确认用户实际启动的新旧版本
 
 ### Milestone 20：代码友好的检索准确率优化

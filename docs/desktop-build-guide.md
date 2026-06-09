@@ -149,6 +149,8 @@ scripts/build-desktop-backend.ps1
 target/desktop/backend/CogniNoteBackend/
 ```
 
+脚本会在 Maven 打包前删除 `target/classes/static`。Maven `package` 不是 clean 构建，如果旧 Vite hash 资源残留在该目录，新的桌面后端 jar 可能仍包含旧前端文件。
+
 ```text
 scripts/build-desktop-app.ps1
 ```
@@ -192,6 +194,8 @@ scripts/build-desktop-backend-macos.sh
 ```text
 target/desktop-macos/backend/CogniNoteBackend.app/
 ```
+
+脚本同样会在 Maven 打包前删除 `target/classes/static`，避免 macOS 连续打包时把旧前端 hash 资源带进新 jar。
 
 ```text
 scripts/build-desktop-app-macos.sh
@@ -326,6 +330,7 @@ CogniNote-0.1.3-macos-arm64-signed.app.zip
 - 第二次启动应用时会聚焦已有窗口，避免旧实例仍运行时误以为新版已启动。
 - 安装器会在升级、降级重装或卸载前尝试关闭 `CogniNote.exe`、`cogninote-agent.exe` 和 `CogniNoteBackend.exe`。
 - 安装前会清理旧安装目录里的主程序和 `backend/`；如果旧文件仍被占用，安装会中止，避免前端或后端资源停留在旧版本。
+- 安装前和卸载后会清理 `%LOCALAPPDATA%\com.itqianchen.cogninote\EBWebView` 下的 HTTP、Code Cache、GPU、Service Worker 和 CacheStorage 等缓存目录，避免 WebView2 继续加载旧 `index.html` 或旧 Vite chunk。该清理不删除 `%APPDATA%\CogniNote` 业务数据，也不清理 WebView localStorage。
 - 卸载后会清理常见桌面和开始菜单快捷方式残留，但不会删除 `%APPDATA%\CogniNote` 用户数据。
 
 日志路径：
@@ -378,6 +383,7 @@ open ./cogniNote-agent-front/src-tauri/target/release/bundle/dmg/CogniNote_0.1.3
 - Tauri 会在 `18080-18120` 中选择可用端口，并把端口通过 `COGNINOTE_PORT` 注入后端。
 - 桌面窗口加载 `http://127.0.0.1:{port}/`，前端 `/api` 相对路径继续同源工作。
 - 关闭窗口后，Tauri 会终止后端进程。
+- 升级或降级后首次启动时，桌面壳会比较 `~/Library/Application Support/CogniNote/desktop-webview-version.txt` 与当前桌面壳版本；版本变化时清理已知 WKWebView 缓存目录，macOS 14+ 还会使用版本相关的 `data_store_identifier` 隔离 WebView 数据仓库，再加载 `http://127.0.0.1:{port}/`。
 
 日志路径：
 
@@ -479,7 +485,26 @@ Remove-Item -Force .\cogniNote-agent-front\src-tauri\target\release\cogninote-ag
 
 Windows 安装目录必须被当成一个完整版本快照处理。NSIS 默认复制文件时可以覆盖已有文件，但旧进程锁文件、降级安装或手动选择“不卸载继续安装”都可能留下旧的前端主程序或后端 app-image。项目的 NSIS hook 会在复制新文件前关闭旧进程并删除旧主程序和 `backend/`，删除失败时直接中止安装，避免出现“安装完成但实际仍运行旧版本”。
 
+如果确认安装目录、后端 jar 和 `target/classes/static` 已经是新版本，但前端页面仍显示旧版本，优先检查 WebView2 缓存。Tauri WebView2 的缓存位于：
+
+```text
+%LOCALAPPDATA%\com.itqianchen.cogninote\EBWebView\
+```
+
+正常安装器会自动清理其中的 `Default\Cache`、`Default\Code Cache`、`Default\GPUCache`、`Default\Service Worker`、`Default\CacheStorage` 等缓存目录；Geek 等卸载工具之所以能让问题“恢复正常”，通常是因为它额外清理了这些浏览器缓存，而不是因为业务数据目录有问题。
+
 验证降级场景时，应从新版本安装包进入维护页并选择“先卸载再安装”，或先通过 Windows 应用卸载旧版后再安装旧版。不要用“保留旧安装目录直接覆盖”来判断降级是否成功。
+
+### 桌面前端静态资源仍是旧版本
+
+桌面版前端资源经过两层缓存路径：构建时由 Maven profile 把 `cogniNote-agent-front/dist` 复制进 `target/classes/static`，运行时再由 WebView 缓存 HTTP 响应和 JS 字节码。因此排查旧页面时按顺序确认：
+
+1. 打包脚本是否在 `mvn -Pwith-frontend package` 前删除了 `target/classes/static`。
+2. 新安装目录中的后端 jar 是否包含最新 `BOOT-INF/classes/static/index.html` 和最新 hash 资源。
+3. Spring Boot 是否对 `/`、`/index.html`、`/assets/**` 和 SPA 路由返回 `Cache-Control: no-store, no-cache, max-age=0, must-revalidate`。
+4. Windows WebView2 或 macOS WKWebView 是否已经按当前版本清理或隔离缓存。
+
+这四层都通过后，再看系统设置页的后端版本、前端版本和桌面壳版本，判断用户实际启动的是哪个版本。
 
 ### Windows 双击后没反应
 
@@ -562,6 +587,8 @@ target/desktop-macos/backend/CogniNoteBackend.app/Contents/MacOS/CogniNoteBacken
 ```
 
 如果升级或降级后仍显示旧版本，先确认旧版已完全退出。macOS 的 single-instance 机制会把第二次启动转交给正在运行的旧实例，桌面壳会弹窗提示先退出旧版；退出后从 `/Applications/CogniNote.app` 重新打开。
+
+macOS 的 `.dmg` 拖拽安装过程不会执行 CogniNote 代码，因此不能像 Windows NSIS 一样在安装阶段清理 WKWebView 缓存。项目把 macOS 缓存处理放在启动阶段：版本变化时写入 `desktop-webview-version.txt`，清理 `~/Library/Caches`、`~/Library/WebKit` 和沙盒容器下已知的 CogniNote WebView 缓存路径；macOS 14+ 通过 Tauri `data_store_identifier` 使用版本相关的数据仓库，避免旧版本缓存继续影响新版本。业务数据仍保存在 `~/Library/Application Support/CogniNote/`，不会随缓存清理删除。
 
 如果本地未签名 `.app` 被 Gatekeeper 拦截，可在系统设置中允许运行，仅用于开发验证。若 GitHub Actions 分发产物仍提示“已损坏，无法打开”，通常说明公证或 staple 没成功，先检查 `CogniNote-0.1.3-macos-notarization-logs` artifact 和 workflow 中的 `spctl` 输出。
 

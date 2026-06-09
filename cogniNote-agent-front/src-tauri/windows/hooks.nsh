@@ -27,6 +27,24 @@
   !insertmacro COGNINOTE_ABORT_IF_EXISTS "$INSTDIR\CogniNote.exe" "旧版 CogniNote 主程序仍被占用，安装已中止。请关闭 CogniNote 后重新运行安装器。"
 !macroend
 
+!macro COGNINOTE_CLEAN_WEBVIEW_CACHE
+  DetailPrint "Cleaning CogniNote WebView2 cache while preserving user data..."
+  /*
+   * WebView2 keeps HTTP and bytecode caches outside $INSTDIR. If an old cached
+   * index.html survives an upgrade, it can keep loading old Vite asset hashes
+   * even though the installer has copied the new desktop binaries.
+   */
+  RMDir /r "$LOCALAPPDATA\com.itqianchen.cogninote\EBWebView\Default\Cache"
+  RMDir /r "$LOCALAPPDATA\com.itqianchen.cogninote\EBWebView\Default\Code Cache"
+  RMDir /r "$LOCALAPPDATA\com.itqianchen.cogninote\EBWebView\Default\GPUCache"
+  RMDir /r "$LOCALAPPDATA\com.itqianchen.cogninote\EBWebView\Default\DawnGraphiteCache"
+  RMDir /r "$LOCALAPPDATA\com.itqianchen.cogninote\EBWebView\Default\DawnWebGPUCache"
+  RMDir /r "$LOCALAPPDATA\com.itqianchen.cogninote\EBWebView\Default\Service Worker"
+  RMDir /r "$LOCALAPPDATA\com.itqianchen.cogninote\EBWebView\Default\CacheStorage"
+  RMDir /r "$LOCALAPPDATA\com.itqianchen.cogninote\EBWebView\component_crx_cache"
+  RMDir /r "$LOCALAPPDATA\com.itqianchen.cogninote\EBWebView\extensions_crx_cache"
+!macroend
+
 !macro COGNINOTE_DELETE_SHORTCUTS
   DetailPrint "Removing stale CogniNote shortcuts..."
   Delete "$DESKTOP\CogniNote.lnk"
@@ -43,6 +61,7 @@
   !insertmacro COGNINOTE_KILL_PROCESS "cogninote-agent.exe"
   !insertmacro COGNINOTE_KILL_PROCESS "CogniNoteBackend.exe"
   !insertmacro COGNINOTE_CLEAN_INSTALL_DIR
+  !insertmacro COGNINOTE_CLEAN_WEBVIEW_CACHE
   !insertmacro COGNINOTE_DELETE_SHORTCUTS
 !macroend
 
@@ -57,6 +76,7 @@
   RMDir /r "$INSTDIR\backend"
   Delete "$INSTDIR\CogniNote.exe"
   Delete "$INSTDIR\cogninote-agent.exe"
+  !insertmacro COGNINOTE_CLEAN_WEBVIEW_CACHE
   !insertmacro COGNINOTE_DELETE_SHORTCUTS
   RMDir "$INSTDIR"
 !macroend
