@@ -4,7 +4,7 @@
 
 第十五阶段把桌面打包从内部测试升级为可测试、可分发的 `0.1.0` 桌面链路。Windows 和 macOS 继续分开维护：Windows 使用 `tauri.conf.json`、PowerShell 脚本、`target/desktop/backend/CogniNoteBackend/` 和 NSIS；macOS 使用 `tauri.macos.conf.json`、Shell 脚本、`target/desktop-macos/backend/CogniNoteBackend.app/` 和 `.app` / `.dmg`。
 
-`0.1.0` 的 CI 支持双模式：没有证书时生成 unsigned 测试包；配置完整证书后生成 signed 分发包。macOS signed 包通过 Developer ID 签名、公证和 staple 避免 Gatekeeper 把下载包识别为“已损坏”；Windows signed 包通过 Authenticode 签名和时间戳降低安装拦截风险。第一版仍只支持 macOS Apple Silicon，不做自动更新、Universal Binary、Intel Mac、App Store、MSIX/MSI。
+`0.1.0` 的 CI 支持双模式：没有证书时生成 unsigned 测试包；配置完整证书后生成 signed 分发包。macOS signed 包通过 Developer ID 签名、公证和 staple 避免 Gatekeeper 把下载包识别为“已损坏”；Windows signed 包通过 Authenticode 签名和时间戳降低安装拦截风险。macOS 包含外层 Tauri app 和嵌套的 `CogniNoteBackend.app`，两者都必须进入签名校验链路。第一版仍只支持 macOS Apple Silicon，不做自动更新、Universal Binary、Intel Mac、App Store、MSIX/MSI。
 
 ## Key Changes
 
@@ -16,8 +16,8 @@
   - `tauri.macos.conf.json` 保持为 macOS 唯一 bundle 配置，只引用 `.icns` 图标和 macOS 后端 app-image。
   - 新增 hardened runtime entitlements，满足 Tauri/WebView 和本地后端进程运行需要。
   - GitHub Actions 未配置证书时构建 unsigned `.app` 和 `.dmg` 测试包。
-  - GitHub Actions 配置完整 Secrets 后导入 Developer ID Application 证书到临时 keychain，构建签名 `.app` 和 `.dmg`。
-  - signed 模式对 `.app` 和 `.dmg` 分别执行 codesign 验证、公证、staple、Gatekeeper 验证，并上传公证日志。
+  - GitHub Actions 配置完整 Secrets 后导入 Developer ID Application 证书到临时 keychain，先签名 `jpackage` 生成的 `CogniNoteBackend.app`，再构建和签名外层 `CogniNote.app`。
+  - signed 模式先对外层 `.app` 执行 codesign 验证、公证、staple、Gatekeeper 验证，再用已 staple 的 `.app` 重新生成发布用 DMG，并对 DMG 执行签名、公证、staple、Gatekeeper 验证，最后上传公证日志。
 - Windows 分发：
   - `tauri.conf.json` 保持为 Windows 唯一 bundle 配置，只引用 `.ico` 图标和 Windows 后端 app-image。
   - 新增 `scripts/sign-windows-artifact.ps1` 作为 Tauri `signCommand` 入口。
@@ -67,7 +67,7 @@ WINDOWS_CERTIFICATE_PASSWORD
 - macOS CI 分发：
   - 手动触发 `Desktop macOS` workflow。
   - 无证书时 artifacts 包含 `0.1.0`、`macos-arm64` 和 `unsigned` 命名。
-  - 有证书时 artifacts 包含 `0.1.0`、`macos-arm64` 和 `signed` 命名，`codesign`、`notarytool`、`stapler`、`spctl` 验证通过。
+  - 有证书时 artifacts 包含 `0.1.0`、`macos-arm64` 和 `signed` 命名，嵌套后端 app、外层 app 和发布用 DMG 的 `codesign`、`notarytool`、`stapler`、`spctl` 验证通过。
   - Apple Silicon 用户下载 signed DMG 后可拖入 Applications 并直接打开。
 - 功能冒烟：
   - 文档导入、搜索、模型配置、RAG 对话、纯模型对话可用。

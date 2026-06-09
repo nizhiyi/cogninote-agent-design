@@ -2,17 +2,21 @@
 // app-shell 负责 业务 页面或组件的状态组织、用户交互和后端同步。
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Pencil, Trash2 } from 'lucide-vue-next'
+import { Pencil, Settings, Trash2 } from 'lucide-vue-next'
 import StatusPill from './status-pill.vue'
 import { useChatStore } from '../stores/chat'
+import { useLayoutStore } from '../stores/layout'
 import { useSystemStore } from '../stores/system'
 
 const route = useRoute()
 const router = useRouter()
 const chatStore = useChatStore()
+const layoutStore = useLayoutStore()
 const systemStore = useSystemStore()
 const isSettingsRoute = computed(() => route.name === 'settings')
-const canEditSessions = computed(() => !chatStore.isStreaming && !chatStore.isLoadingSessions)
+const canEditSessions = computed(() =>
+  !chatStore.isStreaming && !chatStore.isSubmittingChat && !chatStore.isLoadingSessions
+)
 
 const pillState = computed(() => {
   if (systemStore.isLoading) {
@@ -26,6 +30,9 @@ const pillState = computed(() => {
  * <p>该方法通常会同步本地响应式状态和后端快照。</p>
  */
 async function createSession() {
+  if (!canEditSessions.value) {
+    return
+  }
   await chatStore.startNewSession()
   router.push({ name: 'chat' })
 }
@@ -35,6 +42,9 @@ async function createSession() {
  * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
  */
 async function openSession(sessionId) {
+  if (chatStore.isSubmittingChat) {
+    return
+  }
   await chatStore.selectSession(sessionId)
   router.push({ name: 'chat' })
 }
@@ -75,8 +85,18 @@ async function removeSession(session) {
     <slot />
   </main>
 
-  <main v-else class="desktop-shell">
-    <aside class="chat-sidebar" aria-label="对话列表">
+  <main
+    v-else
+    class="desktop-shell"
+    :class="{ 'desktop-shell--sidebar-collapsed': layoutStore.isSidebarCollapsed }"
+  >
+    <aside
+      id="chat-sidebar"
+      class="chat-sidebar"
+      aria-label="对话列表"
+      :aria-hidden="layoutStore.isSidebarCollapsed"
+      :inert="layoutStore.isSidebarCollapsed ? '' : null"
+    >
       <section class="brand-panel">
         <div class="brand-mark">CN</div>
         <div>
@@ -103,7 +123,7 @@ async function removeSession(session) {
           <button
             class="session-item__main"
             type="button"
-            :disabled="chatStore.isStreaming && session.id !== chatStore.activeSessionId"
+            :disabled="chatStore.isSubmittingChat || (chatStore.isStreaming && session.id !== chatStore.activeSessionId)"
             @click="openSession(session.id)"
           >
             <strong>{{ session.title }}</strong>
@@ -135,11 +155,14 @@ async function removeSession(session) {
       </section>
 
       <footer class="sidebar-footer">
-        <div class="sidebar-status">
-          <span>后端</span>
-          <StatusPill :label="systemStore.connectionLabel" :state="pillState" />
-        </div>
-        <RouterLink class="settings-link" :to="{ name: 'settings' }">设置</RouterLink>
+<!--        <div class="sidebar-status">-->
+<!--          <span>后端</span>-->
+<!--          <StatusPill :label="systemStore.connectionLabel" :state="pillState" />-->
+<!--        </div>-->
+        <RouterLink class="settings-link" :to="{ name: 'settings' }" aria-label="打开设置">
+          <Settings aria-hidden="true" />
+          <span>设置</span>
+        </RouterLink>
       </footer>
     </aside>
 

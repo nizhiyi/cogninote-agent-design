@@ -204,6 +204,7 @@ export const useChatStore = defineStore('chat', () => {
   const topKValue = ref(DEFAULT_TOP_K)
   const isLoadingSessions = ref(false)
   const isLoadingActiveSession = ref(false)
+  const isSubmittingChat = ref(false)
   const isStreaming = ref(false)
   const error = ref('')
   const abortController = ref(null)
@@ -213,12 +214,12 @@ export const useChatStore = defineStore('chat', () => {
   const savingSessionOptionIds = new Set()
 
   const activeSession = computed(() =>
-    sessions.value.find((session) => session.id === activeSessionId.value) || sessions.value[0] || null
+    sessions.value.find((session) => session.id === activeSessionId.value) || null
   )
   const activeMessages = computed(() => activeSession.value?.messages || [])
   const activeContextUsage = computed(() => activeSession.value?.contextUsage || null)
   const hasMessages = computed(() => activeMessages.value.length > 0)
-  const canSend = computed(() => draft.value.trim().length > 0 && !isStreaming.value && !!activeSession.value)
+  const canSend = computed(() => draft.value.trim().length > 0 && !isStreaming.value && !isSubmittingChat.value)
   const useKnowledgeBase = computed({
     get: () => normalizeKnowledgeBaseFlag(useKnowledgeBaseValue.value),
     set: (value) => {
@@ -255,14 +256,8 @@ export const useChatStore = defineStore('chat', () => {
     try {
       const response = await listChatSessions()
       sessions.value = (response || []).map(normalizeSession)
-      if (!sessions.value.length) {
-        const created = await createChatSession(defaultSessionPayload())
-        sessions.value = [normalizeSession(created)]
-      }
-      const nextActiveId = activeSessionId.value && sessions.value.some((item) => item.id === activeSessionId.value)
-        ? activeSessionId.value
-        : sessions.value[0].id
-      await selectSession(nextActiveId, { force: true })
+      // 启动时只进入空白草稿页，避免“打开应用”被误写成一条真实会话。
+      activeSessionId.value = ''
     } catch (err) {
       error.value = `读取会话失败：${err.message}`
     } finally {
@@ -275,18 +270,14 @@ export const useChatStore = defineStore('chat', () => {
    * <p>该方法通常会同步本地响应式状态和后端快照。</p>
    */
   async function startNewSession() {
-    if (isStreaming.value) {
+    if (isStreaming.value || isSubmittingChat.value) {
       return
     }
     error.value = ''
-    try {
-      const created = normalizeSession(await createChatSession(defaultSessionPayload()))
-      upsertSession(created)
-      await selectSession(created.id, { force: true })
-      draft.value = ''
-    } catch (err) {
-      error.value = `新建会话失败：${err.message}`
-    }
+    // “新建”只是进入空白草稿页；真实会话要等用户发送第一条消息时再创建。
+    activeSessionId.value = ''
+    isLoadingActiveSession.value = false
+    draft.value = ''
   }
 
   /**
@@ -294,7 +285,7 @@ export const useChatStore = defineStore('chat', () => {
    * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
    */
   async function selectSession(sessionId, options = {}) {
-    if (isStreaming.value && !options.force) {
+    if ((isStreaming.value || isSubmittingChat.value) && !options.force) {
       return
     }
     if (!sessionId) {
@@ -340,18 +331,19 @@ export const useChatStore = defineStore('chat', () => {
    * <p>清理时同步处理本地缓存，避免界面保留过期状态。</p>
    */
   async function removeSession(sessionId) {
-    if (isStreaming.value) {
+    if (isStreaming.value || isSubmittingChat.value) {
       return
     }
     try {
       await deleteChatSession(sessionId)
       forgetSessionScrollPosition(sessionId)
+      const wasActiveSession = activeSessionId.value === sessionId
       sessions.value = sessions.value.filter((item) => item.id !== sessionId)
-      if (!sessions.value.length) {
-        const created = normalizeSession(await createChatSession(defaultSessionPayload()))
-        sessions.value = [created]
+      if (wasActiveSession) {
+        activeSessionId.value = ''
+        isLoadingActiveSession.value = false
+        draft.value = ''
       }
-      await selectSession(sessions.value[0].id, { force: true })
     } catch (err) {
       error.value = `删除会话失败：${err.message}`
     }
@@ -384,11 +376,16 @@ export const useChatStore = defineStore('chat', () => {
       error.value = '请输入问题'
       return
     }
-    if (!activeSession.value) {
-      await startNewSession()
+    if (isStreaming.value || isSubmittingChat.value) {
+      return
     }
 
-    const session = activeSession.value
+    isSubmittingChat.value = true
+    const session = activeSession.value || await createSessionForFirstMessage()
+    if (!session) {
+      isSubmittingChat.value = false
+      return
+    }
     syncSessionOptions(session)
     const userMessage = createLocalMessage('user', trimmedQuestion)
     appendMessage(session, userMessage)
@@ -400,6 +397,7 @@ export const useChatStore = defineStore('chat', () => {
 
     draft.value = ''
     error.value = ''
+    isSubmittingChat.value = false
     isStreaming.value = true
     abortController.value = new AbortController()
     streamingContext.value = {
@@ -451,6 +449,7 @@ export const useChatStore = defineStore('chat', () => {
         void refreshSessionAfterStreamError(failedSessionId, failedRequestId)
       }
     } finally {
+      isSubmittingChat.value = false
       isStreaming.value = false
       abortController.value = null
       streamingContext.value = null
@@ -728,6 +727,23 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /**
+   * 为首条消息创建真实会话。
+   * <p>空白草稿页不落库，只有用户真正发送消息时才调用后端创建会话。</p>
+   */
+  async function createSessionForFirstMessage() {
+    try {
+      const created = normalizeSession(await createChatSession(defaultSessionPayload()))
+      upsertSession(created)
+      activeSessionId.value = created.id
+      applySessionOptions(created)
+      return created
+    } catch (err) {
+      error.value = `新建会话失败：${err.message}`
+      return null
+    }
+  }
+
+  /**
    * 持久化当前会话的检索选项。
    * <p>知识库开关属于会话级状态，用户切换后必须立即写库；否则刷新页面会被旧快照覆盖。</p>
    */
@@ -895,6 +911,7 @@ export const useChatStore = defineStore('chat', () => {
     topK,
     isLoadingSessions,
     isLoadingActiveSession,
+    isSubmittingChat,
     isStreaming,
     error,
     canSend,

@@ -1,14 +1,16 @@
 <script setup>
 // chat-view 负责 聊天会话 页面或组件的状态组织、用户交互和后端同步。
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import { LoaderCircle, Send, SlidersHorizontal, Trash2 } from 'lucide-vue-next'
+import { ChevronLeft, ChevronRight, LoaderCircle, Send, SlidersHorizontal, Trash2 } from 'lucide-vue-next'
 import ChatSettingsPopover from '../components/chat-settings-popover.vue'
 import SourceList from '../components/source-list.vue'
 import { useChatStore } from '../stores/chat'
+import { useLayoutStore } from '../stores/layout'
 import { useModelConfigStore } from '../stores/model-config'
 import { SEARCH_MODES } from '../stores/search'
 
 const chatStore = useChatStore()
+const layoutStore = useLayoutStore()
 const modelConfigStore = useModelConfigStore()
 const AiMarkdownRenderer = defineAsyncComponent(() => import('../components/ai-markdown-renderer.vue'))
 const isComposerSettingsOpen = ref(false)
@@ -538,7 +540,19 @@ onBeforeUnmount(() => {
 <template>
   <section class="conversation-page">
     <header class="conversation-header">
-      <div>
+      <div class="conversation-title-group">
+        <button
+          class="sidebar-toggle-button"
+          type="button"
+          :title="layoutStore.sidebarToggleTitle"
+          :aria-label="layoutStore.sidebarToggleTitle"
+          :aria-expanded="!layoutStore.isSidebarCollapsed"
+          aria-controls="chat-sidebar"
+          @click="layoutStore.toggleSidebar"
+        >
+          <ChevronRight v-if="layoutStore.isSidebarCollapsed" aria-hidden="true" />
+          <ChevronLeft v-else aria-hidden="true" />
+        </button>
         <h2>{{ chatStore.activeSession?.title || '新对话' }}</h2>
       </div>
       <div class="conversation-meta">

@@ -4,7 +4,7 @@
 
 第十四阶段新增 macOS Apple Silicon 桌面打包链路，并明确和 Windows 打包链路分开维护。Windows 继续使用现有 `tauri.conf.json`、PowerShell 脚本、`target/desktop/backend/CogniNoteBackend/` 后端 app-image 和 NSIS 安装包；macOS 使用独立 `tauri.macos.conf.json`、Shell 脚本、`target/desktop-macos/backend/CogniNoteBackend.app/` 后端 app-image，并产出 `.app` / `.dmg`。
 
-第一版 macOS 只支持 Apple Silicon arm64，不做签名、公证、自动更新、Universal Binary、Intel Mac 和 App Store 分发。
+第一版 macOS 只支持 Apple Silicon arm64。本阶段最初不做签名、公证、自动更新、Universal Binary、Intel Mac 和 App Store 分发；后续分发阶段已在同一条独立 macOS 链路上补齐 Developer ID 签名、公证和 staple，用于普通用户下载分发。
 
 ## Key Changes
 
@@ -23,7 +23,7 @@
 - macOS 桌面运行时显式注入：
   - `COGNINOTE_DATA_DIR=~/Library/Application Support/CogniNote`
   - `COGNINOTE_LOG_FILE=~/Library/Application Support/CogniNote/logs/app.log`
-- 新增 macOS CI workflow：`.github/workflows/desktop-macos.yml`，手动触发，上传 `.app` 和 `.dmg` artifacts；`.app` 在上传前会压缩为 `CogniNote.app.zip`，zip 内保留完整 `.app` 包结构。
+- 新增 macOS CI workflow：`.github/workflows/desktop-macos.yml`，手动触发，上传 `.app` 和 `.dmg` artifacts；`.app` 在上传前会压缩为 `CogniNote.app.zip`，zip 内保留完整 `.app` 包结构。后续 signed 模式会签名嵌套后端 `CogniNoteBackend.app`、外层 `CogniNote.app` 和发布用 DMG，并对 app 与 DMG 执行公证、staple 和 Gatekeeper 校验。
 
 ## Build Commands
 
@@ -56,10 +56,11 @@ Windows 构建命令保持不变：
 - CI：
   - 手动触发 `Desktop macOS` workflow。
   - workflow artifacts 包含 `CogniNote.app.zip` 和 `.dmg`。
+  - signed 模式下确认 `CogniNoteBackend.app`、`CogniNote.app` 和发布用 DMG 的 `codesign`、`notarytool`、`stapler`、`spctl` 均通过；unsigned 模式只作为技术测试 artifact。
 
 ## Assumptions
 
 - macOS 第一版只支持 Apple Silicon arm64。
 - Windows 与 macOS 打包配置、脚本和后端 app-image 输出目录必须分离。
 - Java/Spring Boot 业务、Vue 前端、REST API、SQLite/Lucene 数据结构不因 macOS 打包改变。
-- 未签名/未公证导致的 Gatekeeper 提示在第一版内部验证阶段可接受。
+- 未签名/未公证导致的 Gatekeeper 提示只在第一版内部验证阶段可接受；面向普通用户的 macOS 分发必须使用 signed、notarized、stapled DMG。

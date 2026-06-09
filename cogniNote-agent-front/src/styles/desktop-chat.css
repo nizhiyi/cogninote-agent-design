@@ -1,14 +1,23 @@
 /* 桌面对话壳：左侧持久化会话、主对话流、输入区和设置页深色容器。 */
 
 .desktop-shell {
+  --expanded-sidebar-width: 300px;
+  --sidebar-width: var(--expanded-sidebar-width);
+  --conversation-track-width: min(calc(100vw - var(--expanded-sidebar-width) - 36px), 1428px);
+  position: relative;
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   height: 100vh;
   overflow: hidden;
   color: #e7edf3;
   background:
     radial-gradient(circle at 18% 12%, rgba(39, 112, 132, 0.22), transparent 28%),
     linear-gradient(135deg, #111820 0%, #0d1117 54%, #121212 100%);
+  transition: grid-template-columns 220ms ease;
+}
+
+.desktop-shell--sidebar-collapsed {
+  --sidebar-width: 0px;
 }
 
 .settings-shell {
@@ -33,6 +42,51 @@
   background:
     linear-gradient(180deg, rgba(22, 32, 43, 0.98), rgba(17, 27, 39, 0.98)),
     #111b27;
+  transition:
+    opacity 180ms ease,
+    padding 220ms ease,
+    transform 220ms ease,
+    border-color 180ms ease;
+}
+
+.desktop-shell--sidebar-collapsed .chat-sidebar {
+  padding-right: 0;
+  padding-left: 0;
+  border-right-color: transparent;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-18px);
+}
+
+.sidebar-toggle-button {
+  display: grid;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.12);
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.sidebar-toggle-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.sidebar-toggle-button:hover,
+.sidebar-toggle-button:focus-visible {
+  border-color: rgba(20, 184, 166, 0.58);
+  color: #ecfeff;
+  background: rgba(20, 184, 166, 0.18);
+  transform: translateY(-1px);
 }
 
 .brand-panel {
@@ -238,21 +292,30 @@
 }
 
 .settings-link {
-  display: grid;
+  display: inline-flex;
   min-height: 44px;
-  place-items: center;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  color: #dbe7f3;
-  background: rgba(255, 255, 255, 0.05);
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  color: #9eacbd;
+  background: transparent;
   text-decoration: none;
-  font-weight: 800;
+  font-weight: 750;
+}
+
+.settings-link svg {
+  width: 17px;
+  height: 17px;
 }
 
 .settings-link:hover,
 .settings-link:focus-visible,
 .settings-link.router-link-active {
-  border-color: rgba(125, 211, 252, 0.45);
-  background: rgba(56, 189, 248, 0.13);
+  border-color: rgba(148, 163, 184, 0.2);
+  color: #e7edf3;
+  background: rgba(15, 23, 42, 0.32);
 }
 
 .desktop-workspace {
@@ -282,6 +345,13 @@
   backdrop-filter: blur(14px);
 }
 
+.conversation-title-group {
+  display: flex;
+  min-width: 0;
+  gap: 12px;
+  align-items: center;
+}
+
 .conversation-header h2,
 .settings-header h2 {
   color: #f8fafc;
@@ -289,6 +359,10 @@
 }
 
 .conversation-header h2 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 18px;
 }
 
@@ -350,7 +424,7 @@
   flex-direction: column;
   gap: 18px;
   overflow-y: auto;
-  padding: 28px clamp(18px, 5vw, 72px) 148px;
+  padding: 28px max(18px, calc((100% - var(--conversation-track-width)) / 2)) 148px;
 }
 
 .empty-chat {
@@ -442,7 +516,7 @@
   left: 0;
   display: grid;
   gap: 12px;
-  padding: 10px clamp(18px, 5vw, 72px) 18px;
+  padding: 10px max(18px, calc((100% - var(--conversation-track-width)) / 2)) 18px;
   border-top: 0;
   background: transparent;
 }
@@ -881,6 +955,7 @@
 .desktop-shell .primary-button:focus-visible,
 .desktop-shell .secondary-button:focus-visible,
 .desktop-shell .text-button:focus-visible,
+.desktop-shell .sidebar-toggle-button:focus-visible,
 .desktop-shell .session-item:focus-visible,
 .desktop-shell .session-item__main:focus-visible,
 .desktop-shell .session-action-button:focus-visible,

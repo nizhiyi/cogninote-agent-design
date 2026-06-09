@@ -131,6 +131,7 @@ jobs:
       - name: Verify and notarize macOS artifacts
         if: steps.macos-signing.outputs.signed == 'true'
         env:
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -163,6 +164,24 @@ jobs:
           xcrun stapler validate "$APP_PATH"
           spctl -a -vvv -t exec "$APP_PATH"
           spctl -a -vvv -t exec "$BACKEND_APP_PATH"
+
+          # Tauri creates the DMG before the app is notarized and stapled. Rebuild
+          # the signed distribution DMG from the stapled app so the downloaded
+          # installer carries the exact bundle that passed Gatekeeper checks.
+          STAGED_DMG_ROOT="$RUNNER_TEMP/cogninote-dmg-root"
+          rm -rf "$STAGED_DMG_ROOT"
+          mkdir -p "$STAGED_DMG_ROOT"
+          ditto "$APP_PATH" "$STAGED_DMG_ROOT/CogniNote.app"
+          ln -s /Applications "$STAGED_DMG_ROOT/Applications"
+          rm -f "$DMG_PATH"
+          hdiutil create \
+            -volname "CogniNote" \
+            -fs HFS+ \
+            -format UDZO \
+            -srcfolder "$STAGED_DMG_ROOT" \
+            "$DMG_PATH"
+          codesign --force --timestamp --sign "$MACOS_SIGNING_IDENTITY" "$DMG_PATH"
+          codesign --verify --verbose=2 "$DMG_PATH"
 
           xcrun notarytool submit "$DMG_PATH" \
             --apple-id "$APPLE_ID" \

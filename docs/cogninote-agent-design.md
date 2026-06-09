@@ -716,7 +716,7 @@ CogninoteMemoryAdvisor 注入会话摘要和最近原文消息
 
 ## 9. 打包方案
 
-第六阶段已完成 Windows 桌面打包。第十四阶段新增 macOS Apple Silicon 独立打包链路。第十五阶段把双平台桌面包升级为 `0.1.0` CI 双模式链路：无证书时产出 unsigned 测试包；配置完整证书后，Windows 使用 Authenticode 签名和时间戳，macOS 使用 Developer ID 签名、公证和 staple。两个平台的 Tauri 配置、脚本和后端 app-image 输出目录分开维护，不把平台差异塞进同一份 bundle 配置或总脚本。
+第六阶段已完成 Windows 桌面打包。第十四阶段新增 macOS Apple Silicon 独立打包链路。第十五阶段把双平台桌面包升级为 `0.1.0` CI 双模式链路：无证书时产出 unsigned 测试包；配置完整证书后，Windows 使用 Authenticode 签名和时间戳，macOS 使用 Developer ID 签名、公证和 staple。macOS signed 流程会把外层 Tauri app、嵌套的 `CogniNoteBackend.app` 和发布用 DMG 都纳入签名与 Gatekeeper 校验，避免下载后被系统判定为“已损坏”。两个平台的 Tauri 配置、脚本和后端 app-image 输出目录分开维护，不把平台差异塞进同一份 bundle 配置或总脚本。
 
 Windows 打包链路：
 
@@ -747,11 +747,13 @@ Maven 打 Fat Jar
   ↓
 jpackage 生成 macOS 后端 CogniNoteBackend.app
   ↓
+signed 模式先签名嵌套 CogniNoteBackend.app
+  ↓
 Tauri 使用 tauri.macos.conf.json 打包桌面壳和后端资源目录
   ↓
 生成 macOS .app / .dmg
   ↓
-CI 无证书时上传 unsigned 测试包；有证书时公证并 staple .app / .dmg
+CI 无证书时上传 unsigned 测试包；有证书时公证并 staple .app，再用已 staple 的 .app 重新生成、签名、公证并 staple 发布用 DMG
 ```
 
 启动逻辑：
@@ -968,7 +970,7 @@ POST   /api/chat/stream/{requestId}/cancel
 
 - 版本统一到 `0.1.0`，后端 Jar 使用稳定文件名
 - Windows CI 无证书时上传 unsigned 测试包，有 PFX Secret 时对 release exe 和 NSIS installer 做 Authenticode 签名
-- macOS CI 无证书时上传 unsigned 测试包，有 Developer ID 证书时签名、公证并 staple `.app` / `.dmg`
+- macOS CI 无证书时上传 unsigned 测试包，有 Developer ID 证书时签名嵌套后端 app 和外层 app，公证并 staple `.app`，再用已 staple 的 app 重新生成、签名、公证并 staple 发布用 DMG
 - 双平台 workflow artifacts 使用 `0.1.0`、平台、架构和 `unsigned` / `signed` 命名
 - 文档补充 GitHub Secrets、Gatekeeper、SmartScreen 和安装验收说明
 
@@ -1002,7 +1004,7 @@ POST   /api/chat/stream/{requestId}/cancel
 ### Milestone 19：桌面安装、卸载与升级可靠性
 
 - macOS unsigned 包降级为技术测试 artifact，普通用户分发以 signed、notarized、stapled DMG 为准
-- macOS CI signed 模式验证主 app、嵌套后端 app 和 DMG 的签名、公证、staple 与 Gatekeeper 状态
+- macOS CI signed 模式验证主 app、嵌套后端 app 和发布用 DMG 的签名、公证、staple 与 Gatekeeper 状态
 - Tauri 桌面壳增加 single-instance，第二次启动会聚焦现有窗口
 - Tauri 启动日志记录桌面壳版本、包版本、实际启动路径、后端资源路径和端口
 - Windows NSIS 安装/卸载钩子负责关闭旧主程序和后端进程，并清理旧安装目录中的 backend 资源、常见快捷方式残留和 WebView2 缓存

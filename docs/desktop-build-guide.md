@@ -209,7 +209,7 @@ scripts/build-desktop-app-macos.sh
 bash ./scripts/build-desktop-app-macos.sh --skip-tests --sign
 ```
 
-该模式要求 `APPLE_SIGNING_IDENTITY` 已设置。脚本会把签名 identity 只写入临时 active Tauri 配置，构建结束后恢复 Windows `tauri.conf.json`。
+该模式要求 `APPLE_SIGNING_IDENTITY` 已设置。脚本会把签名 identity 只写入临时 active Tauri 配置，构建结束后恢复 Windows `tauri.conf.json`。macOS 最终包内还嵌入了 `jpackage` 生成的 `CogniNoteBackend.app`，signed 模式会先用同一份 Developer ID 证书签名这个嵌套后端 app，再让 Tauri 生成外层桌面 app 和 DMG，并校验外层 app 与嵌套后端 app 的签名。不要把未签名的后端 app 直接塞进 signed 外层包，否则用户下载后 Gatekeeper 可能仍提示“已损坏，无法打开”。
 
 ## GitHub Actions 构建
 
@@ -270,7 +270,7 @@ APPLE_PROVIDER_SHORT_NAME
 
 `APPLE_PROVIDER_SHORT_NAME` 仅在 Apple 账号存在多个 provider 时需要。除了 `APPLE_PROVIDER_SHORT_NAME`，其它 macOS Secrets 必须全部配置才会进入 signed 模式；全部为空时进入 unsigned 测试模式；配置不完整会失败。signed 模式会对 `.app` 和 `.dmg` 分别执行 `codesign`、`notarytool`、`stapler` 和 `spctl` 验证，并上传公证日志。
 
-unsigned macOS 包仅用于技术测试。即使从 GitHub Release 直接下载，macOS 也会给文件附加 quarantine；Gatekeeper 最终检查的是挂载后或复制后的 `.app`，不是只检查 `.dmg`。因此只对 DMG 执行 `xattr` 不保证能运行，普通用户分发必须使用 signed、notarized、stapled DMG。
+unsigned macOS 包仅用于技术测试。即使从 GitHub Release、浏览器或微信下载，macOS 也会给文件附加 quarantine；Gatekeeper 最终检查的是挂载后或复制后的 `.app`，不是只检查 `.dmg`。因此只对 DMG 执行 `xattr` 不保证能运行，普通用户分发必须使用 signed、notarized、stapled DMG。signed workflow 会先公证并 staple 外层 `.app`，再用这个已 staple 的 `.app` 重新生成、签名、公证并 staple 发布用 DMG，确保用户下载的 DMG 内部就是通过 Gatekeeper 校验的 app。
 
 macOS artifacts：
 
@@ -398,7 +398,7 @@ open ./cogniNote-agent-front/src-tauri/target/release/bundle/dmg/CogniNote_0.1.3
 ~/Library/Application Support/CogniNote/
 ```
 
-本地脚本默认产物未签名、未公证，Gatekeeper 可能拦截运行。普通用户安装请使用 GitHub Actions 签名、公证后的 DMG；下载后应可直接拖入 Applications 并打开。
+本地脚本默认产物未签名、未公证，Gatekeeper 可能拦截运行。普通用户安装请使用 GitHub Actions 签名、公证后的 DMG；下载后应可直接拖入 Applications 并打开。signed 产物必须同时覆盖嵌套的 `CogniNoteBackend.app`、外层 `CogniNote.app` 和发布用 DMG，不能只签外层 Tauri app。
 
 macOS 升级或降级时请先完全退出旧版，再把 DMG 内的 `CogniNote.app` 拖入 `/Applications` 并选择替换旧版本，不要直接从 DMG 挂载目录运行。不要用 `cp -R` 覆盖已有 `.app`，因为 `.app` 是目录包，命令行合并覆盖可能留下旧的主程序或嵌套后端资源；脚本安装时应先删除旧包再复制：
 
@@ -414,7 +414,7 @@ sudo xattr -dr com.apple.quarantine /Applications/CogniNote.app
 open /Applications/CogniNote.app
 ```
 
-如果 signed DMG 仍提示“已损坏，无法打开”，优先检查 workflow 的 `CogniNote-0.1.31-macos-notarization-logs`、`spctl` 输出，以及 `desktop-backend.log` 中的实际 app 路径。
+如果 signed DMG 仍提示“已损坏，无法打开”，优先检查 workflow 的 `CogniNote-0.1.31-macos-notarization-logs`、`spctl` 输出，以及 `desktop-backend.log` 中的实际 app 路径。重点确认 `CogniNote.app/Contents/Resources/backend/CogniNoteBackend.app` 已用同一 Developer ID 证书签名，且发布用 DMG 是由已 staple 的 `CogniNote.app` 重新生成的。
 
 ## 图标更新
 
@@ -590,7 +590,7 @@ target/desktop-macos/backend/CogniNoteBackend.app/Contents/MacOS/CogniNoteBacken
 
 macOS 的 `.dmg` 拖拽安装过程不会执行 CogniNote 代码，因此不能像 Windows NSIS 一样在安装阶段清理 WKWebView 缓存。项目把 macOS 缓存处理放在启动阶段：版本变化时写入 `desktop-webview-version.txt`，清理 `~/Library/Caches`、`~/Library/WebKit` 和沙盒容器下已知的 CogniNote WebView 缓存路径；macOS 14+ 通过 Tauri `data_store_identifier` 使用版本相关的数据仓库，避免旧版本缓存继续影响新版本。业务数据仍保存在 `~/Library/Application Support/CogniNote/`，不会随缓存清理删除。
 
-如果本地未签名 `.app` 被 Gatekeeper 拦截，可在系统设置中允许运行，仅用于开发验证。若 GitHub Actions 分发产物仍提示“已损坏，无法打开”，通常说明公证或 staple 没成功，先检查 `CogniNote-0.1.31-macos-notarization-logs` artifact 和 workflow 中的 `spctl` 输出。
+如果本地未签名 `.app` 被 Gatekeeper 拦截，可在系统设置中允许运行，仅用于开发验证。若 GitHub Actions 分发产物仍提示“已损坏，无法打开”，通常说明嵌套后端 app 签名、公证或 staple 没成功，或发布用 DMG 不是由已 staple 的 `CogniNote.app` 重新生成。先检查 `CogniNote-0.1.31-macos-notarization-logs` artifact、workflow 中的 `spctl` 输出，以及嵌套路径 `CogniNote.app/Contents/Resources/backend/CogniNoteBackend.app` 的签名状态。
 
 ### VS Code 中 lib.rs 提示 OUT_DIR 不存在
 

@@ -79,15 +79,21 @@ body {
 }
 
 .new-chat-button,
-.settings-link,
 .back-link,
 .settings-tabs button,
 .theme-choice button,
-.collapse-button {
+.collapse-button,
+.sidebar-toggle-button {
   border-color: var(--color-border);
   color: var(--color-text);
   background: color-mix(in srgb, var(--color-surface-muted) 58%, transparent);
   font-weight: 700;
+}
+
+.settings-link {
+  border-color: transparent;
+  color: var(--color-text-muted);
+  background: transparent;
 }
 
 .new-chat-button {
@@ -97,9 +103,6 @@ body {
 
 .new-chat-button:hover:not(:disabled),
 .new-chat-button:focus-visible,
-.settings-link:hover,
-.settings-link:focus-visible,
-.settings-link.router-link-active,
 .back-link:hover,
 .back-link:focus-visible,
 .settings-tabs button.active,
@@ -109,10 +112,20 @@ body {
 .theme-choice button:hover,
 .theme-choice button:focus-visible,
 .collapse-button:hover,
-.collapse-button:focus-visible {
+.collapse-button:focus-visible,
+.sidebar-toggle-button:hover,
+.sidebar-toggle-button:focus-visible {
   border-color: var(--color-accent-border);
   color: var(--color-text-strong);
   background: var(--color-accent-soft);
+}
+
+.settings-link:hover,
+.settings-link:focus-visible,
+.settings-link.router-link-active {
+  border-color: color-mix(in srgb, var(--color-border) 80%, transparent);
+  color: var(--color-text-strong);
+  background: color-mix(in srgb, var(--color-surface-muted) 52%, transparent);
 }
 
 .session-item {
@@ -758,6 +771,7 @@ textarea:focus-visible,
 .desktop-shell .session-item:focus-visible,
 .desktop-shell .new-chat-button:focus-visible,
 .desktop-shell .settings-link:focus-visible,
+.desktop-shell .sidebar-toggle-button:focus-visible,
 .settings-tabs button:focus-visible,
 .collapse-button:focus-visible,
 .knowledge-switch:focus-visible,

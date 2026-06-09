@@ -10,7 +10,7 @@
 
 ## Key Changes
 
-- macOS signed CI 验证主 `CogniNote.app`、嵌套 `CogniNoteBackend.app` 和 DMG 的 `codesign`、`notarytool`、`stapler`、`spctl`。
+- macOS signed CI 先签名 `jpackage` 生成的嵌套 `CogniNoteBackend.app`，再验证主 `CogniNote.app`、嵌套后端 app 和发布用 DMG 的 `codesign`、`notarytool`、`stapler`、`spctl`。发布用 DMG 必须由已 staple 的 `CogniNote.app` 重新生成，避免 DMG 内仍是公证前的 app 副本。
 - macOS 文档明确：GitHub 下载同样会带 quarantine；只清理 DMG 不保证可运行，最终被检查的是 `.app`。升级或降级必须先退出旧实例并替换整个 `/Applications/CogniNote.app`，不能用 `cp -R` 合并覆盖 `.app` 目录包。
 - macOS 构建脚本在 Tauri 打包前清理旧 `.app` / `.dmg` 输出，避免本地连续打包时读取旧包。
 - Tauri 桌面壳启动日志写入桌面壳版本、包版本、实际启动路径、后端资源路径和端口，便于确认用户是否打开了新版本。
@@ -36,7 +36,7 @@
 - 前端：`npm --prefix cogniNote-agent-front run build`
 - Tauri/Rust：`cargo check --manifest-path cogniNote-agent-front/src-tauri/Cargo.toml`
 - Windows：先安装并运行旧版，再直接安装新版，确认安装器关闭旧进程、清理旧主程序、`backend/` 和 WebView2 缓存，打开后系统信息显示新版本；再验证新版本降级到旧版本时必须走“先卸载再安装”或显式卸载路径，不能留下新旧资源混装。卸载后安装目录和常见快捷方式清理，`%APPDATA%\CogniNote` 保留。
-- macOS：signed workflow 中验证主 app、嵌套后端 app 和 DMG；从 GitHub Release 下载 signed DMG，先退出旧版，再拖入 `/Applications` 替换整个旧版 `.app`，系统信息和日志显示新版本；补充验证命令行安装时必须 `rm -rf /Applications/CogniNote.app` 后再 `ditto`，不能 `cp -R` 合并覆盖。升级或降级后首次启动应在 `desktop-backend.log` 中看到 WebView cache reset 记录，并确认 `desktop-webview-version.txt` 更新为当前桌面壳版本。
+- macOS：signed workflow 中验证主 app、嵌套后端 app 和由已 staple app 重建的发布用 DMG；从 GitHub Release 下载 signed DMG，先退出旧版，再拖入 `/Applications` 替换整个旧版 `.app`，系统信息和日志显示新版本；补充验证命令行安装时必须 `rm -rf /Applications/CogniNote.app` 后再 `ditto`，不能 `cp -R` 合并覆盖。升级或降级后首次启动应在 `desktop-backend.log` 中看到 WebView cache reset 记录，并确认 `desktop-webview-version.txt` 更新为当前桌面壳版本。
 
 ## Assumptions
 
