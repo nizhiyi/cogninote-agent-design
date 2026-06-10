@@ -276,15 +276,15 @@ function askSource(source) {
       </div>
     </article>
 
-    <template #footer>
-      <button
-        v-if="dialogSource"
-        class="context-secondary-action source-detail-dialog__ask"
-        type="button"
-        @click="askSource(dialogSource)"
-      >
-        追问这段来源
-      </button>
-    </template>
+<!--    <template #footer>-->
+<!--      <button-->
+<!--        v-if="dialogSource"-->
+<!--        class="context-secondary-action source-detail-dialog__ask"-->
+<!--        type="button"-->
+<!--        @click="askSource(dialogSource)"-->
+<!--      >-->
+<!--        追问这段来源-->
+<!--      </button>-->
+<!--    </template>-->
   </el-dialog>
 </template>
