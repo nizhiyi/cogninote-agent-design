@@ -1,8 +1,11 @@
 package com.itqianchen.agentdesign.service.system;
 
 import com.itqianchen.agentdesign.dto.system.SystemStatusResponse;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.info.BuildProperties;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 /**
  * System Status 服务 承载 系统状态 的应用服务流程。
@@ -12,6 +15,7 @@ import org.springframework.stereotype.Service;
 public class SystemStatusService {
 
     private static final String STATUS_UP = "UP";
+    private static final String FALLBACK_VERSION = "dev";
 
     private final AppStorageInitializer storageInitializer;
     private final String version;
@@ -23,10 +27,11 @@ public class SystemStatusService {
      */
     public SystemStatusService(
             AppStorageInitializer storageInitializer,
-            @Value("${app.version:${project.version:0.0.1-SNAPSHOT}}") String version
+            @Value("${app.version:}") String configuredVersion,
+            ObjectProvider<BuildProperties> buildPropertiesProvider
     ) {
         this.storageInitializer = storageInitializer;
-        this.version = version;
+        this.version = resolveVersion(configuredVersion, buildPropertiesProvider.getIfAvailable());
         this.desktopMode = Boolean.parseBoolean(System.getenv().getOrDefault("COGNINOTE_DESKTOP", "false"));
     }
 
@@ -42,5 +47,20 @@ public class SystemStatusService {
                 storageInitializer.appStorage().baseDir().toString(),
                 desktopMode
         );
+    }
+
+    /**
+     * 解析对外展示的后端版本。
+     * <p>优先允许部署环境用 app.version 显式覆盖；默认读取 Maven 打包生成的 build-info，避免运行时读取不到
+     * project.version 时回落到误导性的 SNAPSHOT 兜底值。</p>
+     */
+    static String resolveVersion(String configuredVersion, BuildProperties buildProperties) {
+        if (StringUtils.hasText(configuredVersion)) {
+            return configuredVersion.trim();
+        }
+        if (buildProperties != null && StringUtils.hasText(buildProperties.getVersion())) {
+            return buildProperties.getVersion();
+        }
+        return FALLBACK_VERSION;
     }
 }

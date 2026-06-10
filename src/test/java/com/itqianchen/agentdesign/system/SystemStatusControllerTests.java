@@ -14,6 +14,7 @@ import org.springframework.test.context.TestPropertySource;
 @SpringBootTest
 @TestPropertySource(properties = {
         "app.storage.base-dir=target/test-cogninote-data",
+        "app.version=test-backend-version",
         "server.address=127.0.0.1"
 })
 class SystemStatusControllerTests {
@@ -38,7 +39,7 @@ class SystemStatusControllerTests {
          * 执行 系统状态 中的 assert That 步骤。
          * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
          */
-        assertThat(response.version()).isEqualTo("0.0.1-SNAPSHOT");
+        assertThat(response.version()).isEqualTo("test-backend-version");
         /**
          * 执行 系统状态 中的 assert That 步骤。
          * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
