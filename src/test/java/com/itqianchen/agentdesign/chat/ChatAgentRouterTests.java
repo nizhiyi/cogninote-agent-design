@@ -33,7 +33,7 @@ import com.itqianchen.agentdesign.mapper.chat.ChatSessionMapper;
 import com.itqianchen.agentdesign.mapper.model.ModelConfigMapper;
 import com.itqianchen.agentdesign.mapper.schema.DatabaseSchemaMapper;
 import com.itqianchen.agentdesign.mapper.settings.AppSettingMapper;
-import com.itqianchen.agentdesign.metadata.DatabaseSchemaInitializer;
+import com.itqianchen.agentdesign.service.system.DatabaseSchemaInitializer;
 import com.itqianchen.agentdesign.repository.chat.ChatSessionRepository;
 import com.itqianchen.agentdesign.repository.document.DocumentRepository;
 import com.itqianchen.agentdesign.repository.model.ModelConfigRepository;

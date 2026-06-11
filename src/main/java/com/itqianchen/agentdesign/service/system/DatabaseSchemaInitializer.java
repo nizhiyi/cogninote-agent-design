@@ -1,4 +1,4 @@
-package com.itqianchen.agentdesign.metadata;
+package com.itqianchen.agentdesign.service.system;
 
 import com.itqianchen.agentdesign.mapper.schema.DatabaseSchemaMapper;
 import java.util.List;

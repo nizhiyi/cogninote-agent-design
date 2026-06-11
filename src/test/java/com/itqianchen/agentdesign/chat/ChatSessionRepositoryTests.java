@@ -8,7 +8,7 @@ import com.itqianchen.agentdesign.domain.chat.ChatMessageStatus;
 import com.itqianchen.agentdesign.domain.chat.ChatSession;
 import com.itqianchen.agentdesign.domain.search.SearchMode;
 import com.itqianchen.agentdesign.mapper.test.TestDatabaseMapper;
-import com.itqianchen.agentdesign.metadata.DatabaseSchemaInitializer;
+import com.itqianchen.agentdesign.service.system.DatabaseSchemaInitializer;
 import com.itqianchen.agentdesign.repository.chat.ChatSessionRepository;
 import com.itqianchen.agentdesign.support.TestDatabaseCleaner;
 import org.junit.jupiter.api.BeforeEach;
