@@ -5,8 +5,9 @@ import com.itqianchen.agentdesign.domain.chat.ChatMessageRole;
 import com.itqianchen.agentdesign.domain.search.SearchMode;
 
 /**
- * Conversation Memory Entry 是 聊天会话 的不可变数据快照。
- * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+ * 注入模型上下文的历史消息条目。
+ *
+ * <p>agentType 和 retrievalMode 用来区分不同 Agent 模式的历史回答，避免知识库模式的规则污染普通对话。</p>
  */
 public record ConversationMemoryEntry(
         AgentType agentType,

@@ -19,16 +19,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
-/**
- * Model Catalog 服务 测试 承担 模型配置 模块的主要职责。
- * <p>注释说明维护边界，不改变现有运行逻辑。</p>
- */
 class ModelCatalogServiceTests {
 
-    /**
-     * 拉取 fetch Models Uses Dash Scope Default Models Endpoint And Classifies Results 数据。
-     * <p>外部 HTTP 或模型提供商响应会在这里转换为本地 DTO。</p>
-     */
     @Test
     void fetchModelsUsesDashScopeDefaultModelsEndpointAndClassifiesResults() {
         RestClient.Builder builder = RestClient.builder();
@@ -67,10 +59,6 @@ class ModelCatalogServiceTests {
                 ModelConfigDefaults.CONTEXT_WINDOW_TOKENS
         ));
 
-        /**
-         * 执行 模型配置 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(response.models())
                 .extracting("id", "capability")
                 .containsExactly(
@@ -80,10 +68,6 @@ class ModelCatalogServiceTests {
         server.verify();
     }
 
-    /**
-     * 拉取 fetch Models Uses Custom Open Ai Compatible Models Endpoint 数据。
-     * <p>外部 HTTP 或模型提供商响应会在这里转换为本地 DTO。</p>
-     */
     @Test
     void fetchModelsUsesCustomOpenAiCompatibleModelsEndpoint() {
         RestClient.Builder builder = RestClient.builder();
@@ -120,10 +104,6 @@ class ModelCatalogServiceTests {
                 ModelConfigDefaults.CONTEXT_WINDOW_TOKENS
         ));
 
-        /**
-         * 执行 模型配置 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(response.models())
                 .extracting("id", "capability")
                 .containsExactly(
@@ -133,16 +113,8 @@ class ModelCatalogServiceTests {
         server.verify();
     }
 
-    /**
-     * 执行 模型配置 中的 empty 仓储 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-     */
     private static ModelConfigRepository emptyRepository() {
         return new ModelConfigRepository(null) {
-            /**
-             * 读取 find Active 对应的数据。
-             * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
-             */
             @Override
             public java.util.Optional<com.itqianchen.agentdesign.domain.model.ModelConfig> findActive(ModelConfigRole role) {
                 return Optional.empty();

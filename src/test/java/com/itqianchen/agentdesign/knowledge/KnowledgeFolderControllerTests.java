@@ -25,10 +25,6 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-/**
- * Knowledge Folder 控制器 测试 承担 知识库 模块的主要职责。
- * <p>注释说明维护边界，不改变现有运行逻辑。</p>
- */
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
@@ -53,10 +49,6 @@ class KnowledgeFolderControllerTests {
     @TempDir
     private Path tempDir;
 
-    /**
-     * 清理 clear State 对应的数据。
-     * <p>清理只移除目标内容，保留会话或模块继续运行所需的外壳状态。</p>
-     */
     @BeforeEach
     void clearState() {
         databaseCleaner.clearDocuments();
@@ -64,19 +56,11 @@ class KnowledgeFolderControllerTests {
         knowledgeStore.rebuildAll();
     }
 
-    /**
-     * 执行 知识库 中的 import Folder Lists Documents And Groups Them By Folder 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-     */
     @Test
     void importFolderListsDocumentsAndGroupsThemByFolder() throws Exception {
         // 文件系统访问可能抛出 IO 异常，调用方需要保留失败上下文。
         Files.writeString(tempDir.resolve("phase10.md"), "# Phase 10\n\nFolder level knowledge base.");
 
-        /**
-         * 执行 知识库 中的 import Folder 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         importFolder(tempDir);
 
         mockMvc.perform(get("/api/knowledge-folders"))
@@ -88,20 +72,12 @@ class KnowledgeFolderControllerTests {
                 .andExpect(jsonPath("$.data.unassignedDocuments.length()").value(0));
     }
 
-    /**
-     * 执行 知识库 中的 disabled Folder Is Removed From Search And Enable Restores Index 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-     */
     @Test
     void disabledFolderIsRemovedFromSearchAndEnableRestoresIndex() throws Exception {
         // 文件系统访问可能抛出 IO 异常，调用方需要保留失败上下文。
         Files.writeString(tempDir.resolve("disable-search.txt"), "folder-toggle-keyword should disappear when disabled.");
         String folderId = importFolder(tempDir);
 
-        /**
-         * 执行 知识库 中的 search Keyword 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         searchKeyword("folder-toggle-keyword", 1);
 
         mockMvc.perform(patch("/api/knowledge-folders/{id}/enabled", folderId)
@@ -110,10 +86,6 @@ class KnowledgeFolderControllerTests {
                         .content(objectMapper.writeValueAsString(Map.of("enabled", false))))
                 .andExpect(status().isNoContent());
 
-        /**
-         * 执行 知识库 中的 search Keyword 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         searchKeyword("folder-toggle-keyword", 0);
 
         mockMvc.perform(patch("/api/knowledge-folders/{id}/enabled", folderId)
@@ -122,17 +94,9 @@ class KnowledgeFolderControllerTests {
                         .content(objectMapper.writeValueAsString(Map.of("enabled", true))))
                 .andExpect(status().isNoContent());
 
-        /**
-         * 执行 知识库 中的 search Keyword 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         searchKeyword("folder-toggle-keyword", 1);
     }
 
-    /**
-     * 删除 delete Folder Deletes Only Application Records 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
-     */
     @Test
     void deleteFolderDeletesOnlyApplicationRecords() throws Exception {
         Path note = tempDir.resolve("keep-local-file.txt");
@@ -143,25 +107,13 @@ class KnowledgeFolderControllerTests {
         mockMvc.perform(delete("/api/knowledge-folders/{id}", folderId))
                 .andExpect(status().isNoContent());
 
-        /**
-         * 执行 知识库 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(note).exists();
         mockMvc.perform(get("/api/knowledge-folders"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.folders.length()").value(0));
-        /**
-         * 执行 知识库 中的 search Keyword 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         searchKeyword("local file", 0);
     }
 
-    /**
-     * 执行 知识库 中的 rebuild Folder Removes Documents Deleted From Local Directory 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-     */
     @Test
     void rebuildFolderRemovesDocumentsDeletedFromLocalDirectory() throws Exception {
         Path keep = tempDir.resolve("keep.txt");
@@ -182,22 +134,10 @@ class KnowledgeFolderControllerTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.folders[0].documentCount").value(1))
                 .andExpect(jsonPath("$.data.folders[0].documents[0].fileName").value("keep.txt"));
-        /**
-         * 执行 知识库 中的 search Keyword 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         searchKeyword("obsoleteonlytoken", 0);
-        /**
-         * 执行 知识库 中的 search Keyword 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         searchKeyword("remainingonlytoken", 1);
     }
 
-    /**
-     * 执行 知识库 中的 import Folder 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-     */
     private String importFolder(Path folder) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/knowledge-folders/import")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -209,18 +149,10 @@ class KnowledgeFolderControllerTests {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        /**
-         * 执行 知识库 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(result.getResponse().getContentAsString()).contains("parsedCount");
         return databaseCleaner.findAnyKnowledgeFolderId();
     }
 
-    /**
-     * 执行 知识库 中的 search Keyword 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-     */
     private void searchKeyword(String query, int expectedHitCount) throws Exception {
         mockMvc.perform(post("/api/search")
                         .contentType(MediaType.APPLICATION_JSON)

@@ -18,8 +18,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Model 配置 服务 承载 模型配置 的应用服务流程。
- * <p>这里集中编排仓储、模型运行时和 DTO 映射，保证控制器保持轻量。</p>
+ * 管理 Chat 与 Embedding 两类模型配置。
+ *
+ * <p>每个角色都必须始终有一个 active 配置。API Key 留空表示复用旧密钥，
+ * 这样用户修改模型名或 Base URL 时不会被迫重新输入敏感信息。</p>
  */
 @Service
 public class ModelConfigService {
@@ -27,19 +29,21 @@ public class ModelConfigService {
     private final ModelConfigRepository modelConfigRepository;
 
     /**
-     * 注入 ModelConfigService 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入模型配置仓储。
+     *
+     * @param modelConfigRepository 模型配置仓储
      */
     public ModelConfigService(ModelConfigRepository modelConfigRepository) {
         this.modelConfigRepository = modelConfigRepository;
     }
 
     /**
-     * 查询 模型配置 列表。
-     * <p>返回值面向上层展示或接口响应，不暴露底层存储细节。</p>
+     * 查询指定角色的模型配置列表。
+     *
+     * @param role 模型角色
+     * @return 已归一化的配置列表
      */
     public List<ModelConfig> list(ModelConfigRole role) {
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         return modelConfigRepository.findAll(role).stream()
                 .map(ModelConfigService::normalizeLoadedConfig)
                 .toList();
@@ -48,52 +52,53 @@ public class ModelConfigService {
     /**
      * 构建模型设置页使用的配置快照。
      * <p>快照同时包含列表、选中项和当前激活项，便于前端一次性渲染。</p>
+     *
+     * @param role 当前设置页角色
+     * @return 设置页快照
      */
     @Transactional
     public ModelConfigSettingsResponse settingsSnapshot(ModelConfigRole role) {
-        /**
-         * 确保 ensure Role Has Active 配置 所需前置条件存在。
-         * <p>不存在时创建默认资源或抛出明确异常，避免后续流程隐式失败。</p>
-         */
         ensureRoleHasActiveConfig(ModelConfigRole.CHAT);
-        /**
-         * 确保 ensure Role Has Active 配置 所需前置条件存在。
-         * <p>不存在时创建默认资源或抛出明确异常，避免后续流程隐式失败。</p>
-         */
         ensureRoleHasActiveConfig(ModelConfigRole.EMBEDDING);
         return settingsSnapshot(role, Optional.empty());
     }
 
     /**
-     * 读取 active Chat Or Default 的最终值。
-     * <p>当调用方没有显式配置时，返回当前模块约定的默认值。</p>
+     * 读取激活的 Chat 配置；缺失时返回默认草稿。
+     *
+     * @return Chat 配置
      */
     public ModelConfig activeChatOrDefault() {
         return activeOrDefault(ModelConfigRole.CHAT);
     }
 
     /**
-     * 读取 active Embedding Or Default 的最终值。
-     * <p>当调用方没有显式配置时，返回当前模块约定的默认值。</p>
+     * 读取激活的 Embedding 配置；缺失时返回默认草稿。
+     *
+     * @return Embedding 配置
      */
     public ModelConfig activeEmbeddingOrDefault() {
         return activeOrDefault(ModelConfigRole.EMBEDDING);
     }
 
     /**
-     * 读取 active Or Default 的最终值。
-     * <p>当调用方没有显式配置时，返回当前模块约定的默认值。</p>
+     * 读取指定角色激活配置；缺失时返回默认草稿。
+     *
+     * <p>返回默认草稿不代表已持久化，运行时调用仍需 requireConfigured 检查 API Key。</p>
+     *
+     * @param role 模型角色
+     * @return 激活配置或默认草稿
      */
     public ModelConfig activeOrDefault(ModelConfigRole role) {
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         return modelConfigRepository.findActive(role)
                 .map(ModelConfigService::normalizeLoadedConfig)
                 .orElseGet(() -> defaultConfig(role, true));
     }
 
     /**
-     * 读取 active Or Default 的最终值。
-     * <p>当调用方没有显式配置时，返回当前模块约定的默认值。</p>
+     * 旧版入口，固定读取 Chat 激活配置。
+     *
+     * @return Chat 配置
      */
     @Deprecated
     public ModelConfig activeOrDefault() {
@@ -101,24 +106,27 @@ public class ModelConfigService {
     }
 
     /**
-     * 读取必需的 require Active Chat Configured 配置或数据。
-     * <p>缺失时立即失败，避免外部模型或数据库调用才暴露问题。</p>
+     * 读取已配置 API Key 的 Chat 配置。
+     *
+     * @return 可用于模型调用的 Chat 配置
      */
     public ModelConfig requireActiveChatConfigured() {
         return requireConfigured(ModelConfigRole.CHAT);
     }
 
     /**
-     * 读取必需的 require Active Embedding Configured 配置或数据。
-     * <p>缺失时立即失败，避免外部模型或数据库调用才暴露问题。</p>
+     * 读取已配置 API Key 的 Embedding 配置。
+     *
+     * @return 可用于向量生成的 Embedding 配置
      */
     public ModelConfig requireActiveEmbeddingConfigured() {
         return requireConfigured(ModelConfigRole.EMBEDDING);
     }
 
     /**
-     * 读取必需的 require Configured 配置或数据。
-     * <p>缺失时立即失败，避免外部模型或数据库调用才暴露问题。</p>
+     * 旧版入口，固定检查 Chat 配置。
+     *
+     * @return 可用于模型调用的 Chat 配置
      */
     @Deprecated
     public ModelConfig requireConfigured() {
@@ -126,8 +134,13 @@ public class ModelConfigService {
     }
 
     /**
-     * 读取必需的 require Configured 配置或数据。
-     * <p>缺失时立即失败，避免外部模型或数据库调用才暴露问题。</p>
+     * 读取指定角色且已配置 API Key 的配置。
+     *
+     * <p>运行时调用外部模型前必须走这个入口，避免把默认草稿当成真实配置。</p>
+     *
+     * @param role 模型角色
+     * @return 可用于调用的配置
+     * @throws ModelConfigurationException 当 API Key 为空时抛出
      */
     public ModelConfig requireConfigured(ModelConfigRole role) {
         ModelConfig config = activeOrDefault(role);
@@ -138,16 +151,19 @@ public class ModelConfigService {
     }
 
     /**
-     * 创建 create 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建模型配置。
+     *
+     * <p>同角色第一条配置会自动激活，确保新安装或清空后仍能得到明确的 active 配置。</p>
+     *
+     * @param request 模型配置请求
+     * @return 新建配置
      */
     @Transactional
     public ModelConfig create(ModelConfigRequest request) {
         ModelConfigRole role = normalizeRole(request.role());
         long now = System.currentTimeMillis();
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
+        // 每个角色的第一条配置自动激活，保证模型设置页和运行时都有明确选择。
         boolean active = modelConfigRepository.countByRole(role) == 0;
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         return modelConfigRepository.save(mergeRequest(
                 request,
                 defaultConfig(role, active),
@@ -159,8 +175,10 @@ public class ModelConfigService {
     }
 
     /**
-     * 创建 create Settings 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 设置页创建模型配置并返回刷新后的快照。
+     *
+     * @param request 设置页提交的配置
+     * @return 设置页快照
      */
     @Transactional
     public ModelConfigSettingsResponse createSettings(ModelConfigUpsertRequest request) {
@@ -169,12 +187,16 @@ public class ModelConfigService {
     }
 
     /**
-     * 更新 update 对应的数据。
-     * <p>方法负责保持内存快照、数据库记录和返回值语义一致。</p>
+     * 更新已有模型配置。
+     *
+     * <p>role 是配置归属边界，创建后不允许修改，否则历史 active 约束和运行时缓存会混乱。</p>
+     *
+     * @param id 配置 ID
+     * @param request 更新请求
+     * @return 更新后的配置
      */
     @Transactional
     public ModelConfig update(String id, ModelConfigRequest request) {
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         ModelConfig existing = modelConfigRepository.findById(id)
                 .orElseThrow(() -> new ModelConfigurationException("Model config not found: " + id));
         ModelConfigRole requestedRole = request.role() == null || request.role().isBlank()
@@ -183,7 +205,6 @@ public class ModelConfigService {
         if (requestedRole != existing.role()) {
             throw new ModelConfigurationException("Model config role cannot be changed");
         }
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         return modelConfigRepository.save(mergeRequest(
                 request,
                 existing,
@@ -195,8 +216,11 @@ public class ModelConfigService {
     }
 
     /**
-     * 更新 update Settings 对应的数据。
-     * <p>方法负责保持内存快照、数据库记录和返回值语义一致。</p>
+     * 设置页更新模型配置并返回刷新后的快照。
+     *
+     * @param id 配置 ID
+     * @param request 设置页提交的配置
+     * @return 设置页快照
      */
     @Transactional
     public ModelConfigSettingsResponse updateSettings(String id, ModelConfigUpsertRequest request) {
@@ -205,18 +229,21 @@ public class ModelConfigService {
     }
 
     /**
-     * 执行 模型配置 中的 activate 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 激活指定模型配置。
+     *
+     * @param id 配置 ID
+     * @return 激活后的配置
      */
     @Transactional
     public ModelConfig activate(String id) {
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         return modelConfigRepository.activate(id, System.currentTimeMillis());
     }
 
     /**
-     * 执行 模型配置 中的 activate Settings 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 设置页激活配置并返回刷新后的快照。
+     *
+     * @param id 配置 ID
+     * @return 设置页快照
      */
     @Transactional
     public ModelConfigSettingsResponse activateSettings(String id) {
@@ -225,46 +252,42 @@ public class ModelConfigService {
     }
 
     /**
-     * 删除 delete 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     * 删除模型配置。
+     *
+     * <p>删除后会立即保证同角色仍有 active 配置，避免运行时读取到无主状态。</p>
+     *
+     * @param id 配置 ID
      */
     @Transactional
     public void delete(String id) {
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         ModelConfig config = modelConfigRepository.findById(id)
                 .orElseThrow(() -> new ModelConfigurationException("Model config not found: " + id));
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         modelConfigRepository.delete(id);
-        /**
-         * 确保 ensure Role Has Active 配置 所需前置条件存在。
-         * <p>不存在时创建默认资源或抛出明确异常，避免后续流程隐式失败。</p>
-         */
         ensureRoleHasActiveConfig(config.role());
     }
 
     /**
-     * 删除 delete Settings 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     * 设置页删除配置并返回刷新后的快照。
+     *
+     * @param id 配置 ID
+     * @return 设置页快照
      */
     @Transactional
     public ModelConfigSettingsResponse deleteSettings(String id) {
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         ModelConfig config = modelConfigRepository.findById(id)
                 .orElseThrow(() -> new ModelConfigurationException("Model config not found: " + id));
-        /**
-         * 删除 delete 对应的数据。
-         * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
-         */
         delete(id);
         return settingsSnapshot(config.role(), Optional.empty());
     }
 
     /**
-     * 确保 ensure Role Has Active 配置 所需前置条件存在。
-     * <p>不存在时创建默认资源或抛出明确异常，避免后续流程隐式失败。</p>
+     * 确保指定角色存在 active 配置。
+     *
+     * <p>这是删除和设置页快照的兜底约束，防止用户操作后进入“有角色但无选中配置”的坏状态。</p>
+     *
+     * @param role 模型角色
      */
     private void ensureRoleHasActiveConfig(ModelConfigRole role) {
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         List<ModelConfig> remaining = modelConfigRepository.findAll(role);
         if (remaining.isEmpty()) {
             // 模型设置页不能进入“无配置、无 active”的坏状态。删除某个角色最后一条配置时，
@@ -273,14 +296,18 @@ public class ModelConfigService {
             return;
         }
         if (remaining.stream().noneMatch(ModelConfig::active)) {
-            // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
+            // 删除 active 配置后选择同角色第一条作为新的 active，避免运行时拿到无主配置。
             modelConfigRepository.activate(remaining.getFirst().id(), System.currentTimeMillis());
         }
     }
 
     /**
-     * 执行 模型配置 中的 connection 测试 配置 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 构建连接测试使用的临时配置。
+     *
+     * <p>临时配置会合并当前 active 配置中的旧 API Key，但不会写入 SQLite。</p>
+     *
+     * @param request 临时配置请求
+     * @return 可用于连通性测试的配置
      */
     public ModelConfig connectionTestConfig(ModelConfigRequest request) {
         ModelConfigRole role = normalizeRole(request.role());
@@ -299,16 +326,19 @@ public class ModelConfigService {
     }
 
     /**
-     * 更新 save 对应的数据。
-     * <p>方法负责保持内存快照、数据库记录和返回值语义一致。</p>
+     * 旧版保存接口，一次性保存 Chat 和 Embedding 配置。
+     *
+     * <p>保留该方法是为了兼容旧前端和历史测试；新设置页应调用按角色拆分的 create/update 接口。</p>
+     *
+     * @param request 旧版配置请求
+     * @return 保存后的 Chat 配置
      */
     @Transactional
     @Deprecated
     public ModelConfig save(ModelConfigRequest request) {
         long now = System.currentTimeMillis();
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
+        // 旧设置接口一次保存 Chat 和 Embedding；保留该路径用于兼容旧前端或历史测试。
         ModelConfig chat = modelConfigRepository.save(mergeLegacyChatRequest(request, activeChatOrDefault(), now));
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         modelConfigRepository.save(mergeLegacyEmbeddingRequest(request, activeEmbeddingOrDefault(), now));
         return chat;
     }
@@ -316,6 +346,10 @@ public class ModelConfigService {
     /**
      * 构建模型设置页使用的配置快照。
      * <p>快照同时包含列表、选中项和当前激活项，便于前端一次性渲染。</p>
+     *
+     * @param role 当前设置页角色
+     * @param preferredSelectedId 优先选中的配置 ID
+     * @return 设置页快照
      */
     private ModelConfigSettingsResponse settingsSnapshot(ModelConfigRole role, Optional<String> preferredSelectedId) {
         List<ModelConfig> configs = list(role);
@@ -333,8 +367,9 @@ public class ModelConfigService {
     }
 
     /**
-     * 执行 模型配置 中的 active Configs 响应 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 构建当前激活配置响应。
+     *
+     * @return Chat 与 Embedding 的激活配置响应
      */
     private ActiveModelConfigsResponse activeConfigsResponse() {
         return new ActiveModelConfigsResponse(
@@ -344,8 +379,17 @@ public class ModelConfigService {
     }
 
     /**
-     * 执行 模型配置 中的 merge 请求 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将请求合并到已有配置。
+     *
+     * <p>API Key 留空表示沿用旧值；模型名、Base URL 和上下文窗口会在这里统一归一化。</p>
+     *
+     * @param request 请求配置
+     * @param existing 现有配置或默认草稿
+     * @param id 目标配置 ID
+     * @param role 模型角色
+     * @param active 是否激活
+     * @param now 更新时间戳
+     * @return 合并后的配置
      */
     private static ModelConfig mergeRequest(
             ModelConfigRequest request,
@@ -379,8 +423,12 @@ public class ModelConfigService {
     }
 
     /**
-     * 执行 模型配置 中的 merge Legacy Chat 请求 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将旧版请求拆成 Chat 配置。
+     *
+     * @param request 旧版请求
+     * @param existing 现有 Chat 配置
+     * @param now 更新时间戳
+     * @return Chat 配置
      */
     private static ModelConfig mergeLegacyChatRequest(ModelConfigRequest request, ModelConfig existing, long now) {
         return mergeRequest(
@@ -392,7 +440,6 @@ public class ModelConfigService {
                         request.apiKey(),
                         request.chatModel(),
                         request.chatModel(),
-                        // 向量模型调用可能受网络和模型配置影响，异常会交给上层统一处理。
                         request.embeddingModel(),
                         null,
                         request.temperature(),
@@ -409,8 +456,12 @@ public class ModelConfigService {
     }
 
     /**
-     * 执行 模型配置 中的 merge Legacy Embedding 请求 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将旧版请求拆成 Embedding 配置。
+     *
+     * @param request 旧版请求
+     * @param existing 现有 Embedding 配置
+     * @param now 更新时间戳
+     * @return Embedding 配置
      */
     private static ModelConfig mergeLegacyEmbeddingRequest(ModelConfigRequest request, ModelConfig existing, long now) {
         return mergeRequest(
@@ -420,10 +471,8 @@ public class ModelConfigService {
                         request.displayName(),
                         request.baseUrl(),
                         request.apiKey(),
-                        // 向量模型调用可能受网络和模型配置影响，异常会交给上层统一处理。
                         request.embeddingModel(),
                         request.chatModel(),
-                        // 向量模型调用可能受网络和模型配置影响，异常会交给上层统一处理。
                         request.embeddingModel(),
                         request.embeddingDimensions(),
                         null,
@@ -440,8 +489,11 @@ public class ModelConfigService {
     }
 
     /**
-     * 执行 模型配置 中的 default 配置 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 构建指定角色的默认配置草稿。
+     *
+     * @param role 模型角色
+     * @param active 是否作为默认 active 配置
+     * @return 默认配置
      */
     private static ModelConfig defaultConfig(ModelConfigRole role, boolean active) {
         long now = System.currentTimeMillis();
@@ -470,8 +522,12 @@ public class ModelConfigService {
     }
 
     /**
-     * 规范化 normalize Loaded 配置 输入。
-     * <p>后续逻辑只处理受控取值，减少重复分支和边界判断。</p>
+     * 读取后归一化历史 DashScope Base URL。
+     *
+     * <p>旧库可能保存 endpoint 完整路径；运行时配置统一使用配置页展示的基础地址。</p>
+     *
+     * @param config 数据库中的配置
+     * @return 归一化后的配置
      */
     private static ModelConfig normalizeLoadedConfig(ModelConfig config) {
         if (config.provider() != ModelProvider.DASHSCOPE) {
@@ -500,8 +556,10 @@ public class ModelConfigService {
     }
 
     /**
-     * 规范化消息角色输入。
-     * <p>后续逻辑只处理受控取值，减少重复分支和边界判断。</p>
+     * 归一化模型角色。
+     *
+     * @param role 请求中的角色字符串
+     * @return 模型角色；空值兼容为 CHAT
      */
     private static ModelConfigRole normalizeRole(String role) {
         if (role == null || role.isBlank()) {
@@ -515,8 +573,10 @@ public class ModelConfigService {
     }
 
     /**
-     * 规范化 normalize Provider 输入。
-     * <p>后续逻辑只处理受控取值，减少重复分支和边界判断。</p>
+     * 归一化模型 Provider。
+     *
+     * @param provider 请求中的 Provider 字符串
+     * @return 模型 Provider；空值使用默认 Provider
      */
     private static ModelProvider normalizeProvider(String provider) {
         if (provider == null || provider.isBlank()) {
@@ -530,8 +590,11 @@ public class ModelConfigService {
     }
 
     /**
-     * 规范化 normalize Display Name 输入。
-     * <p>后续逻辑只处理受控取值，减少重复分支和边界判断。</p>
+     * 归一化展示名称。
+     *
+     * @param role 模型角色
+     * @param displayName 请求展示名称
+     * @return 展示名称
      */
     private static String normalizeDisplayName(ModelConfigRole role, String displayName) {
         if (displayName == null || displayName.isBlank()) {
@@ -543,8 +606,13 @@ public class ModelConfigService {
     }
 
     /**
-     * 规范化 normalize Base Url 输入。
-     * <p>后续逻辑只处理受控取值，减少重复分支和边界判断。</p>
+     * 归一化 Provider Base URL。
+     *
+     * <p>DashScope 使用固定默认地址；OpenAI-compatible 必须校验用户输入，避免保存带 query/fragment 的 URL。</p>
+     *
+     * @param provider 模型 Provider
+     * @param baseUrl 请求 Base URL
+     * @return 可用于客户端构造的 Base URL
      */
     private static String normalizeBaseUrl(ModelProvider provider, String baseUrl) {
         return switch (provider) {
@@ -554,16 +622,24 @@ public class ModelConfigService {
     }
 
     /**
-     * 规范化 normalize Api Key 输入。
-     * <p>后续逻辑只处理受控取值，减少重复分支和边界判断。</p>
+     * 归一化 API Key。
+     *
+     * @param apiKey 请求 API Key
+     * @return 去除首尾空白后的 Key；空值返回空字符串
      */
     private static String normalizeApiKey(String apiKey) {
         return apiKey == null ? "" : apiKey.trim();
     }
 
     /**
-     * 规范化 normalize Model Name 输入。
-     * <p>后续逻辑只处理受控取值，减少重复分支和边界判断。</p>
+     * 归一化模型名称。
+     *
+     * <p>兼容旧请求里的 chatModel/embeddingModel 字段，新接口优先使用 modelName。</p>
+     *
+     * @param role 模型角色
+     * @param request 请求配置
+     * @param fallback 现有配置中的模型名
+     * @return 非空模型名称
      */
     private static String normalizeModelName(ModelConfigRole role, ModelConfigRequest request, String fallback) {
         String value = request.modelName();
@@ -571,7 +647,6 @@ public class ModelConfigService {
             value = request.chatModel();
         }
         if ((value == null || value.isBlank()) && role == ModelConfigRole.EMBEDDING) {
-            // 向量模型调用可能受网络和模型配置影响，异常会交给上层统一处理。
             value = request.embeddingModel();
         }
         if (value == null || value.isBlank()) {
@@ -584,16 +659,25 @@ public class ModelConfigService {
     }
 
     /**
-     * 规范化 normalize Temperature 输入。
-     * <p>后续逻辑只处理受控取值，减少重复分支和边界判断。</p>
+     * 归一化采样温度。
+     *
+     * @param requested 请求值
+     * @param existing 现有配置
+     * @return 请求值或现有解析值
      */
     private static Double normalizeTemperature(Double requested, ModelConfig existing) {
         return requested == null ? existing.resolvedTemperature() : requested;
     }
 
     /**
-     * 规范化 Top K 输入。
-     * <p>后续逻辑只处理受控取值，减少重复分支和边界判断。</p>
+     * 归一化默认检索数量。
+     *
+     * <p>兼容旧字段 topK，新字段 defaultTopK 优先。</p>
+     *
+     * @param defaultTopK 新字段值
+     * @param topK 旧字段值
+     * @param existing 现有配置
+     * @return 默认检索数量
      */
     private static Integer normalizeTopK(Integer defaultTopK, Integer topK, ModelConfig existing) {
         if (defaultTopK != null) {
@@ -606,8 +690,11 @@ public class ModelConfigService {
     }
 
     /**
-     * 规范化 normalize Context Window Tokens 输入。
-     * <p>后续逻辑只处理受控取值，减少重复分支和边界判断。</p>
+     * 归一化上下文窗口大小。
+     *
+     * @param requested 请求值
+     * @param existing 现有配置
+     * @return 限制在项目允许范围内的 token 数
      */
     private static Integer normalizeContextWindowTokens(Integer requested, ModelConfig existing) {
         int value = requested == null ? existing.resolvedContextWindowTokens() : requested;
@@ -619,8 +706,10 @@ public class ModelConfigService {
     }
 
     /**
-     * 执行 模型配置 中的 role Label 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 转换角色标签用于错误提示。
+     *
+     * @param role 模型角色
+     * @return 面向用户的角色名称
      */
     private static String roleLabel(ModelConfigRole role) {
         return role == ModelConfigRole.CHAT ? "Chat" : "Embedding";

@@ -4,9 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import com.itqianchen.agentdesign.domain.agent.AgentType;
 import com.itqianchen.agentdesign.domain.chat.ChatMessageRole;
-// Spring AI ChatClient 负责把本地 Prompt 转为模型提供商请求。
 import org.springframework.ai.chat.client.ChatClientRequest;
-// Spring AI ChatClient 负责把本地 Prompt 转为模型提供商请求。
 import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.client.advisor.api.AdvisorChain;
@@ -21,8 +19,10 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Component;
 
 /**
- * Cogninote Memory Advisor 承担 聊天会话 模块的主要职责。
- * <p>注释说明维护边界，不改变现有运行逻辑。</p>
+ * Spring AI ChatClient 的会话记忆 Advisor。
+ *
+ * <p>它在请求发出前注入摘要和最近历史，但始终保留当前 Prompt 的 system messages 在前，
+ * 避免旧会话或旧 Agent 模式的规则覆盖本轮调用。</p>
  */
 @Component
 public class CogninoteMemoryAdvisor implements BaseAdvisor {
@@ -33,19 +33,24 @@ public class CogninoteMemoryAdvisor implements BaseAdvisor {
     private final ConversationMemorySnapshotService memorySnapshotService;
 
     /**
-     * 注入 CogninoteMemoryAdvisor 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入会话记忆快照服务。
+     *
+     * @param memorySnapshotService 负责按预算选择历史消息
      */
     public CogninoteMemoryAdvisor(ConversationMemorySnapshotService memorySnapshotService) {
         this.memorySnapshotService = memorySnapshotService;
     }
 
     /**
-     * 执行 聊天会话 中的 before 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 在模型请求前合并历史上下文。
+     *
+     * <p>当前用户问题仍由原始 Prompt 提供；这里仅补充历史，避免同一问题在模型输入中出现两次。</p>
+     *
+     * @param request ChatClient 请求
+     * @param chain advisor 链
+     * @return 注入历史后的请求
      */
     @Override
-    // Spring AI ChatClient 负责把本地 Prompt 转为模型提供商请求。
     public ChatClientRequest before(ChatClientRequest request, AdvisorChain chain) {
         String conversationId = stringParam(request, ChatMemory.CONVERSATION_ID);
         if (conversationId == null || conversationId.isBlank()) {
@@ -54,10 +59,6 @@ public class CogninoteMemoryAdvisor implements BaseAdvisor {
 
         ConversationMemorySnapshot snapshot = memorySnapshotService.snapshot(
                 conversationId,
-                /**
-                 * 执行 聊天会话 中的 int Param 步骤。
-                 * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-                 */
                 intParam(request, MAX_MESSAGE_SEQUENCE, Integer.MAX_VALUE)
         );
         AgentType currentAgentType = agentTypeParam(request, AGENT_TYPE);
@@ -65,10 +66,10 @@ public class CogninoteMemoryAdvisor implements BaseAdvisor {
             return request;
         }
 
-        // Spring AI ChatClient 负责把本地 Prompt 转为模型提供商请求。
         List<Message> promptMessages = request.prompt().getInstructions();
         List<Message> merged = new ArrayList<>(promptMessages.size() + snapshot.recentMessages().size() + 1);
 
+        // 当前 system messages 必须先进入模型，历史摘要只能作为背景，不能提升为新的规则。
         for (Message message : promptMessages) {
             if (message.getMessageType() == MessageType.SYSTEM) {
                 merged.add(message);
@@ -93,24 +94,26 @@ public class CogninoteMemoryAdvisor implements BaseAdvisor {
         }
 
         return request.mutate()
-                // Spring AI ChatClient 负责把本地 Prompt 转为模型提供商请求。
                 .prompt(new Prompt(merged, request.prompt().getOptions()))
                 .build();
     }
 
     /**
-     * 执行 聊天会话 中的 after 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 响应阶段不修改模型输出。
+     *
+     * @param response ChatClient 响应
+     * @param chain advisor 链
+     * @return 原始响应
      */
     @Override
-    // Spring AI ChatClient 负责把本地 Prompt 转为模型提供商请求。
     public ChatClientResponse after(ChatClientResponse response, AdvisorChain chain) {
         return response;
     }
 
     /**
-     * 读取 get Order 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 返回与 Spring AI 记忆 Advisor 一致的排序。
+     *
+     * @return advisor 顺序
      */
     @Override
     public int getOrder() {
@@ -118,8 +121,11 @@ public class CogninoteMemoryAdvisor implements BaseAdvisor {
     }
 
     /**
-     * 执行 聊天会话 中的 string Param 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 从 advisor 上下文读取字符串参数。
+     *
+     * @param request ChatClient 请求
+     * @param key 参数键
+     * @return 字符串值；缺失时返回 null
      */
     private static String stringParam(ChatClientRequest request, String key) {
         Object value = request.context().get(key);
@@ -127,8 +133,12 @@ public class CogninoteMemoryAdvisor implements BaseAdvisor {
     }
 
     /**
-     * 执行 聊天会话 中的 int Param 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 从 advisor 上下文读取整数参数。
+     *
+     * @param request ChatClient 请求
+     * @param key 参数键
+     * @param defaultValue 缺失或解析失败时的默认值
+     * @return 整数值
      */
     private static int intParam(ChatClientRequest request, String key, int defaultValue) {
         Object value = request.context().get(key);
@@ -146,8 +156,11 @@ public class CogninoteMemoryAdvisor implements BaseAdvisor {
     }
 
     /**
-     * 执行 聊天会话 中的 agent Type Param 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 从 advisor 上下文读取 Agent 类型。
+     *
+     * @param request ChatClient 请求
+     * @param key 参数键
+     * @return Agent 类型；缺失或非法时返回 null
      */
     private static AgentType agentTypeParam(ChatClientRequest request, String key) {
         Object value = request.context().get(key);
@@ -165,8 +178,11 @@ public class CogninoteMemoryAdvisor implements BaseAdvisor {
     }
 
     /**
-     * 执行 聊天会话 中的 memory Messages 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将记忆条目转换为 Spring AI 消息列表。
+     *
+     * @param entries 记忆条目
+     * @param currentAgentType 当前 Agent 类型
+     * @return Spring AI 消息列表
      */
     private static List<Message> memoryMessages(List<ConversationMemoryEntry> entries, AgentType currentAgentType) {
         return entries.stream()
@@ -175,8 +191,13 @@ public class CogninoteMemoryAdvisor implements BaseAdvisor {
     }
 
     /**
-     * 执行 聊天会话 中的 memory Message 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将单条记忆转换为合适角色的模型消息。
+     *
+     * <p>其他 Agent 的助手回答降级为系统背景，避免历史模式规则覆盖当前 Agent。</p>
+     *
+     * @param entry 记忆条目
+     * @param currentAgentType 当前 Agent 类型
+     * @return Spring AI 消息
      */
     private static Message memoryMessage(ConversationMemoryEntry entry, AgentType currentAgentType) {
         if (entry.role() == ChatMessageRole.USER || entry.agentType() == currentAgentType || entry.agentType() == null) {

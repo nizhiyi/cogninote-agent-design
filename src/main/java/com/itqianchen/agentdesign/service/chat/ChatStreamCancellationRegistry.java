@@ -8,8 +8,10 @@ import org.springframework.stereotype.Component;
 import reactor.core.Disposable;
 
 /**
- * Chat Stream Cancellation 注册表 根据输入选择合适的 聊天会话 实现。
- * <p>注册表让调用方不需要硬编码解析器或处理器类型。</p>
+ * requestId 到流式生成订阅的取消注册表。
+ *
+ * <p>停止请求和模型 Flux 订阅存在竞态：停止可能先到。pendingCancellations 用短 TTL
+ * 保存这种取消意图，订阅稍后注册时会立即被 dispose。</p>
  */
 @Component
 public class ChatStreamCancellationRegistry {
@@ -20,22 +22,25 @@ public class ChatStreamCancellationRegistry {
     private final Map<String, Long> pendingCancellations = new ConcurrentHashMap<>();
 
     /**
-     * 执行 聊天会话 中的 register 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 注册一个可取消的流式请求。
+     *
+     * @param requestId 请求 ID
+     * @return 取消句柄
      */
     public synchronized StreamCancellation register(String requestId) {
         return register(requestId, null);
     }
 
     /**
-     * 执行 聊天会话 中的 register 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 注册一个带取消回调的流式请求。
+     *
+     * <p>如果同一 requestId 已经收到停止意图，返回的句柄会立即处于 disposed 状态。</p>
+     *
+     * @param requestId 请求 ID
+     * @param onCancel 取消时执行的回调
+     * @return 取消句柄
      */
     public synchronized StreamCancellation register(String requestId, Runnable onCancel) {
-        /**
-         * 执行 聊天会话 中的 cleanup Expired Pending Cancellations 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         cleanupExpiredPendingCancellations();
         StreamCancellation cancellation = new StreamCancellation(onCancel);
         if (requestId == null || requestId.isBlank()) {
@@ -56,14 +61,14 @@ public class ChatStreamCancellationRegistry {
     }
 
     /**
-     * 执行 聊天会话 中的 cancel 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 取消指定流式请求。
+     *
+     * <p>请求尚未注册时会记录短期 pending 取消，覆盖前端停止早于后端订阅的竞态。</p>
+     *
+     * @param requestId 请求 ID
+     * @return 是否接受了取消请求
      */
     public synchronized boolean cancel(String requestId) {
-        /**
-         * 执行 聊天会话 中的 cleanup Expired Pending Cancellations 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         cleanupExpiredPendingCancellations();
         if (requestId == null || requestId.isBlank()) {
             return false;
@@ -79,14 +84,12 @@ public class ChatStreamCancellationRegistry {
     }
 
     /**
-     * 执行 聊天会话 中的 unregister 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 注销流式请求。
+     *
+     * @param requestId 请求 ID
+     * @param cancellation 期望移除的取消句柄；为 null 时按 ID 移除
      */
     public synchronized void unregister(String requestId, StreamCancellation cancellation) {
-        /**
-         * 执行 聊天会话 中的 cleanup Expired Pending Cancellations 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         cleanupExpiredPendingCancellations();
         if (requestId == null || requestId.isBlank()) {
             return;
@@ -100,18 +103,13 @@ public class ChatStreamCancellationRegistry {
     }
 
     /**
-     * 执行 聊天会话 中的 cleanup Expired Pending Cancellations 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 清理过期的 pending 取消意图。
      */
     private void cleanupExpiredPendingCancellations() {
         long cutoff = System.currentTimeMillis() - PENDING_CANCELLATION_TTL_MS;
         pendingCancellations.entrySet().removeIf(entry -> entry.getValue() < cutoff);
     }
 
-    /**
-     * Stream Cancellation 承担 聊天会话 模块的主要职责。
-     * <p>注释说明维护边界，不改变现有运行逻辑。</p>
-     */
     public static final class StreamCancellation implements Disposable {
 
         private final AtomicReference<Disposable> subscription = new AtomicReference<>();
@@ -119,30 +117,34 @@ public class ChatStreamCancellationRegistry {
         private final Runnable onCancel;
 
         /**
-         * 执行 聊天会话 中的 Stream Cancellation 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+         * 创建无回调的取消句柄。
          */
         public StreamCancellation() {
             this(null);
         }
 
         /**
-         * 执行 聊天会话 中的 Stream Cancellation 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+         * 创建带回调的取消句柄。
+         *
+         * @param onCancel 首次取消时执行的回调
          */
         public StreamCancellation(Runnable onCancel) {
             this.onCancel = onCancel;
         }
 
         /**
-         * 执行 聊天会话 中的 attach 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+         * 绑定真实的 Reactor 订阅。
+         *
+         * <p>句柄已经取消时会立即 dispose 真实订阅，保证 pending 取消不会漏过后注册的 Flux。</p>
+         *
+         * @param actualSubscription 真实订阅
          */
         public void attach(Disposable actualSubscription) {
             if (actualSubscription == null) {
                 return;
             }
             if (disposed.get()) {
+                // pending 取消已经命中时，真实订阅一出现就立即取消。
                 actualSubscription.dispose();
                 return;
             }
@@ -156,8 +158,7 @@ public class ChatStreamCancellationRegistry {
         }
 
         /**
-         * 执行 聊天会话 中的 dispose 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+         * 取消绑定的订阅并执行回调。
          */
         @Override
         public void dispose() {
@@ -174,8 +175,9 @@ public class ChatStreamCancellationRegistry {
         }
 
         /**
-         * 判断 is Disposed 条件是否成立。
-         * <p>业务判定集中在这里，避免调用方重复实现同一规则。</p>
+         * 查询句柄是否已经取消。
+         *
+         * @return 是否已取消
          */
         @Override
         public boolean isDisposed() {

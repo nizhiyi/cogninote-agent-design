@@ -11,8 +11,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 /**
- * Search Index Text 构建器 负责构建 检索索引 相关的标准化对象。
- * <p>构建过程集中处理拼接、清洗和兼容规则。</p>
+ * 将文档 chunk 拆成适合不同 Lucene analyzer 的索引文本。
+ *
+ * <p>普通正文走中文分词字段，fenced code / Mermaid / PlantUML 片段走代码字段。
+ * 这样既保留自然语言召回，也让路径、类名、方法名和图节点关键字能被精确命中。</p>
  */
 @Component
 class SearchIndexTextBuilder {
@@ -27,36 +29,26 @@ class SearchIndexTextBuilder {
     );
 
     /**
-     * 构建 build 对象。
-     * <p>第三方 API、框架对象或复杂参数的创建细节集中在此处。</p>
+     * 构造一个 chunk 的双字段索引文本。
+     *
+     * <p>文件名和标题进入正文索引，代码块内容额外提取标识符变体，避免用户用
+     * snake_case、camelCase 或路径片段搜索时漏召回。</p>
+     *
+     * @param document 文档索引快照
+     * @param chunk 文档 chunk
+     * @return 正文和代码两个索引字段的文本
      */
     SearchIndexText build(IndexedDocument document, IndexedChunk chunk) {
         List<String> proseParts = new ArrayList<>();
         List<String> codeParts = new ArrayList<>();
 
-        /**
-         * 执行 检索索引 中的 add If Present 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         addIfPresent(proseParts, document.fileName());
-        /**
-         * 执行 检索索引 中的 add If Present 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         addIfPresent(proseParts, chunk.heading());
 
         for (ContentBlock block : splitBlocks(chunk.content())) {
             if (block.protectedBlock()) {
-                /**
-                 * 执行 检索索引 中的 add Code Text 步骤。
-                 * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-                 */
                 addCodeText(codeParts, block.language(), block.text());
             } else {
-                /**
-                 * 执行 检索索引 中的 add If Present 步骤。
-                 * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-                 */
                 addIfPresent(proseParts, block.text());
             }
         }
@@ -65,8 +57,10 @@ class SearchIndexTextBuilder {
     }
 
     /**
-     * 执行 检索索引 中的 split Blocks 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将 Markdown 内容拆成普通正文块和 fenced code 块。
+     *
+     * @param content chunk 原文
+     * @return 内容块列表
      */
     private List<ContentBlock> splitBlocks(String content) {
         List<ContentBlock> blocks = new ArrayList<>();
@@ -85,10 +79,6 @@ class SearchIndexTextBuilder {
                     inFence = false;
                     language = "";
                 } else {
-                    /**
-                     * 执行 检索索引 中的 flush 步骤。
-                     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-                     */
                     flush(blocks, current, "", false);
                     inFence = true;
                     language = fence.group(1) == null ? "" : fence.group(1).trim();
@@ -100,60 +90,43 @@ class SearchIndexTextBuilder {
             current.append(line).append('\n');
         }
 
-        /**
-         * 执行 检索索引 中的 flush 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         flush(blocks, current, language, inFence);
         return blocks;
     }
 
     /**
-     * 执行 检索索引 中的 add Code Text 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 追加代码索引文本和可拆分标识符。
+     *
+     * @param parts 代码索引字段片段
+     * @param language fenced code 语言
+     * @param code 代码块内容
      */
     private void addCodeText(List<String> parts, String language, String code) {
-        /**
-         * 执行 检索索引 中的 add If Present 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         addIfPresent(parts, language);
-        /**
-         * 执行 检索索引 中的 add If Present 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         addIfPresent(parts, code);
 
+        // 标识符拆词会扩大召回面，但只写入代码字段，避免污染自然语言 BM25 权重。
         Matcher identifiers = IDENTIFIER.matcher(code == null ? "" : code);
         while (identifiers.find()) {
             String token = identifiers.group();
-            /**
-             * 执行 检索索引 中的 add If Present 步骤。
-             * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-             */
             addIfPresent(parts, token);
             for (String expanded : expandIdentifier(token)) {
-                /**
-                 * 执行 检索索引 中的 add If Present 步骤。
-                 * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-                 */
                 addIfPresent(parts, expanded);
             }
         }
 
+        // Mermaid/PlantUML 关键字常被用户当作“流程图、时序图”线索搜索，需要显式入索引。
         Matcher diagramKeywords = DIAGRAM_KEYWORD.matcher(code == null ? "" : code);
         while (diagramKeywords.find()) {
-            /**
-             * 执行 检索索引 中的 add If Present 步骤。
-             * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-             */
             addIfPresent(parts, diagramKeywords.group().toLowerCase(Locale.ROOT));
         }
     }
 
     /**
-     * 执行 检索索引 中的 expand Identifier 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将路径、camelCase、snake_case 等标识符拆成可搜索片段。
+     *
+     * @param token 原始标识符
+     * @return 拆分后的片段
      */
     private List<String> expandIdentifier(String token) {
         String normalized = token
@@ -177,8 +150,12 @@ class SearchIndexTextBuilder {
     }
 
     /**
-     * 执行 检索索引 中的 flush 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将当前缓存块加入块列表。
+     *
+     * @param blocks 输出块列表
+     * @param current 当前缓存文本
+     * @param language fenced code 语言
+     * @param protectedBlock 是否为代码/图块
      */
     private void flush(List<ContentBlock> blocks, StringBuilder current, String language, boolean protectedBlock) {
         if (current.isEmpty()) {
@@ -189,8 +166,10 @@ class SearchIndexTextBuilder {
     }
 
     /**
-     * 执行 检索索引 中的 add If Present 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 只追加非空文本片段。
+     *
+     * @param parts 输出片段列表
+     * @param value 候选文本
      */
     private void addIfPresent(List<String> parts, String value) {
         if (StringUtils.hasText(value)) {
@@ -198,10 +177,6 @@ class SearchIndexTextBuilder {
         }
     }
 
-    /**
-     * Content Block 是 检索索引 的不可变数据快照。
-     * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
-     */
     private record ContentBlock(String text, String language, boolean protectedBlock) {
     }
 }

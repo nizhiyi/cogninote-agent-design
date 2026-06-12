@@ -1,5 +1,5 @@
 <script setup>
-// chat-view 负责 聊天会话 页面或组件的状态组织、用户交互和后端同步。
+// 聊天页保留滚动、输入框尺寸和来源抽屉这类 UI 状态；流式消息和会话持久化由 chat store 管理。
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ChevronLeft, ChevronRight, LoaderCircle, Send, SlidersHorizontal, Trash2 } from 'lucide-vue-next'
 import ChatSettingsPopover from '../components/chat-settings-popover.vue'
@@ -80,8 +80,9 @@ const composerTextareaStyle = computed(() => ({
 }))
 
 /**
- * 处理 handle Composer Action 交互。
- * <p>事件处理函数只保留必要副作用，复杂状态交给 Store 维护。</p>
+ * 发送按钮在流式输出期间转为停止按钮。
+ *
+ * <p>真正的取消需要 chat store 同时通知后端和关闭浏览器 SSE 连接。</p>
  */
 function handleComposerAction() {
   if (chatStore.isStreaming) {
@@ -89,10 +90,6 @@ function handleComposerAction() {
   }
 }
 
-/**
- * 创建或启动 start Composer Resize 对应的前端流程。
- * <p>该方法通常会同步本地响应式状态和后端快照。</p>
- */
 function startComposerResize(event) {
   if (event.button != null && event.button !== 0) {
     return
@@ -108,8 +105,9 @@ function startComposerResize(event) {
 }
 
 /**
- * 处理 handle Composer Resize 交互。
- * <p>事件处理函数只保留必要副作用，复杂状态交给 Store 维护。</p>
+ * 根据 pointer 位移调整输入框高度。
+ *
+ * <p>高度限制在固定区间内，避免拖动时挤压消息流或让按钮区域跳动。</p>
  */
 function handleComposerResize(event) {
   if (!composerResizeState) {
@@ -122,10 +120,6 @@ function handleComposerResize(event) {
   )
 }
 
-/**
- * 执行 聊天会话 中的 stop Composer Resize 步骤。
- * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
- */
 function stopComposerResize() {
   if (!composerResizeState) {
     return
@@ -136,17 +130,14 @@ function stopComposerResize() {
   window.removeEventListener('pointercancel', stopComposerResize)
 }
 
-/**
- * 执行 聊天会话 中的 reset Composer Height 步骤。
- * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
- */
 function resetComposerHeight() {
   composerTextareaHeight.value = COMPOSER_MIN_HEIGHT
 }
 
 /**
- * 处理 handle Composer Resize Keydown 交互。
- * <p>事件处理函数只保留必要副作用，复杂状态交给 Store 维护。</p>
+ * 提供键盘可访问的输入框高度调整。
+ *
+ * <p>Shift 使用更大步长，Home/End 对应最小和最大高度，和拖拽逻辑共用同一边界。</p>
  */
 function handleComposerResizeKeydown(event) {
   const step = event.shiftKey ? 24 : 8
@@ -171,29 +162,17 @@ function handleComposerResizeKeydown(event) {
   }
 }
 
-/**
- * 规范化 normalize Token Count 输入。
- * <p>把后端、表单或浏览器传入的异常值收敛为安全范围。</p>
- */
 function normalizeTokenCount(value) {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0
 }
 
-/**
- * 规范化比例输入。
- * <p>把后端、表单或浏览器传入的异常值收敛为安全范围。</p>
- */
 function normalizeRatio(value, fallback = 0) {
   const parsed = Number(value)
   const ratio = Number.isFinite(parsed) ? parsed : fallback
   return Math.min(1, Math.max(0, ratio))
 }
 
-/**
- * 格式化 format Token Count 展示文本。
- * <p>统一页面上的数字、时间或语言标签展示口径。</p>
- */
 function formatTokenCount(value) {
   const normalized = normalizeTokenCount(value)
   if (normalized >= 1000000) {
@@ -205,17 +184,14 @@ function formatTokenCount(value) {
   return String(normalized)
 }
 
-/**
- * 格式化 format Compact Number 展示文本。
- * <p>统一页面上的数字、时间或语言标签展示口径。</p>
- */
 function formatCompactNumber(value) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '')
 }
 
 /**
- * 处理 handle Draft Keydown 交互。
- * <p>事件处理函数只保留必要副作用，复杂状态交给 Store 维护。</p>
+ * Enter 直接发送，Shift+Enter 保留换行。
+ *
+ * <p>中文输入法合成期间不拦截 Enter，避免用户选词时误发送。</p>
  */
 function handleDraftKeydown(event) {
   if (event.key !== 'Enter' || event.shiftKey || event.isComposing) {
@@ -227,10 +203,6 @@ function handleDraftKeydown(event) {
   }
 }
 
-/**
- * 删除或清理 clear Messages 对应的数据。
- * <p>清理时同步处理本地缓存，避免界面保留过期状态。</p>
- */
 function clearMessages() {
   if (!chatStore.hasMessages || chatStore.isStreaming) {
     return
@@ -266,18 +238,12 @@ function handlePageKeydown(event) {
 async function scrollMessagesToBottom() {
   await nextTick()
   applyMessageScrollBottom(true)
-  // 等待下一轮渲染后再读写 DOM，避免滚动位置计算使用旧布局。
   window.requestAnimationFrame(() => {
     applyMessageScrollBottom(true)
-    // 等待下一轮渲染后再读写 DOM，避免滚动位置计算使用旧布局。
     window.setTimeout(() => applyMessageScrollBottom(true), 80)
   })
 }
 
-/**
- * 更新 apply Message Scroll Bottom 对应的状态。
- * <p>状态写入后需要保持控件、Store 和后端快照一致。</p>
- */
 function applyMessageScrollBottom(saveAfterScroll = false) {
   const stream = messageStreamRef.value
   if (stream) {
@@ -289,26 +255,14 @@ function applyMessageScrollBottom(saveAfterScroll = false) {
   }
 }
 
-/**
- * 执行 聊天会话 中的 distance From Bottom 步骤。
- * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
- */
 function distanceFromBottom(stream) {
   return Math.max(0, stream.scrollHeight - stream.scrollTop - stream.clientHeight)
 }
 
-/**
- * 判断 is Near Bottom 条件。
- * <p>集中维护 UI 分支使用的同一套判定规则。</p>
- */
 function isNearBottom(stream) {
   return distanceFromBottom(stream) <= BOTTOM_THRESHOLD_PX
 }
 
-/**
- * 更新 save Current Session Scroll Position 对应的状态。
- * <p>状态写入后需要保持控件、Store 和后端快照一致。</p>
- */
 function saveCurrentSessionScrollPosition(sessionId = chatStore.activeSessionId) {
   const stream = messageStreamRef.value
   if (!stream || !sessionId) {
@@ -377,8 +331,9 @@ function findScrollAnchor(stream) {
 }
 
 /**
- * 处理 handle Message Stream Scroll 交互。
- * <p>事件处理函数只保留必要副作用，复杂状态交给 Store 维护。</p>
+ * 记录用户是否仍贴近底部。
+ *
+ * <p>用户主动向上阅读时暂停自动跟随，避免流式输出把视口不断拉回底部。</p>
  */
 function handleMessageStreamScroll() {
   if (isRestoringScroll.value) {
@@ -456,10 +411,6 @@ async function restoreSessionScroll(sessionId) {
   const runId = ++restoreRunId
   await nextTick()
   const savedPosition = chatStore.getSessionScrollPosition(sessionId)
-  /**
-   * 更新 apply Restore 对应的状态。
-   * <p>状态写入后需要保持控件、Store 和后端快照一致。</p>
-   */
   const applyRestore = () => {
     const stream = messageStreamRef.value
     if (!stream || runId !== restoreRunId || chatStore.activeSessionId !== sessionId) {
@@ -471,10 +422,8 @@ async function restoreSessionScroll(sessionId) {
 
   isRestoringScroll.value = true
   applyRestore()
-  // 等待下一轮渲染后再读写 DOM，避免滚动位置计算使用旧布局。
   window.requestAnimationFrame(() => {
     applyRestore()
-    // 等待下一轮渲染后再读写 DOM，避免滚动位置计算使用旧布局。
     window.setTimeout(() => {
       const restored = applyRestore()
       if (restored && messageStreamRef.value) {
@@ -488,10 +437,6 @@ async function restoreSessionScroll(sessionId) {
   })
 }
 
-/**
- * 加载 get Active Message Scroll Signature 对应的数据。
- * <p>接口结果会被转换为页面或 Store 可直接消费的结构。</p>
- */
 function getActiveMessageScrollSignature() {
   const lastMessage = chatStore.activeMessages.at(-1)
   return {

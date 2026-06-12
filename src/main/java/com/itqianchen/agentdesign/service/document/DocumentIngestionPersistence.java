@@ -8,8 +8,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Document Ingestion Persistence 承担 文档管理 模块的主要职责。
- * <p>注释说明维护边界，不改变现有运行逻辑。</p>
+ * 文档导入的 SQLite 写入边界。
+ *
+ * <p>文档元数据和 chunk 必须在同一事务里替换，避免导入中断后出现新文档指向旧 chunk
+ * 或 FAILED 文档仍残留旧 chunk 的不一致状态。</p>
  */
 @Service
 public class DocumentIngestionPersistence {
@@ -17,16 +19,19 @@ public class DocumentIngestionPersistence {
     private final DocumentRepository documentRepository;
 
     /**
-     * 注入 DocumentIngestionPersistence 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入文档仓储。
+     *
+     * @param documentRepository 文档仓储
      */
     public DocumentIngestionPersistence(DocumentRepository documentRepository) {
         this.documentRepository = documentRepository;
     }
 
     /**
-     * 执行 文档管理 中的 replace Parsed Document 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 用新的解析结果整体替换文档和 chunk。
+     *
+     * @param document 文档元数据
+     * @param chunks 新的完整 chunk 集合
      */
     @Transactional
     public void replaceParsedDocument(KnowledgeDocument document, List<KnowledgeChunk> chunks) {
@@ -35,8 +40,9 @@ public class DocumentIngestionPersistence {
     }
 
     /**
-     * 执行 文档管理 中的 replace Failed Document 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 写入失败文档记录并清空旧 chunk。
+     *
+     * @param document 失败文档元数据
      */
     @Transactional
     public void replaceFailedDocument(KnowledgeDocument document) {

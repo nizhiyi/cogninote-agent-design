@@ -22,8 +22,9 @@ public record DocumentSummaryResponse(
         int chunkCount
 ) {
     /**
-     * 将领域对象转换为 DocumentSummaryResponse。
-     * <p>字段映射集中在这里，减少控制器和服务层的重复拼装。</p>
+     * 构造前端文档表格使用的摘要。
+     *
+     * <p>状态和文件类型暴露为枚举名字符串，和前端筛选项保持同一套取值。</p>
      */
     public static DocumentSummaryResponse from(KnowledgeDocument document) {
         return new DocumentSummaryResponse(

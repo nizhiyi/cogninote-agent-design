@@ -1,6 +1,12 @@
 <script setup>
 import { computed } from 'vue'
 
+/**
+ * 轻量 SVG 关系图视图。
+ *
+ * <p>后端 payload 只提供拓扑和权重，前端用确定性环形布局生成坐标，并通过 open-evidence
+ * 事件把 node/edge id 交回 store 回查证据。</p>
+ */
 const props = defineProps({
   payload: {
     type: Object,
@@ -18,6 +24,7 @@ const nodes = computed(() => props.payload?.nodes || [])
 const edges = computed(() => props.payload?.edges || [])
 const layoutNodes = computed(() => {
   const count = Math.max(1, nodes.value.length)
+  // 使用固定半径布局，保证同一 payload 在刷新后位置稳定，便于用户对照证据。
   const radius = count < 8 ? 150 : 220
   return nodes.value.map((node, index) => {
     const angle = (Math.PI * 2 * index) / count - Math.PI / 2
@@ -45,6 +52,7 @@ function colorForType(type) {
   const palette = ['#0f766e', '#2563eb', '#7c3aed', '#b45309', '#15803d', '#be123c']
   const text = String(type || 'ENTITY')
   let hash = 0
+  // 类型映射到稳定颜色，不依赖后端返回顺序，避免同一实体类型在刷新后换色。
   for (let index = 0; index < text.length; index += 1) {
     hash = (hash + text.charCodeAt(index) * (index + 1)) % palette.length
   }

@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-// SSE 发送是前端流式体验的边界，异常通常表示客户端已断开。
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
@@ -31,8 +30,11 @@ public class ChatController {
     private final ChatStreamCancellationRegistry cancellationRegistry;
 
     /**
-     * 注入 ChatController 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入聊天流执行和 SSE 适配依赖。
+     *
+     * @param agentExecutionService Agent 编排入口
+     * @param chatSseEventMapper 领域事件到 SSE 事件的映射器
+     * @param cancellationRegistry 正在运行的聊天流取消注册表
      */
     public ChatController(
             AgentExecutionService agentExecutionService,
@@ -45,11 +47,12 @@ public class ChatController {
     }
 
     /**
-     * 启动 stream 流式流程。
-     * <p>方法串联请求准备、事件流返回和结束后的状态收尾。</p>
+     * 建立聊天 SSE 流。
+     *
+     * <p>SseEmitter 不设置总超时，避免长回答被 Servlet async timeout 截断；
+     * 取消由显式 cancel 接口处理。</p>
      */
     @PostMapping(path = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    // SSE 发送是前端流式体验的边界，异常通常表示客户端已断开。
     public SseEmitter stream(@Valid @RequestBody ChatStreamRequest request) {
         // 对话模型可能输出很慢，固定总时长超时会截断完整答案。
         // Servlet 规范中 0 表示不启用 async timeout，连接生命周期交给模型完成或前端主动停止。
@@ -61,8 +64,12 @@ public class ChatController {
     }
 
     /**
-     * 执行 聊天会话 中的 cancel 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 取消指定聊天流。
+     *
+     * <p>该接口只处理显式停止请求；SSE 连接异常断开由订阅层清理，避免误取消后台仍在收尾的流程。</p>
+     *
+     * @param requestId 聊天请求 ID
+     * @return 是否找到并触发了取消
      */
     @PostMapping("/stream/{requestId}/cancel")
     public ApiResponse<Boolean> cancel(@PathVariable String requestId) {

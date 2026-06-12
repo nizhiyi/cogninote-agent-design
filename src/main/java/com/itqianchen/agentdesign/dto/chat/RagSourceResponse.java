@@ -19,8 +19,9 @@ public record RagSourceResponse(
         double score
 ) {
     /**
-     * 将领域对象转换为 RagSourceResponse。
-     * <p>字段映射集中在这里，减少控制器和服务层的重复拼装。</p>
+     * 构造对话来源卡片的初始内容。
+     *
+     * <p>content 初始等于 preview；需要展开完整片段时再用 withContent 覆盖。</p>
      */
     public static RagSourceResponse from(int index, SearchHitResponse hit) {
         return new RagSourceResponse(
@@ -38,8 +39,12 @@ public record RagSourceResponse(
     }
 
     /**
-     * 返回应用 with Content 后的新对象。
-     * <p>不可变数据通过复制表达变更，避免调用方误改原对象。</p>
+     * 返回替换完整内容后的来源响应副本。
+     *
+     * <p>列表和 meta 事件只暴露 preview；用户展开来源时才填充 content，控制 SSE 和接口负载大小。</p>
+     *
+     * @param content 完整 chunk 内容；为空时表示隐藏完整内容
+     * @return 替换 content 后的响应副本
      */
     public RagSourceResponse withContent(String content) {
         return new RagSourceResponse(

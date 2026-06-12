@@ -22,8 +22,11 @@ public record ModelConfigUpsertRequest(
         @Min(1024) @Max(2000000) Integer contextWindowTokens
 ) {
     /**
-     * 执行 模型配置 中的 to Model 配置 请求 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 转换为服务层使用的模型配置请求。
+     *
+     * <p>旧接口同时包含 chatModel/embeddingModel 字段，当前设置页只提交 modelName；这里负责兼容服务层契约。</p>
+     *
+     * @return 服务层模型配置请求
      */
     public ModelConfigRequest toModelConfigRequest() {
         String normalizedRole = role == null ? "" : role.trim().toUpperCase();

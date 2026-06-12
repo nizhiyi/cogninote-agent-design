@@ -10,8 +10,10 @@ import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
 /**
- * Model 配置 仓储 是 模型配置 的持久化边界。
- * <p>服务层通过该类型访问数据，避免直接依赖 MyBatis Mapper 细节。</p>
+ * 模型配置仓储。
+ *
+ * <p>负责维护每个 role 只有一个 active 配置的应用层约束，并保留旧版 active_model_config
+ * 接口的迁移兼容入口。</p>
  */
 @Repository
 public class ModelConfigRepository {
@@ -19,56 +21,66 @@ public class ModelConfigRepository {
     private final ModelConfigMapper modelConfigMapper;
 
     /**
-     * 注入 ModelConfigRepository 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入模型配置 Mapper。
+     *
+     * @param modelConfigMapper SQLite 模型配置访问接口
      */
     public ModelConfigRepository(ModelConfigMapper modelConfigMapper) {
         this.modelConfigMapper = modelConfigMapper;
     }
 
     /**
-     * 读取 find All 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 查询指定角色的全部模型配置。
+     *
+     * @param role 模型角色
+     * @return 配置列表
      */
     public List<ModelConfig> findAll(ModelConfigRole role) {
         return modelConfigMapper.findAll(role.name());
     }
 
     /**
-     * 读取 find By Id 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 按 ID 查询模型配置。
+     *
+     * @param id 配置 ID
+     * @return 配置；不存在时为空
      */
     public Optional<ModelConfig> findById(String id) {
         return modelConfigMapper.findById(id).stream().findFirst();
     }
 
     /**
-     * 读取 find Active 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 查询指定角色当前激活配置。
+     *
+     * @param role 模型角色
+     * @return 激活配置；未配置时为空
      */
     public Optional<ModelConfig> findActive(ModelConfigRole role) {
         return modelConfigMapper.findActive(role.name()).stream().findFirst();
     }
 
     /**
-     * 读取 find Active Chat 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 查询当前激活的 Chat 配置。
+     *
+     * @return 激活 Chat 配置
      */
     public Optional<ModelConfig> findActiveChat() {
         return findActive(ModelConfigRole.CHAT);
     }
 
     /**
-     * 读取 find Active Embedding 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 查询当前激活的 Embedding 配置。
+     *
+     * @return 激活 Embedding 配置
      */
     public Optional<ModelConfig> findActiveEmbedding() {
         return findActive(ModelConfigRole.EMBEDDING);
     }
 
     /**
-     * 读取 find Active 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 旧版入口，固定返回 Chat 角色激活配置。
+     *
+     * @return 激活 Chat 配置
      */
     @Deprecated
     public Optional<ModelConfig> findActive() {
@@ -76,8 +88,12 @@ public class ModelConfigRepository {
     }
 
     /**
-     * 更新 save 对应的数据。
-     * <p>方法负责保持内存快照、数据库记录和返回值语义一致。</p>
+     * 保存模型配置并重新读取数据库结果。
+     *
+     * <p>重新读取用于拿到 Mapper 层默认值和 SQLite 实际落库状态。</p>
+     *
+     * @param config 待保存配置
+     * @return 保存后的配置
      */
     public ModelConfig save(ModelConfig config) {
         modelConfigMapper.save(config);
@@ -86,8 +102,13 @@ public class ModelConfigRepository {
     }
 
     /**
-     * 执行 模型配置 中的 activate 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 激活指定模型配置。
+     *
+     * <p>每个角色只能有一个 active 配置，先清同角色旧 active 再设置目标配置。</p>
+     *
+     * @param id 配置 ID
+     * @param updatedAt 更新时间戳
+     * @return 激活后的配置
      */
     public ModelConfig activate(String id, long updatedAt) {
         ModelConfig target = findById(id).orElseThrow(() ->
@@ -101,24 +122,30 @@ public class ModelConfigRepository {
     }
 
     /**
-     * 删除 delete 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     * 删除模型配置。
+     *
+     * @param id 配置 ID
      */
     public void delete(String id) {
         modelConfigMapper.delete(id);
     }
 
     /**
-     * 执行 模型配置 中的 count By Role 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 统计指定角色配置数量。
+     *
+     * @param role 模型角色
+     * @return 配置数量
      */
     public long countByRole(ModelConfigRole role) {
         return modelConfigMapper.countByRole(role.name());
     }
 
     /**
-     * 读取 find Legacy Active 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 查询旧版单行激活配置。
+     *
+     * <p>该入口只服务旧版 active_model_config 迁移；新代码必须按 Chat/Embedding 角色分别读取激活配置。</p>
+     *
+     * @return 旧版配置；不存在时为空
      */
     @Deprecated
     public Optional<ModelConfig> findLegacyActive() {
@@ -126,8 +153,12 @@ public class ModelConfigRepository {
     }
 
     /**
-     * 更新 save Active 对应的数据。
-     * <p>方法负责保持内存快照、数据库记录和返回值语义一致。</p>
+     * 保存旧版单行激活配置。
+     *
+     * <p>用于兼容旧设置接口，迁移后的多角色配置不应通过该方法写入。</p>
+     *
+     * @param config 旧版配置
+     * @return 保存后的旧版配置
      */
     @Deprecated
     public ModelConfig saveActive(ModelConfig config) {

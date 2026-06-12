@@ -22,8 +22,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Chat Session 服务 承载 聊天会话 的应用服务流程。
- * <p>这里集中编排仓储、模型运行时和 DTO 映射，保证控制器保持轻量。</p>
+ * 维护聊天会话、消息落库和上下文用量快照。
+ *
+ * <p>助手回复在流结束后按 DONE/STOPPED/ERROR 状态落库；长会话摘要只是模型输入预算视图，
+ * SQLite 仍保留完整原文。</p>
  */
 @Service
 public class ChatSessionService {
@@ -38,8 +40,14 @@ public class ChatSessionService {
     private final ModelConfigService modelConfigService;
 
     /**
-     * 注入 ChatSessionService 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入会话、来源编解码、token 估算和模型配置依赖。
+     *
+     * @param chatSessionRepository 会话仓储
+     * @param ragSourcesJsonCodec RAG 来源快照编解码器
+     * @param tokenEstimator token 估算器
+     * @param memoryProperties 记忆窗口配置
+     * @param contextUsageService 上下文用量服务
+     * @param modelConfigService 模型配置服务
      */
     public ChatSessionService(
             ChatSessionRepository chatSessionRepository,
@@ -58,24 +66,27 @@ public class ChatSessionService {
     }
 
     /**
-     * 查询 聊天会话 列表。
-     * <p>返回值面向上层展示或接口响应，不暴露底层存储细节。</p>
+     * 查询会话列表并附带上下文用量。
+     *
+     * @return 会话摘要列表
      */
     public List<ChatSessionResponse> listSessions() {
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         return chatSessionRepository.findActiveSessionSummaries().stream()
                 .map(this::withContextUsage)
                 .toList();
     }
 
     /**
-     * 创建 create Session 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建一个新的聊天会话。
+     *
+     * <p>请求体允许为空，默认启用知识库和 HYBRID 检索，保持前端“新建对话”轻量调用。</p>
+     *
+     * @param request 可选创建参数
+     * @return 新会话详情
      */
     @Transactional
     public ChatSessionResponse createSession(ChatSessionCreateRequest request) {
         long now = System.currentTimeMillis();
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         ChatSession session = chatSessionRepository.create(
                 request == null ? null : request.title(),
                 request == null || request.useKnowledgeBase() == null || request.useKnowledgeBase(),
@@ -87,8 +98,10 @@ public class ChatSessionService {
     }
 
     /**
-     * 读取 get Session 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 查询会话详情。
+     *
+     * @param conversationId 会话 ID
+     * @return 会话和消息响应
      */
     public ChatSessionResponse getSession(String conversationId) {
         ChatSession session = requireSession(conversationId);
@@ -96,13 +109,17 @@ public class ChatSessionService {
     }
 
     /**
-     * 更新 update Session 对应的数据。
-     * <p>方法负责保持内存快照、数据库记录和返回值语义一致。</p>
+     * 更新会话标题和检索选项。
+     *
+     * <p>请求未提供的字段会沿用现有会话值，不会重写历史消息或来源快照。</p>
+     *
+     * @param conversationId 会话 ID
+     * @param request 更新请求
+     * @return 更新后的会话详情
      */
     @Transactional
     public ChatSessionResponse updateSession(String conversationId, ChatSessionUpdateRequest request) {
         ChatSession existing = requireSession(conversationId);
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         chatSessionRepository.updateOptions(
                 conversationId,
                 request.title(),
@@ -115,36 +132,40 @@ public class ChatSessionService {
     }
 
     /**
-     * 删除 delete Session 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     * 删除会话。
+     *
+     * @param conversationId 会话 ID
+     * @throws ResourceNotFoundException 当会话不存在时抛出
      */
     @Transactional
     public void deleteSession(String conversationId) {
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         if (!chatSessionRepository.deleteSession(conversationId)) {
             throw new ResourceNotFoundException("Chat session not found: " + conversationId);
         }
     }
 
     /**
-     * 清理 clear Messages 对应的数据。
-     * <p>清理只移除目标内容，保留会话或模块继续运行所需的外壳状态。</p>
+     * 清空会话消息并保留会话配置。
+     *
+     * @param conversationId 会话 ID
+     * @return 清空后的会话详情
      */
     @Transactional
     public ChatSessionResponse clearMessages(String conversationId) {
-        /**
-         * 读取必需的 require Session 配置或数据。
-         * <p>缺失时立即失败，避免外部模型或数据库调用才暴露问题。</p>
-         */
         requireSession(conversationId);
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         chatSessionRepository.clearMessages(conversationId, System.currentTimeMillis());
         return getSession(conversationId);
     }
 
     /**
-     * 确保 ensure Session 所需前置条件存在。
-     * <p>不存在时创建默认资源或抛出明确异常，避免后续流程隐式失败。</p>
+     * 确保聊天流写入前会话存在。
+     *
+     * @param conversationId 会话 ID
+     * @param fallbackTitle 新会话标题兜底
+     * @param useKnowledgeBase 是否启用知识库检索
+     * @param mode 检索模式
+     * @param topK 检索数量
+     * @return 可写入的会话
      */
     @Transactional
     public ChatSession ensureSession(
@@ -154,7 +175,6 @@ public class ChatSessionService {
             SearchMode mode,
             int topK
     ) {
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         return chatSessionRepository.ensureSession(
                 conversationId,
                 fallbackTitle,
@@ -166,8 +186,18 @@ public class ChatSessionService {
     }
 
     /**
-     * 追加 append User Message 数据。
-     * <p>追加时维护顺序、状态和关联元数据，保证会话历史可追踪。</p>
+     * 写入用户消息。
+     *
+     * <p>首次真实消息会把默认标题更新为问题摘要，避免仅打开页面就产生有标题的脏会话。</p>
+     *
+     * @param conversationId 会话 ID
+     * @param content 用户输入
+     * @param requestId 本轮请求 ID
+     * @param agentType Agent 类型
+     * @param useKnowledgeBase 是否启用知识库
+     * @param mode 检索模式
+     * @param topK 检索数量
+     * @return 已落库的用户消息
      */
     @Transactional
     public ChatMessage appendUserMessage(
@@ -180,7 +210,6 @@ public class ChatSessionService {
             int topK
     ) {
         long now = System.currentTimeMillis();
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         ChatSession session = chatSessionRepository.ensureSession(
                 conversationId,
                 titleFromQuestion(content),
@@ -189,9 +218,8 @@ public class ChatSessionService {
                 topK,
                 now
         );
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
+        // 空白草稿会话在第一条真实用户消息出现时才确定标题，避免“打开应用”生成脏会话。
         if ("新对话".equals(session.title()) && chatSessionRepository.countMessages(session.id()) == 0) {
-            // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
             chatSessionRepository.updateOptions(
                     session.id(),
                     titleFromQuestion(content),
@@ -201,7 +229,6 @@ public class ChatSessionService {
                     now
             );
         }
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         return chatSessionRepository.appendMessage(
                 session.id(),
                 ChatMessageRole.USER,
@@ -217,8 +244,14 @@ public class ChatSessionService {
     }
 
     /**
-     * 追加 append Assistant Done 数据。
-     * <p>追加时维护顺序、状态和关联元数据，保证会话历史可追踪。</p>
+     * 写入正常完成的助手回复并按需刷新摘要。
+     *
+     * @param conversationId 会话 ID
+     * @param content 助手回复
+     * @param requestId 本轮请求 ID
+     * @param agentType Agent 类型
+     * @param retrievalMode 实际检索模式
+     * @param sources RAG 来源快照
      */
     @Transactional
     public void appendAssistantDone(
@@ -229,21 +262,19 @@ public class ChatSessionService {
             SearchMode retrievalMode,
             List<RagSourceResponse> sources
     ) {
-        /**
-         * 追加 append Assistant 数据。
-         * <p>追加时维护顺序、状态和关联元数据，保证会话历史可追踪。</p>
-         */
         appendAssistant(conversationId, content, requestId, agentType, retrievalMode, sources, ChatMessageStatus.DONE);
-        /**
-         * 执行 聊天会话 中的 refresh Summary If Needed 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         refreshSummaryIfNeeded(conversationId);
     }
 
     /**
-     * 追加 append Assistant Stopped 数据。
-     * <p>追加时维护顺序、状态和关联元数据，保证会话历史可追踪。</p>
+     * 写入用户主动停止后的助手部分回复并按需刷新摘要。
+     *
+     * @param conversationId 会话 ID
+     * @param content 已生成内容
+     * @param requestId 本轮请求 ID
+     * @param agentType Agent 类型
+     * @param retrievalMode 实际检索模式
+     * @param sources RAG 来源快照
      */
     @Transactional
     public void appendAssistantStopped(
@@ -254,21 +285,21 @@ public class ChatSessionService {
             SearchMode retrievalMode,
             List<RagSourceResponse> sources
     ) {
-        /**
-         * 追加 append Assistant 数据。
-         * <p>追加时维护顺序、状态和关联元数据，保证会话历史可追踪。</p>
-         */
         appendAssistant(conversationId, content, requestId, agentType, retrievalMode, sources, ChatMessageStatus.STOPPED);
-        /**
-         * 执行 聊天会话 中的 refresh Summary If Needed 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         refreshSummaryIfNeeded(conversationId);
     }
 
     /**
-     * 追加 append Assistant Error 数据。
-     * <p>追加时维护顺序、状态和关联元数据，保证会话历史可追踪。</p>
+     * 写入异常结束的助手回复。
+     *
+     * <p>异常回复不触发摘要刷新，避免把错误提示当成长期上下文压缩依据。</p>
+     *
+     * @param conversationId 会话 ID
+     * @param content 错误前已生成内容或错误提示
+     * @param requestId 本轮请求 ID
+     * @param agentType Agent 类型
+     * @param retrievalMode 实际检索模式
+     * @param sources RAG 来源快照
      */
     @Transactional
     public void appendAssistantError(
@@ -279,26 +310,32 @@ public class ChatSessionService {
             SearchMode retrievalMode,
             List<RagSourceResponse> sources
     ) {
-        /**
-         * 追加 append Assistant 数据。
-         * <p>追加时维护顺序、状态和关联元数据，保证会话历史可追踪。</p>
-         */
         appendAssistant(conversationId, content, requestId, agentType, retrievalMode, sources, ChatMessageStatus.ERROR);
     }
 
     /**
-     * 读取必需的 require Session 配置或数据。
-     * <p>缺失时立即失败，避免外部模型或数据库调用才暴露问题。</p>
+     * 读取会话，不存在时抛出统一 404 异常。
+     *
+     * @param conversationId 会话 ID
+     * @return 会话领域对象
      */
     public ChatSession requireSession(String conversationId) {
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         return chatSessionRepository.findById(conversationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Chat session not found: " + conversationId));
     }
 
     /**
-     * 追加 append Assistant 数据。
-     * <p>追加时维护顺序、状态和关联元数据，保证会话历史可追踪。</p>
+     * 按状态写入助手消息。
+     *
+     * <p>空内容不落库，防止停止或异常路径产生不可见消息并污染上下文预算。</p>
+     *
+     * @param conversationId 会话 ID
+     * @param content 助手内容
+     * @param requestId 本轮请求 ID
+     * @param agentType Agent 类型
+     * @param retrievalMode 实际检索模式
+     * @param sources RAG 来源快照
+     * @param status 消息状态
      */
     private void appendAssistant(
             String conversationId,
@@ -310,9 +347,9 @@ public class ChatSessionService {
             ChatMessageStatus status
     ) {
         if (content == null || content.isBlank()) {
+            // 空回复不落库，避免停止或异常路径产生看不见但会污染上下文预算的消息。
             return;
         }
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         chatSessionRepository.appendMessage(
                 conversationId,
                 ChatMessageRole.ASSISTANT,
@@ -328,27 +365,29 @@ public class ChatSessionService {
     }
 
     /**
-     * 执行 聊天会话 中的 message Responses 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将会话消息转换为前端响应。
+     *
+     * @param conversationId 会话 ID
+     * @return 消息响应列表
      */
     private List<ChatMessageResponse> messageResponses(String conversationId) {
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         return chatSessionRepository.findMessages(conversationId).stream()
                 .map(message -> ChatMessageResponse.from(message, ragSourcesJsonCodec.decode(message.sourcesJson())))
                 .toList();
     }
 
     /**
-     * 执行 聊天会话 中的 refresh Summary If Needed 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 在历史消息超过预算时刷新滚动摘要。
+     *
+     * <p>摘要只覆盖较早消息，SQLite 保留完整原文；最近消息仍以原文进入模型，减少追问时的信息损失。</p>
+     *
+     * @param conversationId 会话 ID
      */
     private void refreshSummaryIfNeeded(String conversationId) {
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         ChatSession session = chatSessionRepository.findById(conversationId).orElse(null);
         if (session == null) {
             return;
         }
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         List<ChatMessage> messages = chatSessionRepository.findMessages(conversationId);
         if (!contextUsageService.shouldSummarize(session, messages)) {
             return;
@@ -378,24 +417,30 @@ public class ChatSessionService {
     }
 
     /**
-     * 执行 聊天会话 中的 context Usage 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 查询单个会话的上下文用量。
+     *
+     * @param conversationId 会话 ID
+     * @return 上下文用量响应
      */
     public ChatContextUsageResponse contextUsage(String conversationId) {
         return contextUsageService.usage(conversationId);
     }
 
     /**
-     * 返回应用 with Context Usage 后的新对象。
-     * <p>不可变数据通过复制表达变更，避免调用方误改原对象。</p>
+     * 给会话响应补充上下文用量。
+     *
+     * @param response 会话响应
+     * @return 带上下文用量的会话响应
      */
     private ChatSessionResponse withContextUsage(ChatSessionResponse response) {
         return response.withContextUsage(contextUsageService.usage(response.id()));
     }
 
     /**
-     * 估算 estimate Chat Message 的 token 用量。
-     * <p>估算值用于上下文预算、裁剪和前端占用展示。</p>
+     * 按当前 Chat 模型配置估算消息 token。
+     *
+     * @param content 消息内容
+     * @return 估算 token 数
      */
     private int estimateChatMessage(String content) {
         ModelConfig chatConfig = modelConfigService.activeChatOrDefault();
@@ -403,8 +448,12 @@ public class ChatSessionService {
     }
 
     /**
-     * 构建 build Extractive Summary 对象。
-     * <p>第三方 API、框架对象或复杂参数的创建细节集中在此处。</p>
+     * 构建较早消息的抽取式摘要。
+     *
+     * <p>摘要有字符上限，达到上限时明确提示原文仍在 SQLite 中，避免维护者误以为历史被删除。</p>
+     *
+     * @param messages 被摘要覆盖的消息
+     * @return 摘要文本
      */
     private static String buildExtractiveSummary(List<ChatMessage> messages) {
         StringBuilder builder = new StringBuilder(
@@ -423,8 +472,10 @@ public class ChatSessionService {
     }
 
     /**
-     * 执行 聊天会话 中的 compact 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 压缩文本用于标题或摘要行。
+     *
+     * @param content 原始文本
+     * @return 单行短文本
      */
     private static String compact(String content) {
         if (content == null || content.isBlank()) {
@@ -435,8 +486,10 @@ public class ChatSessionService {
     }
 
     /**
-     * 执行 聊天会话 中的 title From Question 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 从用户问题生成默认会话标题。
+     *
+     * @param question 用户问题
+     * @return 最多 18 字符的标题
      */
     private static String titleFromQuestion(String question) {
         String normalized = compact(question);

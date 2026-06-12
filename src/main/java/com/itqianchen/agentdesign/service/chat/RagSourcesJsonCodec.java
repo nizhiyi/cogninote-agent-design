@@ -23,16 +23,21 @@ public class RagSourcesJsonCodec {
     private final ObjectMapper objectMapper;
 
     /**
-     * 注入 RagSourcesJsonCodec 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入 JSON 序列化器。
+     *
+     * @param objectMapper Spring 管理的 ObjectMapper
      */
     public RagSourcesJsonCodec(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 
     /**
-     * 执行 聊天会话 中的 encode 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 序列化 RAG 来源快照。
+     *
+     * <p>落库时去掉 content，避免聊天消息表重复保存大段 chunk 正文；详情可通过 chunkId 再查。</p>
+     *
+     * @param sources 本轮 RAG 来源
+     * @return JSON 字符串；为空或序列化失败时返回 null
      */
     public String encode(List<RagSourceResponse> sources) {
         if (sources == null || sources.isEmpty()) {
@@ -50,8 +55,12 @@ public class RagSourcesJsonCodec {
     }
 
     /**
-     * 执行 聊天会话 中的 decode 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 反序列化 RAG 来源快照。
+     *
+     * <p>坏数据只影响来源展示，不应阻断聊天记录读取，因此失败时返回空列表。</p>
+     *
+     * @param json 数据库中的 JSON 字符串
+     * @return 来源列表
      */
     public List<RagSourceResponse> decode(String json) {
         if (json == null || json.isBlank()) {

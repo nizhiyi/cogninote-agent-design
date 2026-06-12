@@ -26,6 +26,14 @@ public record KnowledgeGraphEvidenceResponse(
         String edgeSourceName,
         String edgeTargetName
 ) {
+    /**
+     * 将证据详情查询行转换为前端响应。
+     *
+     * <p>查询行已经在 Mapper 层完成节点、边和文档来源的聚合，这里只保持接口字段的稳定形状。</p>
+     *
+     * @param row 证据详情查询行
+     * @return 证据响应
+     */
     public static KnowledgeGraphEvidenceResponse from(KnowledgeGraphEvidenceDetailRow row) {
         return new KnowledgeGraphEvidenceResponse(
                 row.id(),

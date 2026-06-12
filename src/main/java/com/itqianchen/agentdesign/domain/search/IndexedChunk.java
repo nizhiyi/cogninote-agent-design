@@ -1,8 +1,9 @@
 package com.itqianchen.agentdesign.domain.search;
 
 /**
- * Indexed Chunk 是 检索索引 的不可变数据快照。
- * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+ * 准备写入搜索索引的文档片段。
+ *
+ * <p>字段必须和 SQLite chunk 快照保持一致，Lucene 重建失败时会重新从该结构恢复索引内容。</p>
  */
 public record IndexedChunk(
         String id,

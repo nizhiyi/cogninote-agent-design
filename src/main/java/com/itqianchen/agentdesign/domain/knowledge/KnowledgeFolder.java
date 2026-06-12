@@ -1,8 +1,10 @@
 package com.itqianchen.agentdesign.domain.knowledge;
 
 /**
- * Knowledge Folder 是 知识库 的不可变数据快照。
- * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+ * 用户导入的本地知识库目录。
+ *
+ * <p>folderPath 是规范化后的绝对路径，recursive 和 enabled 会影响后续扫描与检索可见性；
+ * 停用目录只应移除索引命中，不应删除 SQLite 中的文档解析结果。</p>
  */
 public record KnowledgeFolder(
         String id,

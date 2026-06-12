@@ -8,8 +8,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * System Status 服务 承载 系统状态 的应用服务流程。
- * <p>这里集中编排仓储、模型运行时和 DTO 映射，保证控制器保持轻量。</p>
+ * 后端健康状态和桌面运行环境信息。
+ *
+ * <p>该响应会被前端工作区导航频繁读取，不能触发昂贵的文件扫描或模型连接测试。</p>
  */
 @Service
 public class SystemStatusService {
@@ -22,8 +23,11 @@ public class SystemStatusService {
     private final boolean desktopMode;
 
     /**
-     * 注入 SystemStatusService 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入系统状态依赖并解析运行模式。
+     *
+     * @param storageInitializer 应用存储初始化器
+     * @param configuredVersion 配置覆盖版本号
+     * @param buildPropertiesProvider Maven build-info 提供器
      */
     public SystemStatusService(
             AppStorageInitializer storageInitializer,
@@ -36,8 +40,9 @@ public class SystemStatusService {
     }
 
     /**
-     * 执行 系统状态 中的 status 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 读取轻量系统状态。
+     *
+     * @return 系统状态响应
      */
     public SystemStatusResponse status() {
         return new SystemStatusResponse(
@@ -53,6 +58,10 @@ public class SystemStatusService {
      * 解析对外展示的后端版本。
      * <p>优先允许部署环境用 app.version 显式覆盖；默认读取 Maven 打包生成的 build-info，避免运行时读取不到
      * project.version 时回落到误导性的 SNAPSHOT 兜底值。</p>
+     *
+     * @param configuredVersion 配置覆盖版本号
+     * @param buildProperties 打包生成的 build-info
+     * @return 展示版本号
      */
     static String resolveVersion(String configuredVersion, BuildProperties buildProperties) {
         if (StringUtils.hasText(configuredVersion)) {

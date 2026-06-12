@@ -28,8 +28,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Knowledge Folder 服务 承载 知识库 的应用服务流程。
- * <p>这里集中编排仓储、模型运行时和 DTO 映射，保证控制器保持轻量。</p>
+ * 知识库目录的导入、重建、启停和删除编排服务。
+ *
+ * <p>该服务会同时触碰 SQLite、Lucene 和知识图谱缓存；任何目录级状态变化都必须让三者最终收敛。</p>
  */
 @Service
 public class KnowledgeFolderService {
@@ -44,8 +45,14 @@ public class KnowledgeFolderService {
     private final KnowledgeGraphRepository knowledgeGraphRepository;
 
     /**
-     * 注入 KnowledgeFolderService 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入知识库目录编排依赖。
+     *
+     * @param knowledgeFolderRepository 知识库目录仓储
+     * @param documentRepository 文档仓储
+     * @param ingestionService 文档导入服务
+     * @param knowledgeStore 检索索引边界
+     * @param documentIdentity 文档 ID 生成器
+     * @param knowledgeGraphRepository 图谱仓储
      */
     public KnowledgeFolderService(
             KnowledgeFolderRepository knowledgeFolderRepository,
@@ -64,8 +71,11 @@ public class KnowledgeFolderService {
     }
 
     /**
-     * 查询 知识库 列表。
-     * <p>返回值面向上层展示或接口响应，不暴露底层存储细节。</p>
+     * 组装知识库管理页快照。
+     *
+     * <p>目录统计、目录内文档和未归属文档在服务层一次性收敛，前端不再自行聚合解析状态。</p>
+     *
+     * @return 知识库管理页响应
      */
     @Transactional(readOnly = true)
     public KnowledgeFoldersResponse listFolders() {
@@ -84,8 +94,11 @@ public class KnowledgeFolderService {
     }
 
     /**
-     * 执行 知识库 中的 import Folder 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 导入本地目录为知识库。
+     *
+     * @param folderPath 本地目录路径
+     * @param recursive 是否递归扫描
+     * @return 导入统计
      */
     @Transactional
     public IngestDocumentsResponse importFolder(String folderPath, boolean recursive) {
@@ -97,10 +110,6 @@ public class KnowledgeFolderService {
         );
         long now = System.currentTimeMillis();
         knowledgeFolderRepository.markIngested(folder.id(), now);
-        /**
-         * 执行 知识库 中的 mark Folder Indexed If All Parsed Documents Indexed 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         markFolderIndexedIfAllParsedDocumentsIndexed(folder.id(), now);
         log.info("knowledge_folder_imported folderId={} folderPath={} scanned={} parsed={} skipped={} failed={}",
                 folder.id(),
@@ -114,8 +123,10 @@ public class KnowledgeFolderService {
     }
 
     /**
-     * 执行 知识库 中的 mark Folder Indexed If All Parsed Documents Indexed 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 如果目录内所有已解析文档都完成索引，则更新目录索引时间。
+     *
+     * @param folderId 知识库目录 ID
+     * @param indexedAt 索引时间戳
      */
     private void markFolderIndexedIfAllParsedDocumentsIndexed(String folderId, long indexedAt) {
         List<KnowledgeDocument> parsedDocuments = documentRepository.findByKnowledgeFolderIdOrderByUpdatedAtDesc(folderId)
@@ -138,8 +149,10 @@ public class KnowledgeFolderService {
     }
 
     /**
-     * 执行 知识库 中的 rebuild Folder 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 重新扫描目录并重建目录索引。
+     *
+     * @param id 知识库目录 ID
+     * @return 重建响应
      */
     @Transactional
     public KnowledgeFolderRebuildResponse rebuildFolder(String id) {
@@ -157,10 +170,6 @@ public class KnowledgeFolderService {
                 folder.folderPath(),
                 folder.recursive()
         );
-        /**
-         * 删除 delete Missing Local Documents 对应的数据。
-         * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
-         */
         deleteMissingLocalDocuments(folder.id(), currentDocumentIds);
         RebuildIndexResponse rebuildResponse = knowledgeStore.rebuildByDocumentIds(
                 documentRepository.findParsedDocumentsForIndexingByKnowledgeFolderId(folder.id())
@@ -179,8 +188,12 @@ public class KnowledgeFolderService {
     }
 
     /**
-     * 设置 set Enabled 状态。
-     * <p>状态变更会同步维护当前模块需要的派生信息。</p>
+     * 切换目录检索可见性。
+     *
+     * <p>启用时从 SQLite chunks 重建 Lucene，停用时只清索引并保留文档记录。</p>
+     *
+     * @param id 知识库目录 ID
+     * @param enabled 是否启用
      */
     @Transactional
     public void setEnabled(String id, boolean enabled) {
@@ -218,20 +231,15 @@ public class KnowledgeFolderService {
     }
 
     /**
-     * 删除 delete Folder 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     * 删除知识库目录及其派生数据。
+     *
+     * <p>删除只影响应用内 SQLite、Lucene 和知识图谱数据，不删除用户本地文件系统中的目录或文件。</p>
+     *
+     * @param id 知识库目录 ID
      */
     @Transactional
     public void deleteFolder(String id) {
-        /**
-         * 读取必需的 require Folder 配置或数据。
-         * <p>缺失时立即失败，避免外部模型或数据库调用才暴露问题。</p>
-         */
         requireFolder(id);
-        /**
-         * 删除 delete Folder Index Entries 对应的数据。
-         * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
-         */
         deleteFolderIndexEntries(id);
         knowledgeGraphRepository.deleteByKnowledgeFolderId(id);
         int deletedDocuments = documentRepository.deleteByKnowledgeFolderId(id);
@@ -242,12 +250,16 @@ public class KnowledgeFolderService {
     }
 
     /**
-     * 执行 知识库 中的 upsert Folder 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 新增或更新知识库目录记录。
+     *
+     * @param folderPath 本地目录路径
+     * @param recursive 是否递归扫描
+     * @param enabled 是否启用
+     * @return 目录记录
      */
     private KnowledgeFolder upsertFolder(String folderPath, boolean recursive, boolean enabled) {
         Path folder = Path.of(folderPath).toAbsolutePath().normalize();
-        // 文件系统访问可能抛出 IO 异常，调用方需要保留失败上下文。
+        // 先验证本地目录存在，再保存知识库记录，避免产生无法扫描的配置。
         if (!Files.isDirectory(folder)) {
             throw new DocumentParseException("Folder does not exist or is not a directory: " + folder);
         }
@@ -283,8 +295,10 @@ public class KnowledgeFolderService {
     }
 
     /**
-     * 读取必需的 require Folder 配置或数据。
-     * <p>缺失时立即失败，避免外部模型或数据库调用才暴露问题。</p>
+     * 读取知识库目录，不存在时抛出 404。
+     *
+     * @param id 目录 ID
+     * @return 目录记录
      */
     private KnowledgeFolder requireFolder(String id) {
         return knowledgeFolderRepository.findById(id)
@@ -292,8 +306,9 @@ public class KnowledgeFolderService {
     }
 
     /**
-     * 删除 delete Folder Index Entries 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     * 删除目录下所有文档的索引条目。
+     *
+     * @param knowledgeFolderId 知识库目录 ID
      */
     private void deleteFolderIndexEntries(String knowledgeFolderId) {
         List<String> documentIds = documentRepository.findDocumentIdsByKnowledgeFolderId(knowledgeFolderId);
@@ -312,8 +327,10 @@ public class KnowledgeFolderService {
     }
 
     /**
-     * 删除 delete Missing Local Documents 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     * 删除目录重建后已经不存在于本地文件系统的文档记录。
+     *
+     * @param knowledgeFolderId 知识库目录 ID
+     * @param currentDocumentIds 当前扫描得到的文档 ID 集合
      */
     private void deleteMissingLocalDocuments(String knowledgeFolderId, Set<String> currentDocumentIds) {
         List<String> staleDocumentIds = documentRepository.findDocumentIdsByKnowledgeFolderId(knowledgeFolderId)
@@ -345,8 +362,10 @@ public class KnowledgeFolderService {
     }
 
     /**
-     * 执行 知识库 中的 display Name 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 从目录路径提取展示名称。
+     *
+     * @param folder 目录路径
+     * @return 展示名称
      */
     private static String displayName(Path folder) {
         Path fileName = folder.getFileName();

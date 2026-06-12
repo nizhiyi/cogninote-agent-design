@@ -26,8 +26,9 @@ public record KnowledgeFolderResponse(
         List<DocumentSummaryResponse> documents
 ) {
     /**
-     * 将领域对象转换为 KnowledgeFolderResponse。
-     * <p>字段映射集中在这里，减少控制器和服务层的重复拼装。</p>
+     * 构造知识库目录详情响应。
+     *
+     * <p>目录统计和文档列表来自同一个 summary 快照，避免前端重新聚合失败和未索引数量。</p>
      */
     public static KnowledgeFolderResponse from(
             KnowledgeFolderSummary summary,

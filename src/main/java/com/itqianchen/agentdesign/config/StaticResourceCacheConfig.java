@@ -13,17 +13,33 @@ import org.springframework.core.Ordered;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Static Resource Cache 配置桌面前端资源的 HTTP 缓存策略。
+ * 桌面前端静态资源的 HTTP 缓存策略。
+ *
+ * <p>WebView2 会跨应用版本保留缓存，入口页和静态 chunk 必须强制重新校验，避免旧前端壳加载新后端。</p>
  */
 @Configuration
 public class StaticResourceCacheConfig {
 
     private static final String CACHE_CONTROL_VALUE = "no-store, no-cache, max-age=0, must-revalidate";
 
+    /**
+     * 注册静态资源缓存控制过滤器。
+     *
+     * @return 过滤器注册 Bean
+     */
     @Bean
     public FilterRegistrationBean<OncePerRequestFilter> staticResourceCacheHeaderFilter() {
         FilterRegistrationBean<OncePerRequestFilter> registration = new FilterRegistrationBean<>();
         registration.setFilter(new OncePerRequestFilter() {
+            /**
+             * 为前端资源响应追加禁用缓存头。
+             *
+             * @param request HTTP 请求
+             * @param response HTTP 响应
+             * @param filterChain Servlet 过滤器链
+             * @throws ServletException 当后续过滤器或资源处理失败时抛出
+             * @throws IOException 当响应写入失败时抛出
+             */
             @Override
             protected void doFilterInternal(
                     HttpServletRequest request,
@@ -48,6 +64,12 @@ public class StaticResourceCacheConfig {
         return registration;
     }
 
+    /**
+     * 判断请求是否是前端资源或 SPA 路由。
+     *
+     * @param request HTTP 请求
+     * @return 是否需要禁用缓存
+     */
     private static boolean isFrontendResourceRequest(HttpServletRequest request) {
         String method = request.getMethod();
         if (!"GET".equalsIgnoreCase(method) && !"HEAD".equalsIgnoreCase(method)) {

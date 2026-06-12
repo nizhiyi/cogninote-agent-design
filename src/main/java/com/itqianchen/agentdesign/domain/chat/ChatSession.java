@@ -3,8 +3,10 @@ package com.itqianchen.agentdesign.domain.chat;
 import com.itqianchen.agentdesign.domain.search.SearchMode;
 
 /**
- * Chat Session 是 聊天会话 的不可变数据快照。
- * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+ * 聊天会话的持久化设置和摘要进度。
+ *
+ * <p>summaryMessageSequence 标记摘要已经覆盖到哪条消息，记忆注入时会从该序号之后读取原文，
+ * 避免摘要内容和 recent messages 重复进入模型上下文。</p>
  */
 public record ChatSession(
         String id,

@@ -5,50 +5,45 @@ import java.util.Map;
 import org.apache.ibatis.annotations.Param;
 
 /**
- * Database Schema Mapper 声明 数据库元数据 相关的 MyBatis SQL 操作。
- * <p>方法签名需要和注解 SQL、数据库表结构保持一致。</p>
+ * 启动期数据库 schema 初始化专用 Mapper。
+ *
+ * <p>该接口包含 DDL 和迁移 SQL，只能由 DatabaseSchemaInitializer 使用。动态表名、列名和字段定义
+ * 必须来自内部白名单常量，不能暴露给外部请求。</p>
  */
 public interface DatabaseSchemaMapper {
 
     /**
-     * 创建 create Knowledge Folders Table 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建知识库目录表。
      */
     void createKnowledgeFoldersTable();
 
     /**
-     * 创建 create Documents Table 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建文档元数据表。
      */
     void createDocumentsTable();
 
     /**
-     * 创建 create Chunks Table 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建文档 chunk 表。
      */
     void createChunksTable();
 
     /**
-     * 创建 create Legacy Model 配置 Table 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建旧版模型配置表，用于兼容迁移。
      */
     void createLegacyModelConfigTable();
 
     /**
-     * 创建 create Model Configs Table 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建多角色模型配置表。
      */
     void createModelConfigsTable();
 
     /**
-     * 创建 create Chat Sessions Table 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建聊天会话表。
      */
     void createChatSessionsTable();
 
     /**
-     * 创建 create Chat Messages Table 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建聊天消息表。
      */
     void createChatMessagesTable();
 
@@ -58,27 +53,53 @@ public interface DatabaseSchemaMapper {
      */
     void createAppSettingsTable();
 
+    /**
+     * 创建图谱运行记录表。
+     */
     void createKnowledgeGraphRunsTable();
 
+    /**
+     * 创建图谱 chunk 抽取缓存表。
+     */
     void createKnowledgeGraphChunkExtractionsTable();
 
+    /**
+     * 创建图谱节点表。
+     */
     void createKnowledgeGraphNodesTable();
 
+    /**
+     * 创建图谱边表。
+     */
     void createKnowledgeGraphEdgesTable();
 
+    /**
+     * 创建图谱证据表。
+     */
     void createKnowledgeGraphEvidenceTable();
 
+    /**
+     * 创建图谱前端视图表。
+     */
     void createKnowledgeGraphViewsTable();
 
     /**
-     * 执行 数据库元数据 中的 table Info 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 读取 SQLite 表结构信息。
+     *
+     * @param tableName 表名，必须来自初始化器内部白名单
+     * @return PRAGMA table_info 结果
      */
     List<Map<String, Object>> tableInfo(@Param("tableName") String tableName);
 
     /**
-     * 执行 数据库元数据 中的 add Column 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 为旧库补列。
+     *
+     * <p>SQLite 不支持用绑定参数替代标识符，调用方必须先校验 tableName、columnName 和 definition
+     * 都是应用内固定迁移项。</p>
+     *
+     * @param tableName 表名，必须来自内部迁移清单
+     * @param columnName 列名，必须来自内部迁移清单
+     * @param definition 列定义，必须来自内部迁移清单
      */
     void addColumn(
             @Param("tableName") String tableName,
@@ -87,108 +108,139 @@ public interface DatabaseSchemaMapper {
     );
 
     /**
-     * 创建 create Knowledge Folders Path Index 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建知识库路径唯一索引。
      */
     void createKnowledgeFoldersPathIndex();
 
     /**
-     * 创建 create Knowledge Folders Enabled Index 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建知识库启用状态索引。
      */
     void createKnowledgeFoldersEnabledIndex();
 
     /**
-     * 创建 create Documents Knowledge Folder Id Index 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建文档目录外键查询索引。
      */
     void createDocumentsKnowledgeFolderIdIndex();
 
     /**
-     * 创建 create Documents Updated At Index 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建文档更新时间排序索引。
      */
     void createDocumentsUpdatedAtIndex();
 
     /**
-     * 创建 create Chunks Document Id Index 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建 chunk 文档 ID 查询索引。
      */
     void createChunksDocumentIdIndex();
 
     /**
-     * 创建 create Model Configs Role Index 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建模型配置角色索引。
      */
     void createModelConfigsRoleIndex();
 
     /**
-     * 创建 create Model Configs Role Active Index 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建模型配置角色 active 查询索引。
      */
     void createModelConfigsRoleActiveIndex();
 
     /**
-     * 创建 create Chat Sessions Updated At Index 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建会话更新时间排序索引。
      */
     void createChatSessionsUpdatedAtIndex();
 
     /**
-     * 创建 create Chat Messages Sequence Index 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建会话消息 sequence 索引。
      */
     void createChatMessagesSequenceIndex();
 
     /**
-     * 创建 create Chat Messages Conversation Id Index 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建会话消息 conversationId 索引。
      */
     void createChatMessagesConversationIdIndex();
 
+    /**
+     * 创建图谱节点 scope/canonical 查询索引。
+     */
     void createKnowledgeGraphNodesScopeCanonicalIndex();
 
+    /**
+     * 创建图谱边 scope 查询索引。
+     */
     void createKnowledgeGraphEdgesScopeIndex();
 
+    /**
+     * 创建图谱边 scope 三元组去重索引。
+     */
     void createKnowledgeGraphEdgesScopeTripleIndex();
 
+    /**
+     * 创建图谱证据 nodeId 索引。
+     */
     void createKnowledgeGraphEvidenceNodeIndex();
 
+    /**
+     * 创建图谱证据 edgeId 索引。
+     */
     void createKnowledgeGraphEvidenceEdgeIndex();
 
+    /**
+     * 创建图谱证据 chunkId 索引。
+     */
     void createKnowledgeGraphEvidenceChunkIndex();
 
+    /**
+     * 创建图谱运行 scope/status 查询索引。
+     */
     void createKnowledgeGraphRunsScopeStatusIndex();
 
+    /**
+     * 创建图谱视图 scope 查询索引。
+     */
     void createKnowledgeGraphViewsScopeIndex();
 
     /**
-     * 删除 delete Soft Deleted Chat Messages 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     * 删除已软删除会话下的消息。
      */
     void deleteSoftDeletedChatMessages();
 
     /**
-     * 删除 delete Soft Deleted Chat Sessions 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     * 物理清理已软删除会话。
      */
     void deleteSoftDeletedChatSessions();
 
     /**
-     * 执行 数据库元数据 中的 count Model Configs 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 统计新模型配置表记录数。
+     *
+     * @return 配置数量
      */
     long countModelConfigs();
 
     /**
-     * 读取 find Legacy Active Model 配置 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 读取旧版 active_model_config 表。
+     *
+     * <p>仅用于一次性迁移到 model_configs，迁移完成后运行时不应再依赖旧表。</p>
+     *
+     * @return 旧版配置行
      */
     List<Map<String, Object>> findLegacyActiveModelConfig();
 
     /**
-     * 创建 insert Initial Model 配置 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 插入启动期初始模型配置。
+     *
+     * <p>该方法只由迁移或首次启动初始化调用，参数均来自默认配置或旧表清洗结果。</p>
+     *
+     * @param id 配置 ID
+     * @param role 模型角色
+     * @param provider 模型 Provider
+     * @param displayName 展示名称
+     * @param baseUrl Provider Base URL
+     * @param apiKey API Key
+     * @param modelName 模型名称
+     * @param embeddingDimensions 向量维度
+     * @param temperature 采样温度
+     * @param defaultTopK 默认检索数量
+     * @param contextWindowTokens 上下文窗口 token 数
+     * @param createdAt 创建时间戳
+     * @param updatedAt 更新时间戳
      */
     void insertInitialModelConfig(
             @Param("id") String id,

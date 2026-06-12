@@ -1,5 +1,9 @@
 <script setup>
-// status-pill 负责 业务 页面或组件的状态组织、用户交互和后端同步。
+/**
+ * 小型状态标签。
+ *
+ * <p>state 直接参与 CSS modifier 命名，新增状态时需要同步补充样式。</p>
+ */
 defineProps({
   label: {
     type: String,

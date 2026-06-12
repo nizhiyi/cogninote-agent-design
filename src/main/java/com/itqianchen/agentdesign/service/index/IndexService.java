@@ -6,8 +6,9 @@ import com.itqianchen.agentdesign.dto.index.RebuildIndexResponse;
 import org.springframework.stereotype.Service;
 
 /**
- * Index 服务 承载 检索索引 的应用服务流程。
- * <p>这里集中编排仓储、模型运行时和 DTO 映射，保证控制器保持轻量。</p>
+ * 搜索索引管理的薄服务边界。
+ *
+ * <p>Controller 不直接依赖 KnowledgeStore，便于后续把全量重建替换为后台任务或进度流而不改 API 层。</p>
  */
 @Service
 public class IndexService {
@@ -15,24 +16,27 @@ public class IndexService {
     private final KnowledgeStore knowledgeStore;
 
     /**
-     * 注入 IndexService 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入检索索引边界。
+     *
+     * @param knowledgeStore 检索索引实现
      */
     public IndexService(KnowledgeStore knowledgeStore) {
         this.knowledgeStore = knowledgeStore;
     }
 
     /**
-     * 执行 检索索引 中的 status 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 读取索引状态。
+     *
+     * @return 索引状态
      */
     public IndexStatusResponse status() {
         return knowledgeStore.status();
     }
 
     /**
-     * 执行 检索索引 中的 rebuild 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 全量重建索引。
+     *
+     * @return 重建统计
      */
     public RebuildIndexResponse rebuild() {
         return knowledgeStore.rebuildAll();

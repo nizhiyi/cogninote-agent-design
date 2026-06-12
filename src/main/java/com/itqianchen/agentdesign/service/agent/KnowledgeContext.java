@@ -5,8 +5,10 @@ import com.itqianchen.agentdesign.dto.chat.RagSourceResponse;
 import java.util.List;
 
 /**
- * Knowledge Context 是 智能体编排 的不可变数据快照。
- * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+ * RAG 检索后交给 Agent 的上下文快照。
+ *
+ * <p>retrievalMode 是实际执行的模式，可能因为 Embedding 不可用从 HYBRID/VECTOR 降级为 KEYWORD；
+ * sources 已按回答引用编号排序。</p>
  */
 public record KnowledgeContext(
         SearchMode retrievalMode,

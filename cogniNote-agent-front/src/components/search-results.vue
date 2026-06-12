@@ -1,7 +1,11 @@
 <script setup>
-// search-results 负责 业务 页面或组件的状态组织、用户交互和后端同步。
 import { formatScore } from '../utils/formatters'
 
+/**
+ * 知识库检索结果列表。
+ *
+ * <p>不同检索模式的 score 含义不同，展示时必须标注 BM25、Vector 或 RRF，避免用户横向误比。</p>
+ */
 defineProps({
   result: {
     type: Object,
@@ -9,10 +13,6 @@ defineProps({
   }
 })
 
-/**
- * 执行 业务 中的 score Label 步骤。
- * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
- */
 function scoreLabel(mode) {
   if (mode === 'HYBRID') {
     return 'RRF'

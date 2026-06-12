@@ -1,8 +1,9 @@
 package com.itqianchen.agentdesign.service.search;
 
 /**
- * Search Field Names 承担 检索索引 模块的主要职责。
- * <p>注释说明维护边界，不改变现有运行逻辑。</p>
+ * Lucene 索引字段名集合。
+ *
+ * <p>字段名同时被写入和查询逻辑使用，修改时必须同步迁移现有索引或触发全量重建。</p>
  */
 final class SearchFieldNames {
 
@@ -20,8 +21,7 @@ final class SearchFieldNames {
     static final String EMBEDDING = "embedding_vector";
 
     /**
-     * 注入 SearchFieldNames 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 常量集合不允许实例化。
      */
     private SearchFieldNames() {
     }

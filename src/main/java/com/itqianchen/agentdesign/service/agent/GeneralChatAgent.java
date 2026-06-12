@@ -20,8 +20,13 @@ public class GeneralChatAgent extends AbstractChatAgent {
     private final CogninoteMemoryAdvisor memoryAdvisor;
 
     /**
-     * 注入 GeneralChatAgent 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入通用聊天 Agent 依赖。
+     *
+     * @param modelConfigService 模型配置服务
+     * @param aiRuntimeFactory AI 运行时工厂
+     * @param promptAssembler 提示词装配器
+     * @param chatSessionService 会话服务
+     * @param memoryAdvisor 会话记忆 Advisor
      */
     public GeneralChatAgent(
             ModelConfigService modelConfigService,
@@ -35,8 +40,9 @@ public class GeneralChatAgent extends AbstractChatAgent {
     }
 
     /**
-     * 执行 聊天会话 中的 type 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 返回通用聊天 Agent 类型。
+     *
+     * @return GENERAL_CHAT
      */
     @Override
     public AgentType type() {
@@ -44,8 +50,10 @@ public class GeneralChatAgent extends AbstractChatAgent {
     }
 
     /**
-     * 执行 聊天会话 中的 supports 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 通用聊天只处理未启用知识库的请求。
+     *
+     * @param request Agent 请求
+     * @return 是否支持
      */
     @Override
     public boolean supports(AgentRequest request) {
@@ -53,8 +61,12 @@ public class GeneralChatAgent extends AbstractChatAgent {
     }
 
     /**
-     * 执行 聊天会话 中的 prepare Invocation 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 准备通用聊天调用上下文。
+     *
+     * <p>通用聊天没有检索来源，只注入会话记忆。</p>
+     *
+     * @param request Agent 调用上下文
+     * @return 模型调用上下文
      */
     @Override
     protected AgentInvocation prepareInvocation(AgentInvocationRequest request) {

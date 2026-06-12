@@ -1,6 +1,7 @@
 /**
- * 执行 业务 中的 pick Knowledge Folder 步骤。
- * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
+ * 调用 Tauri 桌面端文件夹选择器。
+ *
+ * <p>Web 开发模式没有 @tauri-apps/api，返回 null 让调用方回退到手动输入路径。</p>
  */
 export async function pickKnowledgeFolder() {
   try {

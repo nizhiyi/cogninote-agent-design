@@ -21,10 +21,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
-/**
- * Document 控制器 测试 承担 文档管理 模块的主要职责。
- * <p>注释说明维护边界，不改变现有运行逻辑。</p>
- */
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
@@ -49,19 +45,11 @@ class DocumentControllerTests {
     @TempDir
     private Path tempDir;
 
-    /**
-     * 清理 clear Database 对应的数据。
-     * <p>清理只移除目标内容，保留会话或模块继续运行所需的外壳状态。</p>
-     */
     @BeforeEach
     void clearDatabase() {
         databaseCleaner.clearDocuments();
     }
 
-    /**
-     * 删除 delete Document Returns No Content Or Not Found 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
-     */
     @Test
     void deleteDocumentReturnsNoContentOrNotFound() throws Exception {
         Path note = tempDir.resolve("delete-api.txt");
@@ -77,10 +65,6 @@ class DocumentControllerTests {
                 .andExpect(status().isNotFound());
     }
 
-    /**
-     * 查询 get Chunk Returns Stored Content 对应的数据。
-     * <p>来源预览依赖完整 chunk 正文，避免前端只能展示搜索摘要。</p>
-     */
     @Test
     void getChunkReturnsStoredContent() throws Exception {
         Path note = tempDir.resolve("chunk-detail.txt");

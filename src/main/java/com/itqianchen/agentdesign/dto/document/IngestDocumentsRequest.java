@@ -11,8 +11,7 @@ public record IngestDocumentsRequest(
         Boolean recursive
 ) {
     /**
-     * 读取 recursive Or Default 的最终值。
-     * <p>当调用方没有显式配置时，返回当前模块约定的默认值。</p>
+     * 导入目录默认递归扫描，沿用旧接口未传 recursive 时的行为。
      */
     public boolean recursiveOrDefault() {
         return recursive == null || recursive;

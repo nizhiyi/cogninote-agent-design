@@ -20,8 +20,10 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.reactive.function.client.WebClient;
 
 /**
- * Open Ai Compatible 运行时 工厂 负责创建 AI 运行时 运行对象。
- * <p>提供商差异、客户端参数和缓存复用应收敛在这里。</p>
+ * 为用户自定义的 OpenAI-compatible Base URL 构造运行时。
+ *
+ * <p>Spring Boot 自动配置无法覆盖界面保存的 endpoint，所以这里手动构建 OpenAiApi，
+ * 并按完整配置缓存 Chat/Embedding 运行时。</p>
  */
 @Component
 public class OpenAiCompatibleRuntimeFactory {
@@ -29,7 +31,6 @@ public class OpenAiCompatibleRuntimeFactory {
     private static final String CHAT_COMPLETIONS_PATH = "/chat/completions";
     private static final String EMBEDDINGS_PATH = "/embeddings";
 
-    // 调用外部模型服务接口，返回值需要在当前层转换为本地 DTO。
     private final RestClient.Builder restClientBuilder;
     private final WebClient.Builder webClientBuilder;
     private final ObservationRegistry observationRegistry;
@@ -37,24 +38,31 @@ public class OpenAiCompatibleRuntimeFactory {
     private volatile CachedEmbeddingRuntime cachedEmbeddingRuntime;
 
     /**
-     * 注入 OpenAiCompatibleRuntimeFactory 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入 HTTP 客户端构造器和观测注册器。
+     *
+     * <p>构造器在创建 OpenAiApi 时会 clone，避免运行时配置污染全局 Spring AI 客户端。</p>
+     *
+     * @param restClientBuilder Spring RestClient 构造器
+     * @param webClientBuilder Spring WebClient 构造器
+     * @param observationRegistry Micrometer 观测注册器；缺省时使用 NOOP
      */
     public OpenAiCompatibleRuntimeFactory(
-            // 调用外部模型服务接口，返回值需要在当前层转换为本地 DTO。
             RestClient.Builder restClientBuilder,
             WebClient.Builder webClientBuilder,
             ObjectProvider<ObservationRegistry> observationRegistry
     ) {
-        // 调用外部模型服务接口，返回值需要在当前层转换为本地 DTO。
         this.restClientBuilder = restClientBuilder;
         this.webClientBuilder = webClientBuilder;
         this.observationRegistry = observationRegistry.getIfAvailable(() -> ObservationRegistry.NOOP);
     }
 
     /**
-     * 执行 AI 运行时 中的 chat 运行时 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 获取或创建 OpenAI-compatible Chat 运行时。
+     *
+     * <p>缓存 key 覆盖 URL、密钥、模型和温度；任一字段变化都会构建新客户端。</p>
+     *
+     * @param config 已归一化的 Chat 配置
+     * @return Chat 运行时
      */
     public AiChatRuntime chatRuntime(ModelConfig config) {
         ChatRuntimeKey key = ChatRuntimeKey.from(config);
@@ -63,10 +71,6 @@ public class OpenAiCompatibleRuntimeFactory {
             return cached.runtime();
         }
 
-        /**
-         * 执行 AI 运行时 中的 synchronized 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         synchronized (this) {
             cached = cachedChatRuntime;
             if (cached != null && cached.key().equals(key)) {
@@ -83,8 +87,12 @@ public class OpenAiCompatibleRuntimeFactory {
     }
 
     /**
-     * 执行 AI 运行时 中的 embedding 运行时 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 获取或创建 OpenAI-compatible Embedding 运行时。
+     *
+     * <p>维度变化会影响 Lucene 向量字段，必须作为缓存 key 的一部分。</p>
+     *
+     * @param config 已归一化的 Embedding 配置
+     * @return Embedding 运行时
      */
     public AiEmbeddingRuntime embeddingRuntime(ModelConfig config) {
         EmbeddingRuntimeKey key = EmbeddingRuntimeKey.from(config);
@@ -93,10 +101,6 @@ public class OpenAiCompatibleRuntimeFactory {
             return cached.runtime();
         }
 
-        /**
-         * 执行 AI 运行时 中的 synchronized 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         synchronized (this) {
             cached = cachedEmbeddingRuntime;
             if (cached != null && cached.key().equals(key)) {
@@ -109,8 +113,10 @@ public class OpenAiCompatibleRuntimeFactory {
     }
 
     /**
-     * 构建 build Chat Model 对象。
-     * <p>第三方 API、框架对象或复杂参数的创建细节集中在此处。</p>
+     * 构造 Spring AI OpenAI ChatModel。
+     *
+     * @param config 用户保存的 Chat 配置
+     * @return 可调用的 ChatModel
      */
     private OpenAiChatModel buildChatModel(ModelConfig config) {
         OpenAiChatOptions options = OpenAiChatOptions.builder()
@@ -130,8 +136,10 @@ public class OpenAiCompatibleRuntimeFactory {
     }
 
     /**
-     * 构建 build Embedding Model 对象。
-     * <p>第三方 API、框架对象或复杂参数的创建细节集中在此处。</p>
+     * 构造 Spring AI OpenAI EmbeddingModel。
+     *
+     * @param config 用户保存的 Embedding 配置
+     * @return 可调用的 EmbeddingModel
      */
     private OpenAiEmbeddingModel buildEmbeddingModel(ModelConfig config) {
         OpenAiEmbeddingOptions options = OpenAiEmbeddingOptions.builder()
@@ -149,8 +157,12 @@ public class OpenAiCompatibleRuntimeFactory {
     }
 
     /**
-     * 执行 AI 运行时 中的 open Ai Api 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 构造指向用户 Base URL 的 OpenAiApi。
+     *
+     * <p>路径固定追加标准 chat/embedding endpoint，Base URL 的归一化由 OpenAiCompatibleUrls 保证。</p>
+     *
+     * @param config 用户保存的模型配置
+     * @return Spring AI OpenAiApi
      */
     private OpenAiApi openAiApi(ModelConfig config) {
         return OpenAiApi.builder()
@@ -158,7 +170,6 @@ public class OpenAiCompatibleRuntimeFactory {
                 .apiKey(config.apiKey())
                 .completionsPath(CHAT_COMPLETIONS_PATH)
                 .embeddingsPath(EMBEDDINGS_PATH)
-                // 调用外部模型服务接口，返回值需要在当前层转换为本地 DTO。
                 .restClientBuilder(restClientBuilder.clone())
                 .webClientBuilder(webClientBuilder.clone())
                 .responseErrorHandler(RetryUtils.DEFAULT_RESPONSE_ERROR_HANDLER)
@@ -166,8 +177,7 @@ public class OpenAiCompatibleRuntimeFactory {
     }
 
     /**
-     * Chat 运行时 Key 是 AI 运行时 的不可变数据快照。
-     * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+     * Chat 运行时缓存 key，必须包含所有会影响请求地址、认证和生成参数的字段。
      */
     private record ChatRuntimeKey(
             String baseUrl,
@@ -176,8 +186,10 @@ public class OpenAiCompatibleRuntimeFactory {
             double temperature
     ) {
         /**
-         * 将领域对象转换为 OpenAiCompatibleRuntimeFactory。
-         * <p>字段映射集中在这里，减少控制器和服务层的重复拼装。</p>
+         * 从模型配置提取 Chat 运行时缓存维度。
+         *
+         * @param config 用户保存的 Chat 配置
+         * @return 可比较的缓存 key
          */
         private static ChatRuntimeKey from(ModelConfig config) {
             return new ChatRuntimeKey(
@@ -190,8 +202,7 @@ public class OpenAiCompatibleRuntimeFactory {
     }
 
     /**
-     * Embedding 运行时 Key 是 AI 运行时 的不可变数据快照。
-     * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+     * Embedding 运行时缓存 key，维度变化会改变返回向量形状，不能复用旧实例。
      */
     private record EmbeddingRuntimeKey(
             String baseUrl,
@@ -200,8 +211,10 @@ public class OpenAiCompatibleRuntimeFactory {
             int embeddingDimensions
     ) {
         /**
-         * 将领域对象转换为 OpenAiCompatibleRuntimeFactory。
-         * <p>字段映射集中在这里，减少控制器和服务层的重复拼装。</p>
+         * 从模型配置提取 Embedding 运行时缓存维度。
+         *
+         * @param config 用户保存的 Embedding 配置
+         * @return 可比较的缓存 key
          */
         private static EmbeddingRuntimeKey from(ModelConfig config) {
             return new EmbeddingRuntimeKey(
@@ -214,8 +227,7 @@ public class OpenAiCompatibleRuntimeFactory {
     }
 
     /**
-     * Cached Chat 运行时 封装外部 AI 运行时 调用。
-     * <p>上层只依赖本地接口，不直接感知 Spring AI 或厂商 SDK 的细节。</p>
+     * 与缓存 key 绑定的 Chat 运行时实例，配置变化时整体替换。
      */
     private record CachedChatRuntime(ChatRuntimeKey key, AiChatRuntime runtime) {
         private CachedChatRuntime {
@@ -225,8 +237,7 @@ public class OpenAiCompatibleRuntimeFactory {
     }
 
     /**
-     * Cached Embedding 运行时 封装外部 AI 运行时 调用。
-     * <p>上层只依赖本地接口，不直接感知 Spring AI 或厂商 SDK 的细节。</p>
+     * 与缓存 key 绑定的 Embedding 运行时实例，避免并发读取到半更新状态。
      */
     private record CachedEmbeddingRuntime(EmbeddingRuntimeKey key, AiEmbeddingRuntime runtime) {
         private CachedEmbeddingRuntime {

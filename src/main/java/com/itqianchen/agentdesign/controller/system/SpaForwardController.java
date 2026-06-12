@@ -11,8 +11,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 public class SpaForwardController {
 
     /**
-     * 执行 系统状态 中的 forward Spa Routes 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将明确的前端路由转发给 SPA 入口。
+     *
+     * <p>只匹配已知页面，避免拦截 API、静态资源或后续新增的后端接口。</p>
+     *
+     * @return SPA 入口转发地址
      */
     @GetMapping({"/chat", "/knowledge", "/model-config", "/settings"})
     public String forwardSpaRoutes() {

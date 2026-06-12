@@ -1,8 +1,9 @@
 package com.itqianchen.agentdesign.domain.model;
 
 /**
- * Model 配置 Defaults 承担 模型配置 模块的主要职责。
- * <p>注释说明维护边界，不改变现有运行逻辑。</p>
+ * 模型配置的应用级默认值。
+ *
+ * <p>这些默认值用于新装应用、旧数据兼容和缺省字段兜底，修改时需要同步前端默认表单与测试用例。</p>
  */
 public final class ModelConfigDefaults {
 
@@ -28,8 +29,7 @@ public final class ModelConfigDefaults {
     public static final int MAX_CONTEXT_WINDOW_TOKENS = 2_000_000;
 
     /**
-     * 注入 ModelConfigDefaults 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 工具类不允许实例化。
      */
     private ModelConfigDefaults() {
     }

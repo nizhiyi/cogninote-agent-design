@@ -21,24 +21,34 @@ public class TokenEstimator {
     private final EncodingRegistry encodingRegistry = Encodings.newLazyEncodingRegistry();
 
     /**
-     * 估算 estimate 的 token 用量。
-     * <p>估算值用于上下文预算、裁剪和前端占用展示。</p>
+     * 使用默认策略估算 token。
+     *
+     * @param text 待估算文本
+     * @return token 数
      */
     public int estimate(String text) {
         return estimate(text, null);
     }
 
     /**
-     * 估算 estimate 的 token 用量。
-     * <p>估算值用于上下文预算、裁剪和前端占用展示。</p>
+     * 按模型配置估算 token。
+     *
+     * @param text 待估算文本
+     * @param config 模型配置；为空时使用兜底编码
+     * @return token 数
      */
     public int estimate(String text, ModelConfig config) {
         return estimateWithMethod(text, config).tokens();
     }
 
     /**
-     * 估算 estimate Chat Message 的 token 用量。
-     * <p>估算值用于上下文预算、裁剪和前端占用展示。</p>
+     * 估算聊天消息 token。
+     *
+     * <p>在文本 token 基础上追加固定 message overhead，贴近 Chat Completion 的上下文预算。</p>
+     *
+     * @param text 消息文本
+     * @param config 模型配置
+     * @return token 数
      */
     public int estimateChatMessage(String text, ModelConfig config) {
         if (text == null || text.isBlank()) {
@@ -48,8 +58,13 @@ public class TokenEstimator {
     }
 
     /**
-     * 估算 estimate With Method 的 token 用量。
-     * <p>估算值用于上下文预算、裁剪和前端占用展示。</p>
+     * 估算 token 并返回估算方法。
+     *
+     * <p>JTokkit 不支持或运行失败时回退到保守启发式，避免低估导致上下文超限。</p>
+     *
+     * @param text 待估算文本
+     * @param config 模型配置
+     * @return token 数和方法名称
      */
     public TokenEstimate estimateWithMethod(String text, ModelConfig config) {
         if (text == null || text.isBlank()) {
@@ -66,6 +81,9 @@ public class TokenEstimator {
     /**
      * 选择 choose Encoding 对应的可用策略。
      * <p>优先走精确匹配，失败时回退到兼容方案。</p>
+     *
+     * @param config 模型配置
+     * @return tokenizer 选择结果
      */
     private EncodingChoice chooseEncoding(ModelConfig config) {
         String modelName = config == null ? "" : nullToBlank(config.modelName()).trim();
@@ -85,6 +103,10 @@ public class TokenEstimator {
     /**
      * 选择 fallback Encoding 对应的可用策略。
      * <p>优先走精确匹配，失败时回退到兼容方案。</p>
+     *
+     * @param config 模型配置
+     * @param modelName 已归一化模型名
+     * @return tokenizer 选择结果
      */
     private EncodingChoice fallbackEncoding(ModelConfig config, String modelName) {
         String normalized = modelName.toLowerCase(Locale.ROOT);
@@ -101,6 +123,9 @@ public class TokenEstimator {
     /**
      * 在 tokenizer 不可用时执行保守 token 估算。
      * <p>混合中英文文本按更谨慎的规则估算，避免上下文预算被低估。</p>
+     *
+     * @param text 待估算文本
+     * @return token 数
      */
     private static int heuristicEstimate(String text) {
         double tokens = 0.0;
@@ -127,22 +152,17 @@ public class TokenEstimator {
     /**
      * 将可空字符串转换为空串。
      * <p>调用方可直接进行 trim、contains 等字符串操作。</p>
+     *
+     * @param value 可空字符串
+     * @return 非空字符串
      */
     private static String nullToBlank(String value) {
         return value == null ? "" : value;
     }
 
-    /**
-     * Token Estimate 是 聊天会话 的不可变数据快照。
-     * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
-     */
     public record TokenEstimate(int tokens, String method) {
     }
 
-    /**
-     * Encoding Choice 是 聊天会话 的不可变数据快照。
-     * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
-     */
     private record EncodingChoice(Encoding encoding, String method) {
     }
 }

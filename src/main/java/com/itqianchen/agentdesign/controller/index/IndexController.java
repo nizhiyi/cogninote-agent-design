@@ -20,16 +20,18 @@ public class IndexController {
     private final IndexService indexService;
 
     /**
-     * 注入 IndexController 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入索引服务。
+     *
+     * @param indexService 检索索引应用服务
      */
     public IndexController(IndexService indexService) {
         this.indexService = indexService;
     }
 
     /**
-     * 执行 检索索引 中的 status 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 读取当前索引统计。
+     *
+     * @return 文档数、chunk 数和索引可用状态
      */
     @GetMapping("/status")
     public ApiResponse<IndexStatusResponse> status() {
@@ -37,8 +39,11 @@ public class IndexController {
     }
 
     /**
-     * 执行 检索索引 中的 rebuild 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 重建全部检索索引。
+     *
+     * <p>重建会读取当前文档快照并覆盖 Lucene 索引，调用方应避免在频繁导入时重复触发。</p>
+     *
+     * @return 重建结果统计
      */
     @PostMapping("/rebuild")
     public ApiResponse<RebuildIndexResponse> rebuild() {

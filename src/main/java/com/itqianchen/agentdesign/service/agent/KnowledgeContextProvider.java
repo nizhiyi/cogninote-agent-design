@@ -16,8 +16,10 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 /**
- * Knowledge Context Provider 承担 智能体编排 模块的主要职责。
- * <p>注释说明维护边界，不改变现有运行逻辑。</p>
+ * 为知识库 Agent 获取可引用的检索上下文。
+ *
+ * <p>该服务负责向量不可用时的关键词降级，并在检索命中后回查 SQLite 补齐完整 chunk 内容，
+ * 让前端来源抽屉和模型引用使用同一份持久化文本。</p>
  */
 @Service
 public class KnowledgeContextProvider {
@@ -26,8 +28,10 @@ public class KnowledgeContextProvider {
     private final DocumentRepository documentRepository;
 
     /**
-     * 注入 KnowledgeContextProvider 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入检索索引和文档仓储。
+     *
+     * @param knowledgeStore 检索索引领域边界
+     * @param documentRepository 文档事实源仓储
      */
     public KnowledgeContextProvider(
             KnowledgeStore knowledgeStore,
@@ -38,8 +42,14 @@ public class KnowledgeContextProvider {
     }
 
     /**
-     * 执行 智能体编排 中的 retrieve 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 获取知识库问答上下文。
+     *
+     * <p>返回的来源会补齐完整 chunk 内容，供 RAG prompt 和前端来源展示共用。</p>
+     *
+     * @param question 检索问题
+     * @param requestedMode 请求检索模式
+     * @param topK 检索数量
+     * @return 知识库上下文
      */
     public KnowledgeContext retrieve(String question, SearchMode requestedMode, int topK) {
         SearchResponse searchResponse = searchWithFallback(question, requestedMode, topK);
@@ -48,8 +58,12 @@ public class KnowledgeContextProvider {
     }
 
     /**
-     * 执行 智能体编排 中的 search With Fallback 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 执行检索并在向量不可用时降级。
+     *
+     * @param question 检索问题
+     * @param requestedMode 请求检索模式
+     * @param topK 检索数量
+     * @return 检索响应
      */
     private SearchResponse searchWithFallback(String question, SearchMode requestedMode, int topK) {
         try {
@@ -67,8 +81,10 @@ public class KnowledgeContextProvider {
     }
 
     /**
-     * 执行 智能体编排 中的 to Sources 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将搜索命中转换为 RAG 来源。
+     *
+     * @param hits 搜索命中
+     * @return 带引用编号的来源列表
      */
     private List<RagSourceResponse> toSources(List<SearchHitResponse> hits) {
         List<RagSourceResponse> sources = new ArrayList<>();
@@ -79,14 +95,17 @@ public class KnowledgeContextProvider {
     }
 
     /**
-     * 执行 智能体编排 中的 hydrate Sources 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 回查 SQLite 补齐来源正文。
+     *
+     * @param sources 搜索来源摘要
+     * @return 带完整正文的来源
      */
     private List<RagSourceResponse> hydrateSources(List<RagSourceResponse> sources) {
         if (sources.isEmpty()) {
             return sources;
         }
 
+        // 搜索命中只携带必要摘要；RAG prompt 需要完整 chunk，必须回到 SQLite 事实源补齐。
         Map<String, StoredChunk> chunksById = documentRepository.findStoredChunksByIds(sources.stream()
                         .map(RagSourceResponse::chunkId)
                         .toList())

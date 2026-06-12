@@ -21,8 +21,9 @@ public record KnowledgeFolderRebuildResponse(
         long durationMs
 ) {
     /**
-     * 将领域对象转换为 KnowledgeFolderRebuildResponse。
-     * <p>字段映射集中在这里，减少控制器和服务层的重复拼装。</p>
+     * 合并目录扫描解析和索引重建两段统计。
+     *
+     * <p>前端只展示一个重建任务结果，因此这里保留两段流程各自的失败计数。</p>
      */
     public static KnowledgeFolderRebuildResponse from(
             IngestDocumentsResponse ingestResponse,

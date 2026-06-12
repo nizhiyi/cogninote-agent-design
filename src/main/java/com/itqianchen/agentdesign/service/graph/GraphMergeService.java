@@ -41,6 +41,15 @@ public class GraphMergeService {
     private final ObjectMapper objectMapper;
     private final KnowledgeGraphPromptProperties promptProperties;
 
+    /**
+     * 注入图谱合并服务依赖。
+     *
+     * @param repository 图谱仓储
+     * @param canonicalizer 图谱规范化工具
+     * @param viewBuilder 视图构建器
+     * @param objectMapper JSON 解析器
+     * @param promptProperties 图谱提示词配置
+     */
     public GraphMergeService(
             KnowledgeGraphRepository repository,
             GraphCanonicalizer canonicalizer,
@@ -55,6 +64,17 @@ public class GraphMergeService {
         this.promptProperties = promptProperties;
     }
 
+    /**
+     * 将 chunk 抽取缓存合并为 scope 派生图。
+     *
+     * <p>合并阶段不调用模型，只从已验证 quote 的缓存中生成节点、边、证据和前端视图。</p>
+     *
+     * @param scope 图谱范围
+     * @param runId 运行 ID
+     * @param documents 本次参与合并的文档
+     * @param modelConfigId 抽取时使用的模型配置 ID
+     * @return 合并统计
+     */
     @Transactional
     public GraphMergeResult merge(
             KnowledgeGraphScope scope,
@@ -67,6 +87,7 @@ public class GraphMergeService {
         Map<EdgeKey, EdgeAccumulator> edges = new LinkedHashMap<>();
         long now = System.currentTimeMillis();
 
+        // 派生图可以从 chunk 抽取缓存重建，先清理旧节点/边/证据可避免跨 run 残留。
         repository.deleteScopeDerivedGraph(scope);
         for (KnowledgeGraphChunkExtraction extraction : repository.findExtractionsByChunkIds(new ArrayList<>(chunksById.keySet()))) {
             IndexedChunk chunk = chunksById.get(extraction.chunkId());
@@ -113,6 +134,17 @@ public class GraphMergeService {
         return new GraphMergeResult(persistedNodes.size(), persistedEdges.size());
     }
 
+    /**
+     * 合并单个 chunk 的抽取结果。
+     *
+     * @param scope 图谱范围
+     * @param runId 运行 ID
+     * @param chunk 当前 chunk
+     * @param extraction 抽取缓存
+     * @param nodes 节点累加器
+     * @param edges 边累加器
+     * @param now 当前时间戳
+     */
     private void mergeExtraction(
             KnowledgeGraphScope scope,
             String runId,
@@ -137,6 +169,7 @@ public class GraphMergeService {
             );
             localNameToNodeKey.putIfAbsent(canonicalName, key);
             if (canonicalizer.quoteMatches(chunk.content(), extractedNode.quote())) {
+                // 只接受能回链到原文 quote 的证据，防止模型幻觉实体进入可追溯视图。
                 node.addEvidence(
                         runId,
                         chunk,
@@ -156,6 +189,7 @@ public class GraphMergeService {
                 continue;
             }
             if (!canonicalizer.quoteMatches(chunk.content(), extractedEdge.quote())) {
+                // 关系必须有原文证据；没有可验证 quote 时宁可丢弃。
                 continue;
             }
 
@@ -178,6 +212,12 @@ public class GraphMergeService {
         }
     }
 
+    /**
+     * 解析缓存中的抽取 JSON。
+     *
+     * @param json 抽取 JSON
+     * @return 抽取 payload
+     */
     private GraphExtractionPayload parse(String json) {
         try {
             return objectMapper.readValue(json, GraphExtractionPayload.class);
@@ -186,6 +226,14 @@ public class GraphMergeService {
         }
     }
 
+    /**
+     * 判断抽取缓存是否可用于本次合并。
+     *
+     * @param extraction 抽取缓存
+     * @param chunk 当前 chunk
+     * @param modelConfigId 当前模型配置 ID
+     * @return 是否可复用
+     */
     private boolean isReusableExtraction(KnowledgeGraphChunkExtraction extraction, IndexedChunk chunk, String modelConfigId) {
         return chunk != null
                 && extraction.status() == KnowledgeGraphExtractionStatus.EXTRACTED
@@ -196,6 +244,12 @@ public class GraphMergeService {
                 && !extraction.extractionJson().isBlank();
     }
 
+    /**
+     * 将文档集合索引为 chunkId 到 chunk。
+     *
+     * @param documents 文档集合
+     * @return chunk 映射
+     */
     private static Map<String, IndexedChunk> chunksById(Collection<IndexedDocument> documents) {
         Map<String, IndexedChunk> chunks = new LinkedHashMap<>();
         for (IndexedDocument document : documents) {
@@ -206,6 +260,12 @@ public class GraphMergeService {
         return chunks;
     }
 
+    /**
+     * 归一化置信度。
+     *
+     * @param confidence 模型输出置信度
+     * @return 0 到 1 之间的置信度
+     */
     private static double normalizeConfidence(Double confidence) {
         if (confidence == null || confidence.isNaN()) {
             return 0.0;
@@ -213,6 +273,12 @@ public class GraphMergeService {
         return Math.clamp(confidence, 0.0, 1.0);
     }
 
+    /**
+     * 将可空列表转换为空列表。
+     *
+     * @param values 可空列表
+     * @return 非空列表
+     */
     private static <T> List<T> nullToEmpty(List<T> values) {
         return values == null ? List.of() : values;
     }
@@ -234,6 +300,14 @@ public class GraphMergeService {
         private double confidenceTotal;
         private int mentionCount;
 
+        /**
+         * 创建节点累加器。
+         *
+         * @param scope 图谱范围
+         * @param key 节点合并键
+         * @param displayName 展示名称
+         * @param nodeType 节点类型
+         */
         private NodeAccumulator(KnowledgeGraphScope scope, NodeKey key, String displayName, String nodeType) {
             this.key = key;
             this.id = canonicalizer.stableId(scopeSeed(scope) + "|node|" + key.canonicalName() + "|" + key.nodeType());
@@ -241,10 +315,26 @@ public class GraphMergeService {
             this.nodeType = nodeType;
         }
 
+        /**
+         * 返回节点 ID。
+         *
+         * @return 节点 ID
+         */
         private String id() {
             return id;
         }
 
+        /**
+         * 为节点追加证据。
+         *
+         * @param runId 运行 ID
+         * @param chunk 来源 chunk
+         * @param description 节点描述
+         * @param confidence 置信度
+         * @param quote 原文证据
+         * @param fromEdge 是否来自边证据补充
+         * @param now 当前时间戳
+         */
         private void addEvidence(
                 String runId,
                 IndexedChunk chunk,
@@ -280,6 +370,13 @@ public class GraphMergeService {
             ));
         }
 
+        /**
+         * 转换为可持久化节点。
+         *
+         * @param scope 图谱范围
+         * @param now 当前时间戳
+         * @return 图谱节点
+         */
         private KnowledgeGraphNode toNode(KnowledgeGraphScope scope, long now) {
             return new KnowledgeGraphNode(
                     id,
@@ -309,6 +406,12 @@ public class GraphMergeService {
         private double confidenceTotal;
         private int mentionCount;
 
+        /**
+         * 创建边累加器。
+         *
+         * @param key 边合并键
+         * @param relationType 关系类型
+         */
         private EdgeAccumulator(EdgeKey key, String relationType) {
             this.key = key;
             this.id = canonicalizer.stableId("edge|" + key.sourceNodeId() + "|" + key.targetNodeId() + "|" + key.relationType());
@@ -317,6 +420,16 @@ public class GraphMergeService {
             this.relationType = relationType;
         }
 
+        /**
+         * 为边追加证据。
+         *
+         * @param runId 运行 ID
+         * @param chunk 来源 chunk
+         * @param description 关系描述
+         * @param confidence 置信度
+         * @param quote 原文证据
+         * @param now 当前时间戳
+         */
         private void addEvidence(
                 String runId,
                 IndexedChunk chunk,
@@ -351,6 +464,13 @@ public class GraphMergeService {
             ));
         }
 
+        /**
+         * 转换为可持久化边。
+         *
+         * @param scope 图谱范围
+         * @param now 当前时间戳
+         * @return 图谱边
+         */
         private KnowledgeGraphEdge toEdge(KnowledgeGraphScope scope, long now) {
             return new KnowledgeGraphEdge(
                     id,
@@ -368,6 +488,12 @@ public class GraphMergeService {
         }
     }
 
+    /**
+     * 构造 scope 稳定 ID 种子。
+     *
+     * @param scope 图谱范围
+     * @return scope seed
+     */
     private static String scopeSeed(KnowledgeGraphScope scope) {
         return scope.scopeType().name() + "|" + (scope.normalizedScopeId() == null ? "" : scope.normalizedScopeId());
     }

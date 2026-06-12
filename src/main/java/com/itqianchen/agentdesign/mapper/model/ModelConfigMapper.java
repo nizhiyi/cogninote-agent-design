@@ -5,68 +5,91 @@ import java.util.List;
 import org.apache.ibatis.annotations.Param;
 
 /**
- * Model 配置 Mapper 声明 模型配置 相关的 MyBatis SQL 操作。
- * <p>方法签名需要和注解 SQL、数据库表结构保持一致。</p>
+ * 模型配置表的 MyBatis SQL 边界。
+ *
+ * <p>CHAT 和 EMBEDDING 共用一张表，每个 role 只能有一个 active 配置；唯一性由
+ * ModelConfigRepository 的事务顺序维护，避免不同 SQLite 版本对 partial index 的支持差异。</p>
  */
 public interface ModelConfigMapper {
 
     /**
-     * 读取 find All 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 查询指定角色的所有配置。
+     *
+     * @param role 模型角色名称
+     * @return 配置列表
      */
     List<ModelConfig> findAll(@Param("role") String role);
 
     /**
-     * 读取 find By Id 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 按 ID 查询配置。
+     *
+     * @param id 配置 ID
+     * @return 配置记录
      */
     List<ModelConfig> findById(@Param("id") String id);
 
     /**
-     * 读取 find Active 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 查询指定角色的 active 配置。
+     *
+     * @param role 模型角色名称
+     * @return active 配置记录
      */
     List<ModelConfig> findActive(@Param("role") String role);
 
     /**
-     * 更新 save 对应的数据。
-     * <p>方法负责保持内存快照、数据库记录和返回值语义一致。</p>
+     * 新增或更新模型配置。
+     *
+     * @param config 模型配置
      */
     void save(ModelConfig config);
 
     /**
-     * 执行 模型配置 中的 deactivate Role 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 清除指定角色的 active 标记。
+     *
+     * <p>激活新配置前必须先执行该操作，保证运行时不会读到多个 active 模型。</p>
+     *
+     * @param role 模型角色名称
+     * @param updatedAt 更新时间戳
      */
     void deactivateRole(@Param("role") String role, @Param("updatedAt") long updatedAt);
 
     /**
-     * 执行 模型配置 中的 activate 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将指定配置标记为 active。
+     *
+     * @param id 配置 ID
+     * @param updatedAt 更新时间戳
      */
     void activate(@Param("id") String id, @Param("updatedAt") long updatedAt);
 
     /**
-     * 删除 delete 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     * 删除模型配置。
+     *
+     * @param id 配置 ID
      */
     void delete(@Param("id") String id);
 
     /**
-     * 执行 模型配置 中的 count By Role 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 统计指定角色配置数量。
+     *
+     * @param role 模型角色名称
+     * @return 配置数量
      */
     long countByRole(@Param("role") String role);
 
     /**
-     * 读取 find Legacy Active 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 读取旧版单 active 配置。
+     *
+     * <p>仅用于启动迁移和兼容旧接口，新代码应按 role 查询 active 配置。</p>
+     *
+     * @param id 旧版固定配置 ID
+     * @return 旧版配置记录
      */
     List<ModelConfig> findLegacyActive(@Param("id") String id);
 
     /**
-     * 更新 save Active 对应的数据。
-     * <p>方法负责保持内存快照、数据库记录和返回值语义一致。</p>
+     * 保存旧版 active_model_config 记录。
+     *
+     * @param config 旧版兼容配置
      */
     void saveActive(ModelConfig config);
 }

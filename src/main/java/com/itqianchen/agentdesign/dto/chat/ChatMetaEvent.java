@@ -15,8 +15,15 @@ public record ChatMetaEvent(
         ChatContextUsageResponse contextUsage
 ) {
     /**
-     * 注入 ChatMetaEvent 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 构造 SSE meta 事件。
+     *
+     * <p>meta 只用于初始化前端流状态，来源列表不携带完整 chunk 内容，避免首个事件过大影响流式首包。</p>
+     *
+     * @param requestId 当前流请求 ID
+     * @param conversationId 会话 ID
+     * @param retrievalMode 检索模式
+     * @param sources RAG 来源列表
+     * @param contextUsage 上下文预算快照
      */
     public ChatMetaEvent(
             String requestId,

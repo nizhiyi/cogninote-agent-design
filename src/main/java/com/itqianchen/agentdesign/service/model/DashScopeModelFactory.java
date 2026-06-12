@@ -19,8 +19,10 @@ import org.springframework.retry.support.RetryTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * Dash Scope Model 工厂 负责创建 模型配置 运行对象。
- * <p>提供商差异、客户端参数和缓存复用应收敛在这里。</p>
+ * 构造并缓存 DashScope 的 ChatModel 和 EmbeddingModel。
+ *
+ * <p>DashScope 的 endpoint 和 embedding textType 由模型名或调用场景决定，
+ * 缓存 key 必须覆盖这些维度。</p>
  */
 @Component
 public class DashScopeModelFactory {
@@ -30,16 +32,19 @@ public class DashScopeModelFactory {
     private final ConcurrentMap<EmbeddingModelKey, EmbeddingModel> cachedEmbeddingModels = new ConcurrentHashMap<>();
 
     /**
-     * 注入 DashScopeModelFactory 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入观测注册器。
+     *
+     * @param observationRegistry Micrometer 观测注册器；缺省时使用 NOOP
      */
     public DashScopeModelFactory(ObjectProvider<ObservationRegistry> observationRegistry) {
         this.observationRegistry = observationRegistry.getIfAvailable(() -> ObservationRegistry.NOOP);
     }
 
     /**
-     * 执行 模型配置 中的 chat Model 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 获取或创建 DashScope ChatModel。
+     *
+     * @param config Chat 模型配置
+     * @return ChatModel
      */
     public ChatModel chatModel(ModelConfig config) {
         ChatModelKey key = ChatModelKey.from(config);
@@ -48,10 +53,6 @@ public class DashScopeModelFactory {
             return cached.model();
         }
 
-        /**
-         * 执行 模型配置 中的 synchronized 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         synchronized (this) {
             cached = cachedChatModel;
             if (cached != null && cached.key().equals(key)) {
@@ -66,17 +67,21 @@ public class DashScopeModelFactory {
     }
 
     /**
-     * 执行 模型配置 中的 embedding Model 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 获取默认 textType 的 DashScope EmbeddingModel。
+     *
+     * @param config Embedding 配置
+     * @return EmbeddingModel
      */
     public EmbeddingModel embeddingModel(ModelConfig config) {
-        // 向量模型调用可能受网络和模型配置影响，异常会交给上层统一处理。
         return embeddingModel(config, null);
     }
 
     /**
-     * 执行 模型配置 中的 embedding Model 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 获取指定 textType 的 DashScope EmbeddingModel。
+     *
+     * @param config Embedding 配置
+     * @param textType DashScope query/document textType
+     * @return EmbeddingModel
      */
     public EmbeddingModel embeddingModel(ModelConfig config, String textType) {
         EmbeddingModelKey key = EmbeddingModelKey.from(config, textType);
@@ -85,8 +90,10 @@ public class DashScopeModelFactory {
     }
 
     /**
-     * 构建 build Chat Model 对象。
-     * <p>第三方 API、框架对象或复杂参数的创建细节集中在此处。</p>
+     * 构造 DashScope ChatModel。
+     *
+     * @param config Chat 模型配置
+     * @return ChatModel
      */
     private ChatModel buildChatModel(ModelConfig config) {
         DashScopeChatEndpoint endpoint = DashScopeChatEndpoint.fromModel(config.modelName());
@@ -110,8 +117,11 @@ public class DashScopeModelFactory {
     }
 
     /**
-     * 构建 build Embedding Model 对象。
-     * <p>第三方 API、框架对象或复杂参数的创建细节集中在此处。</p>
+     * 构造 DashScope EmbeddingModel。
+     *
+     * @param config Embedding 配置
+     * @param textType DashScope query/document textType
+     * @return EmbeddingModel
      */
     private EmbeddingModel buildEmbeddingModel(ModelConfig config, String textType) {
         DashScopeEmbeddingOptions options = DashScopeEmbeddingOptions.builder()
@@ -130,8 +140,10 @@ public class DashScopeModelFactory {
     }
 
     /**
-     * 执行 模型配置 中的 api 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 构造 DashScopeApi 客户端。
+     *
+     * @param config 模型配置
+     * @return DashScopeApi
      */
     private DashScopeApi api(ModelConfig config) {
         return DashScopeApi.builder()
@@ -141,38 +153,43 @@ public class DashScopeModelFactory {
     }
 
     /**
-     * Dash Scope Chat Endpoint 枚举 模型配置 的稳定取值。
-     * <p>枚举值可能进入数据库或 API 响应，修改时需要考虑兼容性。</p>
+     * DashScope Chat API endpoint 选择结果。
+     *
+     * <p>Spring AI Alibaba 依赖 multiModel 切换 text-generation 与 multimodal-generation，
+     * 模型名前缀规则集中在这里维护。</p>
      */
     enum DashScopeChatEndpoint {
+        /** 文本生成 endpoint。 */
         TEXT_GENERATION(false),
-        /**
-         * 执行 模型配置 中的 MULTIMODAL GENERATION 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
+
+        /** 多模态生成 endpoint。 */
         MULTIMODAL_GENERATION(true);
 
         private final boolean multiModel;
 
         /**
-         * 执行 模型配置 中的 Dash Scope Chat Endpoint 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+         * 绑定 Spring AI Alibaba 的 multiModel 开关。
+         *
+         * @param multiModel 是否使用多模态 endpoint
          */
         DashScopeChatEndpoint(boolean multiModel) {
             this.multiModel = multiModel;
         }
 
         /**
-         * 执行 模型配置 中的 multi Model 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+         * 返回 Spring AI Alibaba endpoint 选择开关。
+         *
+         * @return 使用多模态 endpoint 时为 true
          */
         boolean multiModel() {
             return multiModel;
         }
 
         /**
-         * 执行 模型配置 中的 from Model 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+         * 根据模型名前缀选择 DashScope endpoint。
+         *
+         * @param model 模型名
+         * @return endpoint 选择结果
          */
         static DashScopeChatEndpoint fromModel(String model) {
             String normalized = model == null ? "" : model.trim().toLowerCase(Locale.ROOT);
@@ -199,8 +216,7 @@ public class DashScopeModelFactory {
     }
 
     /**
-     * Chat Model Key 是 模型配置 的不可变数据快照。
-     * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+     * ChatModel 缓存 key，endpoint 也会影响最终请求路径，必须纳入比较。
      */
     private record ChatModelKey(
             String nativeBaseUrl,
@@ -210,8 +226,10 @@ public class DashScopeModelFactory {
             DashScopeChatEndpoint endpoint
     ) {
         /**
-         * 将领域对象转换为 DashScopeModelFactory。
-         * <p>字段映射集中在这里，减少控制器和服务层的重复拼装。</p>
+         * 从模型配置提取 ChatModel 缓存维度。
+         *
+         * @param config Chat 模型配置
+         * @return 可比较的缓存 key
          */
         private static ChatModelKey from(ModelConfig config) {
             return new ChatModelKey(
@@ -225,8 +243,7 @@ public class DashScopeModelFactory {
     }
 
     /**
-     * Embedding Model Key 是 模型配置 的不可变数据快照。
-     * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+     * EmbeddingModel 缓存 key，document/query textType 不同会改变 DashScope 服务端处理策略。
      */
     private record EmbeddingModelKey(
             String nativeBaseUrl,
@@ -236,8 +253,11 @@ public class DashScopeModelFactory {
             String textType
     ) {
         /**
-         * 将领域对象转换为 DashScopeModelFactory。
-         * <p>字段映射集中在这里，减少控制器和服务层的重复拼装。</p>
+         * 从模型配置和 textType 提取 EmbeddingModel 缓存维度。
+         *
+         * @param config Embedding 模型配置
+         * @param textType DashScope query/document textType
+         * @return 可比较的缓存 key
          */
         private static EmbeddingModelKey from(ModelConfig config, String textType) {
             return new EmbeddingModelKey(
@@ -251,8 +271,7 @@ public class DashScopeModelFactory {
     }
 
     /**
-     * Cached Chat Model 是 模型配置 的不可变数据快照。
-     * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+     * 与 key 绑定的 ChatModel 缓存项。
      */
     private record CachedChatModel(ChatModelKey key, ChatModel model) {
     }

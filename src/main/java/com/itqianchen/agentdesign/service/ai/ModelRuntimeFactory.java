@@ -8,8 +8,9 @@ import com.itqianchen.agentdesign.domain.model.ModelProvider;
 import org.springframework.stereotype.Component;
 
 /**
- * Model 运行时 工厂 负责创建 模型配置 运行对象。
- * <p>提供商差异、客户端参数和缓存复用应收敛在这里。</p>
+ * 按 ModelProvider 分派到具体厂商运行时工厂。
+ *
+ * <p>这是模型配置到运行时的唯一路由点，新增 provider 时应同步扩展该分派逻辑。</p>
  */
 @Component
 public class ModelRuntimeFactory implements AiRuntimeFactory {
@@ -18,8 +19,10 @@ public class ModelRuntimeFactory implements AiRuntimeFactory {
     private final OpenAiCompatibleRuntimeFactory openAiCompatibleRuntimeFactory;
 
     /**
-     * 注入 ModelRuntimeFactory 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入所有已支持 Provider 的运行时工厂。
+     *
+     * @param dashScopeRuntimeFactory DashScope 运行时工厂
+     * @param openAiCompatibleRuntimeFactory OpenAI-compatible 运行时工厂
      */
     public ModelRuntimeFactory(
             DashScopeRuntimeFactory dashScopeRuntimeFactory,
@@ -30,22 +33,24 @@ public class ModelRuntimeFactory implements AiRuntimeFactory {
     }
 
     /**
-     * 执行 模型配置 中的 chat 运行时 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 按 Provider 创建 Chat 运行时。
+     *
+     * @param config 已归一化的模型配置
+     * @return 与 Provider 匹配的 Chat 运行时
      */
     @Override
     public AiChatRuntime chatRuntime(ModelConfig config) {
         if (config.provider() == ModelProvider.OPENAI_COMPATIBLE) {
-            // 这里开始真正的模型对话调用，后续 Flux 事件会驱动前端流式展示。
             return openAiCompatibleRuntimeFactory.chatRuntime(config);
         }
-        // 这里开始真正的模型对话调用，后续 Flux 事件会驱动前端流式展示。
         return dashScopeRuntimeFactory.chatRuntime(config);
     }
 
     /**
-     * 执行 模型配置 中的 embedding 运行时 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 按 Provider 创建 Embedding 运行时。
+     *
+     * @param config 已归一化的模型配置
+     * @return 与 Provider 匹配的 Embedding 运行时
      */
     @Override
     public AiEmbeddingRuntime embeddingRuntime(ModelConfig config) {

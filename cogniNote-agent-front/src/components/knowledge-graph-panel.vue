@@ -13,6 +13,12 @@ import { formatTime } from '../utils/formatters'
 const knowledgeStore = useKnowledgeFoldersStore()
 const graphStore = useKnowledgeGraphStore()
 
+/**
+ * 知识图谱管理面板。
+ *
+ * <p>面板负责让 scope 选择始终指向一个可生成的目录或文档；实际 run 状态、SSE 订阅和视图缓存都归
+ * knowledgeGraph store 管理。</p>
+ */
 const scopeTypeOptions = [
   { value: 'ALL', label: '全库' },
   { value: 'KNOWLEDGE_FOLDER', label: '目录' },
@@ -62,11 +68,13 @@ onMounted(async () => {
 watch(
   () => graphStore.viewType,
   () => {
+    // 切换展示类型不改变图谱 scope，只按需读取对应后端视图或复用 GRAPH payload。
     void graphStore.loadCurrentView()
   }
 )
 
 async function ensureScopeSelection() {
+  // 默认选中当前可用的第一项，避免用户切到目录/文档范围后生成按钮处于无效空 scope。
   if (graphStore.scopeType === 'KNOWLEDGE_FOLDER' && !graphStore.scopeId && folderOptions.value.length) {
     await graphStore.selectScope('KNOWLEDGE_FOLDER', folderOptions.value[0].id)
   }

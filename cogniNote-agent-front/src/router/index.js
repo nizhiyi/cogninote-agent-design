@@ -3,6 +3,11 @@ import ChatView from '../views/chat-view.vue'
 import KnowledgeView from '../views/knowledge-view.vue'
 import SettingsView from '../views/settings-view.vue'
 
+/**
+ * 桌面应用路由表。
+ *
+ * <p>/model-config 是旧入口，继续重定向到设置页的对话模型项，避免历史书签失效。</p>
+ */
 export const router = createRouter({
   history: createWebHistory(),
   routes: [

@@ -1,8 +1,9 @@
 package com.itqianchen.agentdesign.domain.search;
 
 /**
- * Stored Chunk 是 检索索引 的不可变数据快照。
- * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+ * 已持久化 chunk 的来源详情。
+ *
+ * <p>聊天来源和图谱证据只保存 chunkId，打开详情时通过该结构补齐完整内容与文件路径。</p>
  */
 public record StoredChunk(
         String chunkId,

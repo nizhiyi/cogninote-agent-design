@@ -1,5 +1,9 @@
 <script setup>
-// module-nav 负责 业务 页面或组件的状态组织、用户交互和后端同步。
+/**
+ * 模块入口导航。
+ *
+ * <p>items 由页面配置提供，组件只负责 RouterLink 渲染，避免在通用导航里硬编码业务路由。</p>
+ */
 defineProps({
   items: {
     type: Array,

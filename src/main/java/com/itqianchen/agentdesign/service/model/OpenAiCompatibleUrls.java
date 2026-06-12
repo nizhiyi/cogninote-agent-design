@@ -4,10 +4,6 @@ import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
 import java.net.URI;
 import java.net.URISyntaxException;
 
-/**
- * Open Ai Compatible Urls 承担 模型配置 模块的主要职责。
- * <p>注释说明维护边界，不改变现有运行逻辑。</p>
- */
 public final class OpenAiCompatibleUrls {
 
     private static final String MODELS_PATH = "/models";
@@ -15,15 +11,16 @@ public final class OpenAiCompatibleUrls {
     private static final String EMBEDDINGS_PATH = "/embeddings";
 
     /**
-     * 注入 OpenAiCompatibleUrls 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 工具类禁止实例化。
      */
     private OpenAiCompatibleUrls() {
     }
 
     /**
-     * 规范化 normalize Base Url 输入。
-     * <p>后续逻辑只处理受控取值，减少重复分支和边界判断。</p>
+     * 归一化 OpenAI-compatible Base URL。
+     *
+     * @param baseUrl 用户输入地址
+     * @return 不带已知 endpoint 的 Base URL
      */
     public static String normalizeBaseUrl(String baseUrl) {
         if (baseUrl == null || baseUrl.isBlank()) {
@@ -31,10 +28,6 @@ public final class OpenAiCompatibleUrls {
         }
 
         URI uri = parseHttpUri(stripTrailingSlashes(baseUrl.trim()), baseUrl);
-        /**
-         * 执行 模型配置 中的 reject Query Or Fragment 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         rejectQueryOrFragment(uri);
 
         String value = uri.toString();
@@ -44,32 +37,41 @@ public final class OpenAiCompatibleUrls {
     }
 
     /**
-     * 执行 模型配置 中的 models Uri 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 组合模型列表接口地址。
+     *
+     * @param baseUrl Base URL
+     * @return /models URI
      */
     public static URI modelsUri(String baseUrl) {
         return URI.create(normalizeBaseUrl(baseUrl) + MODELS_PATH);
     }
 
     /**
-     * 执行 模型配置 中的 chat Completions Uri 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 组合 Chat Completions 接口地址。
+     *
+     * @param baseUrl Base URL
+     * @return /chat/completions URI
      */
     public static URI chatCompletionsUri(String baseUrl) {
         return URI.create(normalizeBaseUrl(baseUrl) + CHAT_COMPLETIONS_PATH);
     }
 
     /**
-     * 执行 模型配置 中的 embeddings Uri 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 组合 Embeddings 接口地址。
+     *
+     * @param baseUrl Base URL
+     * @return /embeddings URI
      */
     public static URI embeddingsUri(String baseUrl) {
         return URI.create(normalizeBaseUrl(baseUrl) + EMBEDDINGS_PATH);
     }
 
     /**
-     * 解析 parse Http Uri 输入。
-     * <p>将外部文本或结构转换为模块内部可直接使用的对象。</p>
+     * 只接受 http/https 且必须带 host 的 Base URL。
+     *
+     * @param value 已清理尾部斜杠的地址
+     * @param originalValue 用户原始输入，用于错误提示
+     * @return URI
      */
     private static URI parseHttpUri(String value, String originalValue) {
         try {
@@ -87,8 +89,9 @@ public final class OpenAiCompatibleUrls {
     }
 
     /**
-     * 执行 模型配置 中的 reject Query Or Fragment 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 拒绝带 query 或 fragment 的 Base URL。
+     *
+     * @param uri 待校验 URI
      */
     private static void rejectQueryOrFragment(URI uri) {
         if (uri.getQuery() != null || uri.getFragment() != null) {
@@ -97,8 +100,10 @@ public final class OpenAiCompatibleUrls {
     }
 
     /**
-     * 执行 模型配置 中的 strip Known Endpoint 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 移除用户误复制的标准 endpoint。
+     *
+     * @param value 归一化后的 URI 字符串
+     * @return Base URL
      */
     private static String stripKnownEndpoint(String value) {
         for (String endpoint : new String[] {CHAT_COMPLETIONS_PATH, EMBEDDINGS_PATH, MODELS_PATH}) {
@@ -110,8 +115,10 @@ public final class OpenAiCompatibleUrls {
     }
 
     /**
-     * 执行 模型配置 中的 strip Trailing Slashes 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 移除末尾斜杠。
+     *
+     * @param value 原始地址
+     * @return 无尾部斜杠的地址
      */
     private static String stripTrailingSlashes(String value) {
         String normalized = value;

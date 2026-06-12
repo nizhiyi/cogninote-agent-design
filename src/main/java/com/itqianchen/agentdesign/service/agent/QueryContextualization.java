@@ -1,8 +1,10 @@
 package com.itqianchen.agentdesign.service.agent;
 
 /**
- * Query Contextualization 是 智能体编排 的不可变数据快照。
- * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+ * 多轮问题改写结果。
+ *
+ * <p>originalQuestion 始终用于最终回答，retrievalQuery 只用于召回知识库；confidence 和 reason
+ * 便于后续观察何时应该回退到原问题。</p>
  */
 public record QueryContextualization(
         String originalQuestion,
@@ -13,8 +15,9 @@ public record QueryContextualization(
 ) {
 
     /**
-     * 执行 智能体编排 中的 original 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 构造未改写结果。
+     *
+     * <p>检索 query 与原问题保持一致，避免低置信度改写污染知识库召回。</p>
      */
     public static QueryContextualization original(String question, String reason) {
         return new QueryContextualization(question, question, false, reason, 0.0);

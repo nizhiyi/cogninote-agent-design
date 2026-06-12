@@ -5,10 +5,6 @@ import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
 import java.net.URI;
 import java.net.URISyntaxException;
 
-/**
- * Dash Scope Base Urls 承担 模型配置 模块的主要职责。
- * <p>注释说明维护边界，不改变现有运行逻辑。</p>
- */
 final class DashScopeBaseUrls {
 
     private static final String MODELS_PATH = "/models";
@@ -20,25 +16,22 @@ final class DashScopeBaseUrls {
     private static final String COMPATIBLE_MODE_MODELS_BASE_URL = DASHSCOPE_ORIGIN + COMPATIBLE_V1_PATH;
 
     /**
-     * 注入 DashScopeBaseUrls 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 工具类禁止实例化。
      */
     private DashScopeBaseUrls() {
     }
 
     /**
-     * 规范化 normalize 配置 Base Url 输入。
-     * <p>后续逻辑只处理受控取值，减少重复分支和边界判断。</p>
+     * 归一化 DashScope Provider 的配置地址。
+     *
+     * @param baseUrl 用户保存的 Base URL
+     * @return DashScope 原生 API Root
      */
     static String normalizeConfigBaseUrl(String baseUrl) {
         String candidate = baseUrl == null || baseUrl.isBlank()
                 ? ModelConfigDefaults.BASE_URL
                 : baseUrl.trim();
         URI uri = parseHttpUri(stripTrailingSlashes(candidate), baseUrl);
-        /**
-         * 执行 模型配置 中的 reject Query Or Fragment 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         rejectQueryOrFragment(uri);
 
         String normalized = uri.toString();
@@ -63,8 +56,10 @@ final class DashScopeBaseUrls {
     }
 
     /**
-     * 执行 模型配置 中的 models Uri 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 返回 DashScope 模型列表接口地址。
+     *
+     * @param configuredBaseUrl 用户配置地址；DashScope Provider 固定使用百炼兼容模型列表
+     * @return 模型列表 URI
      */
     static URI modelsUri(String configuredBaseUrl) {
         // DashScope 是固定百炼通道，不读取用户自定义 host。
@@ -73,8 +68,10 @@ final class DashScopeBaseUrls {
     }
 
     /**
-     * 执行 模型配置 中的 to Spring Ai Alibaba Base Url 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 转换为 Spring AI Alibaba DashScopeApi 需要的 baseUrl。
+     *
+     * @param configuredBaseUrl 用户配置地址
+     * @return DashScope 裸域名
      */
     static String toSpringAiAlibabaBaseUrl(String configuredBaseUrl) {
         // DashScope SDK 示例里的 base_http_api_url 是 https://dashscope.aliyuncs.com/api/v1。
@@ -93,8 +90,11 @@ final class DashScopeBaseUrls {
     }
 
     /**
-     * 解析 parse Http Uri 输入。
-     * <p>将外部文本或结构转换为模块内部可直接使用的对象。</p>
+     * 只接受 http/https 且必须带 host 的 Base URL。
+     *
+     * @param value 已清理尾部斜杠的地址
+     * @param originalValue 用户原始输入，用于错误提示
+     * @return URI
      */
     private static URI parseHttpUri(String value, String originalValue) {
         try {
@@ -112,8 +112,9 @@ final class DashScopeBaseUrls {
     }
 
     /**
-     * 执行 模型配置 中的 reject Query Or Fragment 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 拒绝带 query 或 fragment 的 Base URL。
+     *
+     * @param uri 待校验 URI
      */
     private static void rejectQueryOrFragment(URI uri) {
         if (uri.getQuery() != null || uri.getFragment() != null) {
@@ -122,8 +123,10 @@ final class DashScopeBaseUrls {
     }
 
     /**
-     * 执行 模型配置 中的 strip Trailing Slashes 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 移除末尾斜杠。
+     *
+     * @param value 原始地址
+     * @return 无尾部斜杠的地址
      */
     private static String stripTrailingSlashes(String value) {
         String normalized = value;
@@ -134,8 +137,10 @@ final class DashScopeBaseUrls {
     }
 
     /**
-     * 规范化 normalized Path 输入。
-     * <p>后续逻辑只处理受控取值，减少重复分支和边界判断。</p>
+     * 读取并归一化 URI path。
+     *
+     * @param uri URI
+     * @return 无尾部斜杠 path；根路径返回空串
      */
     private static String normalizedPath(URI uri) {
         String path = uri.getPath();
@@ -146,8 +151,10 @@ final class DashScopeBaseUrls {
     }
 
     /**
-     * 执行 模型配置 中的 origin 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 组合 URI origin。
+     *
+     * @param uri URI
+     * @return scheme + authority
      */
     private static String origin(URI uri) {
         return new StringBuilder()

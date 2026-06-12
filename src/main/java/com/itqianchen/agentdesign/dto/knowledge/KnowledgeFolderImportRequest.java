@@ -11,8 +11,7 @@ public record KnowledgeFolderImportRequest(
         Boolean recursive
 ) {
     /**
-     * 读取 recursive Or Default 的最终值。
-     * <p>当调用方没有显式配置时，返回当前模块约定的默认值。</p>
+     * 知识库导入默认递归扫描，保证旧前端请求不传 recursive 时仍能发现子目录文档。
      */
     public boolean recursiveOrDefault() {
         return recursive == null || recursive;

@@ -1,14 +1,16 @@
 package com.itqianchen.agentdesign.common.api;
 
 /**
- * Resource Not Found 异常 表示 通用 API 的可识别异常。
- * <p>统一异常处理器会根据异常类型转换为稳定的 API 响应。</p>
+ * 通用资源不存在异常。
+ *
+ * <p>抛出该异常的服务方法会被统一异常处理器转换为 404 和稳定错误码，调用方不需要自行包装响应。</p>
  */
 public class ResourceNotFoundException extends RuntimeException {
 
     /**
-     * 注入 ResourceNotFoundException 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 使用可展示消息创建资源不存在异常。
+     *
+     * @param message 面向前端或日志的资源不存在原因
      */
     public ResourceNotFoundException(String message) {
         super(message);

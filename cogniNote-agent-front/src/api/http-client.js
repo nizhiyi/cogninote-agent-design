@@ -1,7 +1,3 @@
-/**
- * 执行 业务 中的 json Options 步骤。
- * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
- */
 export function jsonOptions(method, body) {
   return {
     method,

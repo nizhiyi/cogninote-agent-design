@@ -8,8 +8,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Document Management 服务 承载 文档管理 的应用服务流程。
- * <p>这里集中编排仓储、模型运行时和 DTO 映射，保证控制器保持轻量。</p>
+ * 文档删除的应用服务。
+ *
+ * <p>删除只影响应用内 SQLite 记录和 Lucene 索引，不触碰用户磁盘上的原始文件。</p>
  */
 @Service
 public class DocumentManagementService {
@@ -20,8 +21,10 @@ public class DocumentManagementService {
     private final KnowledgeStore knowledgeStore;
 
     /**
-     * 注入 DocumentManagementService 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入文档仓储和检索索引。
+     *
+     * @param documentRepository 文档仓储
+     * @param knowledgeStore 检索索引边界
      */
     public DocumentManagementService(DocumentRepository documentRepository, KnowledgeStore knowledgeStore) {
         this.documentRepository = documentRepository;
@@ -29,8 +32,10 @@ public class DocumentManagementService {
     }
 
     /**
-     * 删除 delete Document 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     * 删除应用内文档记录和索引。
+     *
+     * @param documentId 文档 ID
+     * @return 是否删除了文档记录
      */
     @Transactional
     public boolean deleteDocument(String documentId) {

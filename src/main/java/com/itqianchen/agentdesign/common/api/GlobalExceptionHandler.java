@@ -18,8 +18,10 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
- * Global 异常 Handler 承担 通用 API 模块的主要职责。
- * <p>注释说明维护边界，不改变现有运行逻辑。</p>
+ * HTTP API 的统一错误响应边界。
+ *
+ * <p>普通 JSON 接口返回 ApiResponse 错误体；SSE 响应一旦进入 text/event-stream，就不能再写 JSON，
+ * 否则会触发二次 HttpMessageConverter 异常并污染日志。</p>
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -27,8 +29,11 @@ public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     /**
-     * 处理 handle Document Parse 异常 对应的框架回调或用户操作。
-     * <p>这里把外部事件转换为当前模块的稳定响应。</p>
+     * 本地文件解析失败属于用户可修正输入，错误原因直接返回给前端展示。
+     *
+     * @param ex 解析异常
+     * @param response 当前 HTTP 响应
+     * @return API 错误响应
      */
     @ExceptionHandler(DocumentParseException.class)
     public ResponseEntity<?> handleDocumentParseException(DocumentParseException ex, HttpServletResponse response) {
@@ -36,8 +41,11 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 处理 handle Embedding Unavailable 对应的框架回调或用户操作。
-     * <p>这里把外部事件转换为当前模块的稳定响应。</p>
+     * Embedding 未配置时返回稳定业务错误码，前端据此提示向量/混合检索不可用。
+     *
+     * @param ex Embedding 不可用异常
+     * @param response 当前 HTTP 响应
+     * @return API 错误响应
      */
     @ExceptionHandler(EmbeddingUnavailableException.class)
     public ResponseEntity<?> handleEmbeddingUnavailable(EmbeddingUnavailableException ex, HttpServletResponse response) {
@@ -45,8 +53,11 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 处理 handle Model Configuration 对应的框架回调或用户操作。
-     * <p>这里把外部事件转换为当前模块的稳定响应。</p>
+     * 模型配置错误通常由设置页输入触发，返回 400 保持可恢复交互。
+     *
+     * @param ex 模型配置异常
+     * @param response 当前 HTTP 响应
+     * @return API 错误响应
      */
     @ExceptionHandler(ModelConfigurationException.class)
     public ResponseEntity<?> handleModelConfiguration(ModelConfigurationException ex, HttpServletResponse response) {
@@ -54,8 +65,11 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 处理 handle Search Index 异常 对应的框架回调或用户操作。
-     * <p>这里把外部事件转换为当前模块的稳定响应。</p>
+     * 索引异常需要服务端日志保留堆栈，前端只接收可展示的错误消息。
+     *
+     * @param ex 搜索索引异常
+     * @param response 当前 HTTP 响应
+     * @return API 错误响应
      */
     @ExceptionHandler(SearchIndexException.class)
     public ResponseEntity<?> handleSearchIndexException(SearchIndexException ex, HttpServletResponse response) {
@@ -63,14 +77,24 @@ public class GlobalExceptionHandler {
         return errorResponse(response, HttpStatus.INTERNAL_SERVER_ERROR, ApiErrorCode.SEARCH_INDEX_ERROR, ex.getMessage());
     }
 
+    /**
+     * 知识图谱生成失败由用户操作触发，返回 400 让前端保留当前页面状态并展示原因。
+     *
+     * @param ex 知识图谱异常
+     * @param response 当前 HTTP 响应
+     * @return API 错误响应
+     */
     @ExceptionHandler(KnowledgeGraphException.class)
     public ResponseEntity<?> handleKnowledgeGraphException(KnowledgeGraphException ex, HttpServletResponse response) {
         return errorResponse(response, HttpStatus.BAD_REQUEST, ApiErrorCode.BAD_REQUEST, ex.getMessage());
     }
 
     /**
-     * 处理 handle Resource Not Found 对应的框架回调或用户操作。
-     * <p>这里把外部事件转换为当前模块的稳定响应。</p>
+     * 资源不存在使用统一 NOT_FOUND code，避免前端为每个模块维护不同缺省文案。
+     *
+     * @param ex 资源不存在异常
+     * @param response 当前 HTTP 响应
+     * @return API 错误响应
      */
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<?> handleResourceNotFound(ResourceNotFoundException ex, HttpServletResponse response) {
@@ -78,8 +102,11 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 处理 handle Validation 对应的框架回调或用户操作。
-     * <p>这里把外部事件转换为当前模块的稳定响应。</p>
+     * Bean Validation 只返回首个字段错误，避免长列表覆盖表单当前焦点。
+     *
+     * @param ex 参数校验异常
+     * @param response 当前 HTTP 响应
+     * @return API 错误响应
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<?> handleValidation(MethodArgumentNotValidException ex, HttpServletResponse response) {
@@ -91,8 +118,11 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 处理 handle Unreadable Message 对应的框架回调或用户操作。
-     * <p>这里把外部事件转换为当前模块的稳定响应。</p>
+     * JSON 解析失败不透出框架异常内容，避免把反序列化细节暴露给前端。
+     *
+     * @param ex JSON 解析异常
+     * @param response 当前 HTTP 响应
+     * @return API 错误响应
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<?> handleUnreadableMessage(HttpMessageNotReadableException ex, HttpServletResponse response) {
@@ -100,8 +130,10 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 处理 handle Async 请求 Timeout 对应的框架回调或用户操作。
-     * <p>这里把外部事件转换为当前模块的稳定响应。</p>
+     * 异步请求超时通常发生在 SSE 连接上，只关闭响应，不再尝试包装 JSON 错误体。
+     *
+     * @param ex 异步超时异常
+     * @return 空响应
      */
     @ExceptionHandler(AsyncRequestTimeoutException.class)
     public ResponseEntity<Void> handleAsyncRequestTimeout(AsyncRequestTimeoutException ex) {
@@ -112,8 +144,13 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 处理 handle Unexpected 对应的框架回调或用户操作。
-     * <p>这里把外部事件转换为当前模块的稳定响应。</p>
+     * 未预期异常统一隐藏内部细节。
+     *
+     * <p>堆栈只写入服务端日志，避免把本地路径、密钥或第三方响应泄露到前端。</p>
+     *
+     * @param ex 未预期异常
+     * @param response 当前 HTTP 响应
+     * @return API 错误响应或空 SSE 响应
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<?> handleUnexpected(Exception ex, HttpServletResponse response) {
@@ -124,14 +161,20 @@ public class GlobalExceptionHandler {
             return ResponseEntity.noContent().build();
         }
         log.error("unexpected_api_error", ex);
-        // 未预期异常只返回通用文案，堆栈保留在日志里，避免把本地路径或密钥信息暴露给前端。
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error(ApiErrorCode.INTERNAL_ERROR, "Internal server error"));
     }
 
     /**
-     * 执行 通用 API 中的 error 响应 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 构造统一错误响应，并在 SSE 已开始时降级为空响应。
+     *
+     * <p>SSE 响应头一旦写出，继续返回 JSON 会触发 Spring MVC 二次转换异常；这里集中处理该兼容边界。</p>
+     *
+     * @param response 当前 HTTP 响应
+     * @param status HTTP 状态码
+     * @param code 前端识别用的稳定错误码
+     * @param message 可展示错误消息
+     * @return JSON 错误响应或空 SSE 响应
      */
     private ResponseEntity<?> errorResponse(
             HttpServletResponse response,
@@ -148,8 +191,10 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 判断 is 事件 Stream 响应 条件是否成立。
-     * <p>业务判定集中在这里，避免调用方重复实现同一规则。</p>
+     * 判断当前响应是否已经进入 SSE。
+     *
+     * @param response 当前 HTTP 响应
+     * @return 是否为 text/event-stream
      */
     private static boolean isEventStreamResponse(HttpServletResponse response) {
         String contentType = response.getContentType();

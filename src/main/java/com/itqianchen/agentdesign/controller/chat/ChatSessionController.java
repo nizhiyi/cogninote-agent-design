@@ -27,16 +27,18 @@ public class ChatSessionController {
     private final ChatSessionService chatSessionService;
 
     /**
-     * 注入 ChatSessionController 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入会话应用服务。
+     *
+     * @param chatSessionService 会话读写服务
      */
     public ChatSessionController(ChatSessionService chatSessionService) {
         this.chatSessionService = chatSessionService;
     }
 
     /**
-     * 查询 聊天会话 列表。
-     * <p>返回值面向上层展示或接口响应，不暴露底层存储细节。</p>
+     * 返回会话摘要列表。
+     *
+     * <p>侧栏不需要完整消息，详情由 getSession 按需读取。</p>
      */
     @GetMapping
     public ApiResponse<List<ChatSessionResponse>> listSessions() {
@@ -44,8 +46,12 @@ public class ChatSessionController {
     }
 
     /**
-     * 创建 create Session 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建新会话。
+     *
+     * <p>请求体允许为空，服务层会使用默认标题和检索设置，保证旧前端仍可直接点击新建。</p>
+     *
+     * @param request 可选的新会话参数
+     * @return 新会话详情
      */
     @PostMapping
     public ApiResponse<ChatSessionResponse> createSession(
@@ -55,8 +61,10 @@ public class ChatSessionController {
     }
 
     /**
-     * 读取 get Session 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 读取单个会话及其消息。
+     *
+     * @param conversationId 会话 ID
+     * @return 会话详情和消息列表
      */
     @GetMapping("/{conversationId}")
     public ApiResponse<ChatSessionResponse> getSession(@PathVariable String conversationId) {
@@ -64,8 +72,13 @@ public class ChatSessionController {
     }
 
     /**
-     * 更新 update Session 对应的数据。
-     * <p>方法负责保持内存快照、数据库记录和返回值语义一致。</p>
+     * 更新会话展示标题和检索开关。
+     *
+     * <p>该接口只改变会话配置，不重写历史消息或已保存的 RAG 来源快照。</p>
+     *
+     * @param conversationId 会话 ID
+     * @param request 新的会话配置
+     * @return 更新后的会话详情
      */
     @PatchMapping("/{conversationId}")
     public ApiResponse<ChatSessionResponse> updateSession(
@@ -76,8 +89,12 @@ public class ChatSessionController {
     }
 
     /**
-     * 删除 delete Session 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     * 软删除会话。
+     *
+     * <p>删除后会话不再出现在列表中，底层清理策略由仓储层保证。</p>
+     *
+     * @param conversationId 会话 ID
+     * @return 空响应
      */
     @DeleteMapping("/{conversationId}")
     public ApiResponse<Void> deleteSession(@PathVariable String conversationId) {
@@ -86,8 +103,12 @@ public class ChatSessionController {
     }
 
     /**
-     * 清理 clear Messages 对应的数据。
-     * <p>清理只移除目标内容，保留会话或模块继续运行所需的外壳状态。</p>
+     * 清空会话消息并保留会话配置。
+     *
+     * <p>用于前端“清空对话”而不是删除会话，返回值给前端同步侧栏计数和上下文使用量。</p>
+     *
+     * @param conversationId 会话 ID
+     * @return 清空后的会话详情
      */
     @DeleteMapping("/{conversationId}/messages")
     public ApiResponse<ChatSessionResponse> clearMessages(@PathVariable String conversationId) {

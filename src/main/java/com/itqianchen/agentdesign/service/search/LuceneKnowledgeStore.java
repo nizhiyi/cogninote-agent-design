@@ -56,8 +56,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * Lucene Knowledge 存储 是 知识库 的存储实现。
- * <p>对上层暴露领域接口，对下层封装具体索引或持久化细节。</p>
+ * 基于 Lucene 的本地知识库索引实现。
+ *
+ * <p>SQLite 保存可重建的文档事实，Lucene 只保存搜索所需的倒排字段、向量字段和预览字段。
+ * 所有写索引入口使用同步块，避免桌面应用内的导入、删除和重建并发写坏同一个索引目录。</p>
  */
 @Service
 public class LuceneKnowledgeStore implements KnowledgeStore {
@@ -76,8 +78,13 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     );
 
     /**
-     * 注入 LuceneKnowledgeStore 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入索引实现依赖。
+     *
+     * @param documentRepository SQLite 文档事实源
+     * @param embeddingGateway Embedding 能力网关
+     * @param searchProperties 检索参数配置
+     * @param storageInitializer 应用存储目录初始化器
+     * @param indexTextBuilder 索引文本构建器
      */
     public LuceneKnowledgeStore(
             DocumentRepository documentRepository,
@@ -94,22 +101,15 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     }
 
     /**
-     * 执行 知识库 中的 index Document 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 索引单个文档并覆盖同 documentId 的旧 chunk。
+     *
+     * @param document 已持久化的文档索引快照
      */
     @Override
     public synchronized void indexDocument(IndexedDocument document) {
         try {
-            /**
-             * 确保 ensure Index Directory 所需前置条件存在。
-             * <p>不存在时创建默认资源或抛出明确异常，避免后续流程隐式失败。</p>
-             */
             ensureIndexDirectory();
             try (IndexWriter writer = newWriter()) {
-                /**
-                 * 执行 知识库 中的 replace Document 步骤。
-                 * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-                 */
                 replaceDocument(writer, document);
                 writer.commit();
             }
@@ -119,16 +119,13 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     }
 
     /**
-     * 删除 delete By Document Id 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     * 从 Lucene 索引中删除单个文档的所有 chunk。
+     *
+     * @param documentId 文档 ID
      */
     @Override
     public synchronized void deleteByDocumentId(String documentId) {
         try {
-            /**
-             * 确保 ensure Index Directory 所需前置条件存在。
-             * <p>不存在时创建默认资源或抛出明确异常，避免后续流程隐式失败。</p>
-             */
             ensureIndexDirectory();
             try (IndexWriter writer = newWriter()) {
                 writer.deleteDocuments(new Term(SearchFieldNames.DOCUMENT_ID, documentId));
@@ -140,8 +137,12 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     }
 
     /**
-     * 执行 知识库 中的 rebuild By Document Ids 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 重建指定文档集合的索引。
+     *
+     * <p>单个文档失败会清除其 indexedAt 并继续处理后续文档，避免一份坏文件阻断整批目录重建。</p>
+     *
+     * @param documents 待重建的文档快照
+     * @return 重建统计
      */
     @Override
     public synchronized RebuildIndexResponse rebuildByDocumentIds(List<IndexedDocument> documents) {
@@ -152,19 +153,11 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
         List<String> indexedDocumentIds = new ArrayList<>();
 
         try {
-            /**
-             * 确保 ensure Index Directory 所需前置条件存在。
-             * <p>不存在时创建默认资源或抛出明确异常，避免后续流程隐式失败。</p>
-             */
             ensureIndexDirectory();
             try (IndexWriter writer = newWriter()) {
                 for (IndexedDocument document : documents) {
                     writer.deleteDocuments(new Term(SearchFieldNames.DOCUMENT_ID, document.id()));
                     try {
-                        /**
-                         * 执行 知识库 中的 add Document Chunks 步骤。
-                         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-                         */
                         addDocumentChunks(writer, document);
                         indexedDocumentCount++;
                         indexedChunkCount += document.chunks().size();
@@ -172,10 +165,6 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
                     } catch (RuntimeException ex) {
                         failedDocumentCount++;
                         documentRepository.clearIndexed(document.id());
-                        /**
-                         * 执行 知识库 中的 log Document Rebuild Failure 步骤。
-                         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-                         */
                         logDocumentRebuildFailure(document, ex);
                     }
                 }
@@ -194,8 +183,10 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     }
 
     /**
-     * 执行 知识库 中的 search 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 执行检索请求。
+     *
+     * @param request 检索请求
+     * @return 检索响应
      */
     @Override
     public SearchResponse search(SearchRequest request) {
@@ -215,17 +206,16 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     }
 
     /**
-     * 执行 知识库 中的 status 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 读取索引状态。
+     *
+     * <p>文档数量以 SQLite 已解析和未索引统计为准，Lucene 只提供 chunk 数，避免索引损坏时反向污染事实源。</p>
+     *
+     * @return 索引状态响应
      */
     @Override
     public IndexStatusResponse status() {
         IndexStatistics statistics = documentRepository.indexStatistics();
         try {
-            /**
-             * 确保 ensure Index Directory 所需前置条件存在。
-             * <p>不存在时创建默认资源或抛出明确异常，避免后续流程隐式失败。</p>
-             */
             ensureIndexDirectory();
             IndexCounts indexCounts = readIndexCounts(statistics);
             return new IndexStatusResponse(
@@ -243,8 +233,9 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     }
 
     /**
-     * 执行 知识库 中的 rebuild All 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 按 SQLite 中所有已解析文档全量重建 Lucene 索引。
+     *
+     * @return 重建统计
      */
     @Override
     public synchronized RebuildIndexResponse rebuildAll() {
@@ -255,20 +246,12 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
         List<String> indexedDocumentIds = new ArrayList<>();
 
         try {
-            /**
-             * 确保 ensure Index Directory 所需前置条件存在。
-             * <p>不存在时创建默认资源或抛出明确异常，避免后续流程隐式失败。</p>
-             */
             ensureIndexDirectory();
             List<IndexedDocument> documents = documentRepository.findAllParsedDocumentsForIndexing();
             try (IndexWriter writer = newWriter()) {
                 writer.deleteAll();
                 for (IndexedDocument document : documents) {
                     try {
-                        /**
-                         * 执行 知识库 中的 add Document Chunks 步骤。
-                         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-                         */
                         addDocumentChunks(writer, document);
                         indexedDocumentCount++;
                         indexedChunkCount += document.chunks().size();
@@ -276,10 +259,6 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
                     } catch (RuntimeException ex) {
                         failedDocumentCount++;
                         documentRepository.clearIndexed(document.id());
-                        /**
-                         * 执行 知识库 中的 log Document Rebuild Failure 步骤。
-                         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-                         */
                         logDocumentRebuildFailure(document, ex);
                     }
                 }
@@ -298,8 +277,10 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     }
 
     /**
-     * 执行 知识库 中的 log Document Rebuild Failure 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 记录单文档重建失败。
+     *
+     * @param document 失败文档
+     * @param ex 失败异常
      */
     private void logDocumentRebuildFailure(IndexedDocument document, RuntimeException ex) {
         // 单个文档重建失败不应阻断整批索引；SQLite chunks 仍在，后续可再次重建。
@@ -307,25 +288,30 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     }
 
     /**
-     * 执行 知识库 中的 replace Document 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 用新文档 chunk 替换旧索引记录。
+     *
+     * @param writer Lucene 写入器
+     * @param document 文档索引快照
+     * @throws IOException 当 Lucene 写入失败时抛出
      */
     private void replaceDocument(IndexWriter writer, IndexedDocument document) throws IOException {
         writer.deleteDocuments(new Term(SearchFieldNames.DOCUMENT_ID, document.id()));
-        /**
-         * 执行 知识库 中的 add Document Chunks 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         addDocumentChunks(writer, document);
     }
 
     /**
-     * 执行 知识库 中的 add Document Chunks 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将文档 chunk 写入 Lucene。
+     *
+     * <p>向量存在时按 chunk 顺序批量生成并按同一 index 写入，顺序错位会导致搜索结果指向错误内容。</p>
+     *
+     * @param writer Lucene 写入器
+     * @param document 文档索引快照
+     * @throws IOException 当 Lucene 写入失败时抛出
      */
     private void addDocumentChunks(IndexWriter writer, IndexedDocument document) throws IOException {
         List<float[]> vectors = List.of();
         if (embeddingGateway.isAvailable()) {
+            // 向量列表必须和 chunk 顺序完全一致，下面按相同 index 写入 Lucene 文档。
             vectors = embeddingGateway.embedDocuments(document.chunks().stream()
                     .map(IndexedChunk::content)
                     .toList());
@@ -365,8 +351,11 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     }
 
     /**
-     * 执行 知识库 中的 search Keyword 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 执行关键词检索。
+     *
+     * @param query 用户查询
+     * @param limit 返回数量上限
+     * @return 已补齐存储信息的命中列表
      */
     private List<SearchHit> searchKeyword(String query, int limit) {
         try {
@@ -390,8 +379,11 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     }
 
     /**
-     * 执行 知识库 中的 search Vector 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 执行向量检索。
+     *
+     * @param query 用户查询
+     * @param limit 返回数量上限
+     * @return 已补齐存储信息的命中列表
      */
     private List<SearchHit> searchVector(String query, int limit) {
         if (!embeddingGateway.isAvailable()) {
@@ -422,14 +414,18 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     }
 
     /**
-     * 执行 知识库 中的 search Hybrid 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 执行混合检索并用 RRF 融合排序。
+     *
+     * @param query 用户查询
+     * @param topK 最终返回数量
+     * @return 融合后的命中列表
      */
     private List<SearchHit> searchHybrid(String query, int topK) {
         if (!embeddingGateway.isAvailable()) {
             throw new EmbeddingUnavailableException("Embedding model is not configured; hybrid search is unavailable");
         }
 
+        // 先扩大候选集再做 RRF 融合，避免 BM25 或向量任一侧的早截断吞掉互补结果。
         int candidateLimit = searchProperties.hybridCandidateLimit(topK);
         List<SearchHit> keywordHits = searchKeyword(query, candidateLimit);
         List<SearchHit> vectorHits = searchVector(query, candidateLimit);
@@ -455,8 +451,13 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     }
 
     /**
-     * 构建 build Keyword Query 对象。
-     * <p>第三方 API、框架对象或复杂参数的创建细节集中在此处。</p>
+     * 构造可容错的多字段关键词查询。
+     *
+     * <p>用户可能输入路径片段、代码符号或 Lucene 特殊字符；解析失败时先转义，再退化为单字段
+     * TermQuery，保证搜索接口返回明确结果或空结果，而不是把语法错误暴露给前端。</p>
+     *
+     * @param query 用户查询
+     * @return Lucene 查询对象
      */
     private Query buildKeywordQuery(String query) {
         try {
@@ -490,8 +491,12 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     }
 
     /**
-     * 执行 知识库 中的 hydrate Hits 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 用 SQLite 中的完整 chunk 信息补齐搜索命中。
+     *
+     * <p>Lucene 只存搜索和预览字段，来源路径、标题等事实字段以 SQLite 为准。</p>
+     *
+     * @param hits Lucene 命中
+     * @return 可返回给上层的命中列表
      */
     private List<SearchHit> hydrateHits(List<SearchHit> hits) {
         if (hits.isEmpty()) {
@@ -517,8 +522,10 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     }
 
     /**
-     * 执行 知识库 中的 to 响应 Hits 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将内部命中转换为 API 响应。
+     *
+     * @param hits 内部命中
+     * @return API 命中响应
      */
     private List<SearchHitResponse> toResponseHits(List<SearchHit> hits) {
         return hits.stream()
@@ -538,8 +545,12 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     }
 
     /**
-     * 执行 知识库 中的 rrf Score 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 计算单个 chunk 的 RRF 融合分。
+     *
+     * @param chunkId chunk ID
+     * @param keywordHits 关键词命中列表
+     * @param vectorHits 向量命中列表
+     * @return 融合分
      */
     private double rrfScore(String chunkId, List<SearchHit> keywordHits, List<SearchHit> vectorHits) {
         double keywordScore = reciprocalRankScore(chunkId, keywordHits, searchProperties.bm25Weight());
@@ -548,8 +559,12 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     }
 
     /**
-     * 执行 知识库 中的 reciprocal Rank Score 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 计算指定命中列表中的加权倒数排名分。
+     *
+     * @param chunkId chunk ID
+     * @param hits 命中列表
+     * @param weight 该检索通道权重
+     * @return 倒数排名分
      */
     private double reciprocalRankScore(String chunkId, List<SearchHit> hits, double weight) {
         int rrfK = searchProperties.normalizedRrfK();
@@ -562,8 +577,11 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     }
 
     /**
-     * 执行 知识库 中的 read Index Counts 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 读取索引中文档和 chunk 计数。
+     *
+     * @param statistics SQLite 统计信息
+     * @return 索引计数
+     * @throws IOException 当 Lucene reader 打开失败时抛出
      */
     private IndexCounts readIndexCounts(IndexStatistics statistics) throws IOException {
         if (!indexExists()) {
@@ -579,8 +597,11 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     }
 
     /**
-     * 执行 知识库 中的 search With Reader 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 打开 Lucene reader 并执行搜索操作。
+     *
+     * @param operation 搜索操作
+     * @return 搜索结果
+     * @throws IOException 当索引读取失败时抛出
      */
     private <T> T searchWithReader(IndexSearchOperation<T> operation) throws IOException {
         try (FSDirectory directory = FSDirectory.open(appStorage.luceneIndexDir());
@@ -592,8 +613,10 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     }
 
     /**
-     * 执行 知识库 中的 new Writer 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 创建 Lucene IndexWriter。
+     *
+     * @return 配置好 analyzer 和 BM25 的写入器
+     * @throws IOException 当索引目录无法打开时抛出
      */
     private IndexWriter newWriter() throws IOException {
         IndexWriterConfig config = new IndexWriterConfig(analyzer);
@@ -605,16 +628,18 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     }
 
     /**
-     * 执行 知识库 中的 bm25 Similarity 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 创建统一 BM25 相似度配置。
+     *
+     * @return BM25Similarity
      */
     private BM25Similarity bm25Similarity() {
         return new BM25Similarity(searchProperties.bm25K1(), searchProperties.bm25B());
     }
 
     /**
-     * 确保 ensure Index Directory 所需前置条件存在。
-     * <p>不存在时创建默认资源或抛出明确异常，避免后续流程隐式失败。</p>
+     * 确保 Lucene 索引目录存在。
+     *
+     * @throws IOException 当目录无法创建时抛出
      */
     private void ensureIndexDirectory() throws IOException {
         // 文件系统访问可能抛出 IO 异常，调用方需要保留失败上下文。
@@ -622,14 +647,12 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     }
 
     /**
-     * 执行 知识库 中的 index Exists 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 判断索引目录中是否已有 Lucene 索引。
+     *
+     * @return 是否存在索引
+     * @throws IOException 当索引目录无法读取时抛出
      */
     private boolean indexExists() throws IOException {
-        /**
-         * 确保 ensure Index Directory 所需前置条件存在。
-         * <p>不存在时创建默认资源或抛出明确异常，避免后续流程隐式失败。</p>
-         */
         ensureIndexDirectory();
         try (FSDirectory directory = FSDirectory.open(appStorage.luceneIndexDir())) {
             return DirectoryReader.indexExists(directory);
@@ -637,8 +660,10 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
     }
 
     /**
-     * 执行 知识库 中的 preview 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 构造搜索结果预览文本。
+     *
+     * @param content chunk 原文
+     * @return 截断后的单行预览
      */
     private String preview(String content) {
         String normalized = content == null ? "" : content.replaceAll("\\s+", " ").trim();
@@ -648,30 +673,21 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
         return normalized.substring(0, PREVIEW_LIMIT) + "...";
     }
 
-    /**
-     * Index Search Operation 定义 知识库 的能力契约。
-     * <p>调用方依赖接口而非实现，便于替换运行时或测试替身。</p>
-     */
     @FunctionalInterface
     private interface IndexSearchOperation<T> {
         /**
-         * 执行 知识库 中的 search 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+         * 使用已打开的 IndexSearcher 执行搜索。
+         *
+         * @param searcher Lucene searcher
+         * @return 搜索结果
+         * @throws IOException 当读取 stored fields 或查询失败时抛出
          */
         T search(IndexSearcher searcher) throws IOException;
     }
 
-    /**
-     * Index Counts 是 知识库 的不可变数据快照。
-     * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
-     */
     private record IndexCounts(long documentCount, long chunkCount) {
     }
 
-    /**
-     * Search Hit 是 知识库 的不可变数据快照。
-     * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
-     */
     private record SearchHit(
             String chunkId,
             String documentId,
@@ -685,24 +701,35 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
             Double vectorScore
     ) {
         /**
-         * 执行 知识库 中的 keyword 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+         * 从关键词命中构建内部命中对象。
+         *
+         * @param document Lucene 文档
+         * @param score BM25 分数
+         * @return 内部命中
          */
         private static SearchHit keyword(Document document, double score) {
             return fromDocument(document, score, score, null);
         }
 
         /**
-         * 执行 知识库 中的 vector 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+         * 从向量命中构建内部命中对象。
+         *
+         * @param document Lucene 文档
+         * @param score 向量相似度分数
+         * @return 内部命中
          */
         private static SearchHit vector(Document document, double score) {
             return fromDocument(document, score, null, score);
         }
 
         /**
-         * 执行 知识库 中的 from Document 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+         * 从 Lucene stored fields 构建内部命中对象。
+         *
+         * @param document Lucene 文档
+         * @param score 当前通道分数
+         * @param keywordScore 关键词分数
+         * @param vectorScore 向量分数
+         * @return 内部命中
          */
         private static SearchHit fromDocument(Document document, double score, Double keywordScore, Double vectorScore) {
             return new SearchHit(
@@ -720,8 +747,10 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
         }
 
         /**
-         * 返回应用 with Stored Chunk 后的新对象。
-         * <p>不可变数据通过复制表达变更，避免调用方误改原对象。</p>
+         * 用 SQLite chunk 事实字段补齐命中。
+         *
+         * @param chunk 存储中的 chunk
+         * @return 补齐后的命中
          */
         private SearchHit withStoredChunk(StoredChunk chunk) {
             return new SearchHit(
@@ -739,8 +768,12 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
         }
 
         /**
-         * 返回应用 with Scores 后的新对象。
-         * <p>不可变数据通过复制表达变更，避免调用方误改原对象。</p>
+         * 替换融合后的分数字段。
+         *
+         * @param keywordScore 关键词分数
+         * @param vectorScore 向量分数
+         * @param score 最终排序分
+         * @return 新命中对象
          */
         private SearchHit withScores(Double keywordScore, Double vectorScore, double score) {
             return new SearchHit(
@@ -758,8 +791,11 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
         }
 
         /**
-         * 执行 知识库 中的 stored Integer 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+         * 读取 stored integer 字段。
+         *
+         * @param document Lucene 文档
+         * @param fieldName 字段名
+         * @return 整数值；不存在时返回 null
          */
         private static Integer storedInteger(Document document, String fieldName) {
             if (document.getField(fieldName) == null || document.getField(fieldName).numericValue() == null) {

@@ -1154,19 +1154,11 @@ import com.itqianchen.agentdesign.service.document.DocumentIngestionService;
 import com.itqianchen.agentdesign.service.document.DocumentIngestionPersistence;
 import com.itqianchen.agentdesign.service.document.DocumentIngestionService;
 
-/**
- * Document Ingestion Failure 测试 承担 文档管理 模块的主要职责。
- * <p>注释说明维护边界，不改变现有运行逻辑。</p>
- */
 class DocumentIngestionFailureTests {
 
     @TempDir
     private Path tempDir;
 
-    /**
-     * 执行 文档管理 中的 failed Document Persistence Failure Does Not Abort Batch 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-     */
     @Test
     void failedDocumentPersistenceFailureDoesNotAbortBatch() throws Exception {
         Path brokenDocument = tempDir.resolve("broken.txt");
@@ -1179,25 +1171,9 @@ class DocumentIngestionFailureTests {
         DocumentParser parser = mock(DocumentParser.class);
         KnowledgeStore knowledgeStore = mock(KnowledgeStore.class);
 
-        /**
-         * 执行 文档管理 中的 when 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         when(documentRepository.findById(anyString())).thenReturn(Optional.empty());
-        /**
-         * 执行 文档管理 中的 when 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         when(parserRegistry.parserFor(FileType.TEXT)).thenReturn(parser);
-        /**
-         * 执行 文档管理 中的 when 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         when(parser.parse(any(Path.class))).thenThrow(new DocumentParseException("parse failed"));
-        /**
-         * 执行 文档管理 中的 do Throw 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         doThrow(new IllegalStateException("sqlite unavailable"))
                 .when(ingestionPersistence)
                 .replaceFailedDocument(any(KnowledgeDocument.class));
@@ -1213,27 +1189,11 @@ class DocumentIngestionFailureTests {
 
         IngestDocumentsResponse response = ingestionService.ingestFolder(tempDir.toString(), true);
 
-        /**
-         * 执行 文档管理 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(response.scannedCount()).isEqualTo(1);
-        /**
-         * 执行 文档管理 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(response.failedCount()).isEqualTo(1);
-        /**
-         * 执行 文档管理 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(response.failures())
                 .singleElement()
                 .satisfies(failure -> assertThat(failure.message()).isEqualTo("parse failed"));
-        /**
-         * 执行 文档管理 中的 verify 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         verify(knowledgeStore).deleteByDocumentId(anyString());
     }
 }

@@ -1,5 +1,5 @@
 <script setup>
-// ai-code-block 负责 业务 页面或组件的状态组织、用户交互和后端同步。
+// 渲染 AI Markdown 里的 fenced code，并特殊处理 Mermaid 图块。
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Check, ChevronDown, ChevronUp, Copy, Maximize2, X } from 'lucide-vue-next'
 import { MermaidBlockNode } from 'markstream-vue'
@@ -98,6 +98,7 @@ const highlightedHtml = ref('')
 const isHighlighted = ref(false)
 const copied = ref(false)
 const isModalOpen = ref(false)
+// 高亮器按需加载是异步的，版本号用来丢弃已过期的渲染结果。
 let renderVersion = 0
 let copiedTimer = 0
 
@@ -140,10 +141,6 @@ watch(
   { immediate: true }
 )
 
-/**
- * 渲染代码块高亮。
- * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
- */
 async function renderHighlightedCode() {
   const currentVersion = ++renderVersion
   const currentCode = renderCode.value
@@ -155,12 +152,11 @@ async function renderHighlightedCode() {
   }
 
   try {
-    // 代码高亮依赖按需加载，失败时必须保持原始代码可读。
+    // 高亮依赖按需加载，失败时必须保持原始代码可读。
     const highlighter = await registerHighlight({
       langs: SUPPORTED_LANGUAGES,
       themes: [HIGHLIGHT_THEME]
     })
-    // 代码高亮依赖按需加载，失败时必须保持原始代码可读。
     const html = renderCodeWithTokens(highlighter, currentCode, {
       lang,
       theme: HIGHLIGHT_THEME,
@@ -182,22 +178,15 @@ async function renderHighlightedCode() {
   }
 }
 
-/**
- * 复制代码块内容。
- * <p>优先使用 Clipboard API，失败时回退到传统 textarea 方案。</p>
- */
 async function copyCode() {
   try {
-    // 复制能力依赖浏览器权限，失败时走兼容兜底。
     if (navigator.clipboard?.writeText) {
-      // 复制能力依赖浏览器权限，失败时走兼容兜底。
       await navigator.clipboard.writeText(code.value)
     } else {
       fallbackCopy(code.value)
     }
     copied.value = true
     window.clearTimeout(copiedTimer)
-    // 等待下一轮渲染后再读写 DOM，避免滚动位置计算使用旧布局。
     copiedTimer = window.setTimeout(() => {
       copied.value = false
     }, 1400)
@@ -206,11 +195,8 @@ async function copyCode() {
   }
 }
 
-/**
- * 复制代码块内容。
- * <p>优先使用 Clipboard API，失败时回退到传统 textarea 方案。</p>
- */
 function fallbackCopy(text) {
+  // Clipboard API 受权限和安全上下文限制，textarea 兜底用于本地桌面 WebView。
   const textarea = document.createElement('textarea')
   textarea.value = text
   textarea.setAttribute('readonly', '')
@@ -218,23 +204,14 @@ function fallbackCopy(text) {
   textarea.style.opacity = '0'
   document.body.appendChild(textarea)
   textarea.select()
-  // 复制能力依赖浏览器权限，失败时走兼容兜底。
   document.execCommand('copy')
   document.body.removeChild(textarea)
 }
 
-/**
- * 切换代码块折叠状态。
- * <p>状态切换只影响当前组件，不改变后端数据。</p>
- */
 function toggleCollapsed() {
   isCollapsed.value = !isCollapsed.value
 }
 
-/**
- * 规范化代码语言标识。
- * <p>把后端、表单或浏览器传入的异常值收敛为安全范围。</p>
- */
 function normalizeLanguage(language, codeText = '') {
   const normalized = String(language || 'plaintext')
     .trim()
@@ -247,10 +224,6 @@ function normalizeLanguage(language, codeText = '') {
   return SUPPORTED_LANGUAGES.includes(alias) || alias === 'plaintext' ? alias : 'plaintext'
 }
 
-/**
- * 格式化代码语言展示标签。
- * <p>统一页面上的数字、时间或语言标签展示口径。</p>
- */
 function formatLanguageLabel(language) {
   const normalized = normalizeLanguage(language, renderCode.value)
   const label = language || normalized
@@ -263,10 +236,6 @@ function formatLanguageLabel(language) {
   return label.replace(/^language-/, '').replace(/[-_]+/g, ' ')
 }
 
-/**
- * 判断 looks Like Mermaid 条件。
- * <p>集中维护 UI 分支使用的同一套判定规则。</p>
- */
 function looksLikeMermaid(value) {
   const firstContentLine = String(value)
     .split(/\r?\n/)
@@ -278,19 +247,11 @@ function looksLikeMermaid(value) {
   return /^(?:graph|flowchart|sequenceDiagram|classDiagram(?:-v2)?|stateDiagram(?:-v2)?|erDiagram|gantt|journey|pie|quadrantChart|timeline|xychart(?:-beta)?|mindmap|gitGraph|requirementDiagram|c4Context|c4Container|c4Component|c4Dynamic|c4Deployment|block(?:-beta)?|sankey-beta)\b/i.test(firstContentLine)
 }
 
-/**
- * 执行 业务 中的 trim Fence Boundary Blank Lines 步骤。
- * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
- */
 function trimFenceBoundaryBlankLines(value) {
   // Markdown fenced code 常见写法会在围栏后/前多带一个空行；只裁边界空白，不碰代码内部空行。
   return String(value).replace(/^(?:\r?\n)+/, '').replace(/(?:\r?\n)+$/, '')
 }
 
-/**
- * 规范化 normalize Mermaid For Rendering 输入。
- * <p>把后端、表单或浏览器传入的异常值收敛为安全范围。</p>
- */
 function normalizeMermaidForRendering(value) {
   const source = trimFenceBoundaryBlankLines(value)
   if (!isMermaidFlowchart(source)) {
@@ -299,10 +260,6 @@ function normalizeMermaidForRendering(value) {
   return source.split(/\r?\n/).map(sanitizeMermaidFlowchartLine).join('\n')
 }
 
-/**
- * 判断 is Mermaid Flowchart 条件。
- * <p>集中维护 UI 分支使用的同一套判定规则。</p>
- */
 function isMermaidFlowchart(value) {
   const firstContentLine = String(value)
     .split(/\r?\n/)
@@ -312,8 +269,9 @@ function isMermaidFlowchart(value) {
 }
 
 /**
- * 清理 sanitize Mermaid Flowchart Line 文本。
- * <p>渲染模型输出前先处理特殊字符，避免破坏 HTML 或 Mermaid 结构。</p>
+ * 清理 flowchart 节点标签。
+ *
+ * 模型常输出未转义的括号和中文标点；只修节点标签，避免改坏 Mermaid 语法本身。
  */
 function sanitizeMermaidFlowchartLine(line) {
   let result = ''
@@ -351,10 +309,6 @@ function sanitizeMermaidFlowchartLine(line) {
   return result
 }
 
-/**
- * 执行 业务 中的 find Simple Square Label End 步骤。
- * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
- */
 function findSimpleSquareLabelEnd(line, startIndex) {
   let quote = ''
   for (let index = startIndex; index < line.length; index += 1) {
@@ -379,10 +333,6 @@ function findSimpleSquareLabelEnd(line, startIndex) {
   return -1
 }
 
-/**
- * 规范化 normalize Mermaid Square Label 输入。
- * <p>把后端、表单或浏览器传入的异常值收敛为安全范围。</p>
- */
 function normalizeMermaidSquareLabel(label) {
   const trimmed = label.trim()
   if (!trimmed || isQuotedMermaidLabel(trimmed)) {
@@ -391,10 +341,6 @@ function normalizeMermaidSquareLabel(label) {
   return `"${escapeMermaidQuotedLabel(label)}"`
 }
 
-/**
- * 判断 is Quoted Mermaid Label 条件。
- * <p>集中维护 UI 分支使用的同一套判定规则。</p>
- */
 function isQuotedMermaidLabel(label) {
   return (label.startsWith('"') && label.endsWith('"')) || (label.startsWith('`') && label.endsWith('`'))
 }

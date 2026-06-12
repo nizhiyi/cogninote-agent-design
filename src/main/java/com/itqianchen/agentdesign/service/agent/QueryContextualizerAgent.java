@@ -35,8 +35,15 @@ public class QueryContextualizerAgent {
     private final ObjectMapper objectMapper;
 
     /**
-     * 注入 QueryContextualizerAgent 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入追问补全 Agent 依赖。
+     *
+     * @param aiRuntimeFactory AI 运行时工厂
+     * @param promptProperties 提示词配置
+     * @param properties 补全策略配置
+     * @param chatSettingsService 聊天设置服务
+     * @param memorySnapshotService 会话记忆快照服务
+     * @param triggerDecider 本地触发判断器
+     * @param objectMapper JSON 解析器
      */
     public QueryContextualizerAgent(
             AiRuntimeFactory aiRuntimeFactory,
@@ -57,8 +64,16 @@ public class QueryContextualizerAgent {
     }
 
     /**
-     * 执行 智能体编排 中的 contextualize 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 根据历史上下文生成知识库检索 query。
+     *
+     * <p>失败时退回原问题，保证补全 Agent 不会阻断主聊天链路。</p>
+     *
+     * @param requestId 请求 ID
+     * @param conversationId 会话 ID
+     * @param question 用户原始问题
+     * @param maxMessageSequenceInclusive 允许读取到的最大历史消息序号
+     * @param chatConfig 当前 Chat 模型配置
+     * @return 原始问题和检索 query 的组合结果
      */
     public QueryContextualization contextualize(
             String requestId,
@@ -99,6 +114,13 @@ public class QueryContextualizerAgent {
     /**
      * 在 AUTO 模式下为弱检索结果执行一次补全重试。
      * <p>只有原问题没有命中知识库且存在历史时才使用，避免完整问题场景无意义地额外调用模型。</p>
+     *
+     * @param requestId 请求 ID
+     * @param conversationId 会话 ID
+     * @param question 用户原始问题
+     * @param maxMessageSequenceInclusive 允许读取到的最大历史消息序号
+     * @param chatConfig 当前 Chat 模型配置
+     * @return 重试后的补全结果或原问题
      */
     public QueryContextualization contextualizeForWeakRetrieval(
             String requestId,
@@ -142,6 +164,11 @@ public class QueryContextualizerAgent {
     /**
      * 根据模式计算本轮是否调用补全模型。
      * <p>ALWAYS 保留旧行为；AUTO 交给本地打分器；OFF 在入口处已经提前返回。</p>
+     *
+     * @param mode 当前补全模式
+     * @param question 用户原始问题
+     * @param snapshot 记忆快照
+     * @return 触发判断结果
      */
     private QueryContextualizerTriggerDecision triggerDecision(
             QueryContextualizerMode mode,
@@ -157,6 +184,15 @@ public class QueryContextualizerAgent {
     /**
      * 调用补全模型并解析 JSON 响应。
      * <p>所有模型调用都经过这个方法，便于统一日志、兜底和 Prompt 上下文格式。</p>
+     *
+     * @param requestId 请求 ID
+     * @param conversationId 会话 ID
+     * @param question 用户原始问题
+     * @param chatConfig 当前 Chat 模型配置
+     * @param snapshot 记忆快照
+     * @param mode 当前补全模式
+     * @param decision 本地触发判断结果
+     * @return 补全结果
      */
     private QueryContextualization invokeModel(
             String requestId,
@@ -201,6 +237,13 @@ public class QueryContextualizerAgent {
      * 对模型误判不改写的动作型追问做本地兜底。
      * <p>例如用户先问“红黑树是什么？”，再问“实现代码案例”，模型若返回不改写，
      * 检索 query 会缺少“红黑树”主题；这里仅在短动作追问且上一条用户问题有独立主题时拼接兜底。</p>
+     *
+     * @param question 用户原始问题
+     * @param contextualization 模型补全结果
+     * @param snapshot 记忆快照
+     * @param mode 当前补全模式
+     * @param decision 本地触发判断结果
+     * @return 兜底后的补全结果
      */
     private QueryContextualization applyLocalFallbackIfNeeded(
             String question,
@@ -237,6 +280,9 @@ public class QueryContextualizerAgent {
     /**
      * 读取最近一条有明确主题的用户问题。
      * <p>只使用用户原文，不从助手回答里抽取主题，避免把模型生成内容误当作知识库检索意图。</p>
+     *
+     * @param snapshot 记忆快照
+     * @return 最近有独立主题的用户问题
      */
     private String latestStandaloneUserQuestion(ConversationMemorySnapshot snapshot) {
         if (snapshot == null || snapshot.recentMessages() == null) {
@@ -255,6 +301,10 @@ public class QueryContextualizerAgent {
     /**
      * 构建本地兜底检索 query。
      * <p>前一轮主题放前面，当前动作追问放后面；长度仍遵守补全 query 的最大限制。</p>
+     *
+     * @param previousQuestion 最近独立主题问题
+     * @param question 当前动作追问
+     * @return 兜底检索 query
      */
     private String buildFallbackRetrievalQuery(String previousQuestion, String question) {
         String current = normalizeQueryText(question);
@@ -273,6 +323,9 @@ public class QueryContextualizerAgent {
     /**
      * 规范化检索 query 文本。
      * <p>本地兜底只做空白折叠，不改变用户词序，保证检索意图可追溯。</p>
+     *
+     * @param value 原始文本
+     * @return 折叠空白后的文本
      */
     private static String normalizeQueryText(String value) {
         return value == null ? "" : value.replaceAll("\\s+", " ").strip();
@@ -281,6 +334,13 @@ public class QueryContextualizerAgent {
     /**
      * 记录 AUTO/OFF 模式下跳过补全模型的原因。
      * <p>日志用于观察触发策略，不把这些内部细节暴露给前端聊天记录。</p>
+     *
+     * @param requestId 请求 ID
+     * @param conversationId 会话 ID
+     * @param question 用户原始问题
+     * @param mode 当前补全模式
+     * @param reason 跳过原因
+     * @param score 本地触发分数
      */
     private void logSkipped(
             String requestId,
@@ -302,8 +362,11 @@ public class QueryContextualizerAgent {
     }
 
     /**
-     * 执行 智能体编排 中的 query Contextualizer User Prompt 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 组装追问补全模型的用户提示词。
+     *
+     * @param question 用户原始问题
+     * @param history 记忆历史文本
+     * @return 用户提示词
      */
     private String queryContextualizerUserPrompt(String question, String history) {
         return promptProperties.queryContextualizer().user()
@@ -312,8 +375,12 @@ public class QueryContextualizerAgent {
     }
 
     /**
-     * 执行 智能体编排 中的 format History 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 格式化补全 Agent 可见的历史。
+     *
+     * <p>只取最近若干条原文并附加摘要，控制补全模型的上下文成本。</p>
+     *
+     * @param snapshot 记忆快照
+     * @return 历史文本
      */
     private String formatHistory(ConversationMemorySnapshot snapshot) {
         List<ConversationMemoryEntry> entries = snapshot.recentMessages();
@@ -347,8 +414,13 @@ public class QueryContextualizerAgent {
     }
 
     /**
-     * 解析 parse 响应 输入。
-     * <p>将外部文本或结构转换为模块内部可直接使用的对象。</p>
+     * 解析查询改写模型响应。
+     *
+     * <p>缺字段、空改写或过长改写都退回原问题，避免不稳定 JSON 破坏主对话链路。</p>
+     *
+     * @param question 用户原始问题
+     * @param response 模型原始响应
+     * @return 补全结果
      */
     private QueryContextualization parseResponse(String question, String response) {
         String json = extractJson(response);
@@ -377,17 +449,15 @@ public class QueryContextualizerAgent {
                 rewrittenQuery,
                 true,
                 nullToReason(parsed.reason(), "model_rewrote_query"),
-                /**
-                 * 规范化 normalize Confidence 输入。
-                 * <p>后续逻辑只处理受控取值，减少重复分支和边界判断。</p>
-                 */
                 normalizeConfidence(parsed.confidence())
         );
     }
 
     /**
-     * 执行 智能体编排 中的 extract Json 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 从模型响应中截取 JSON 对象。
+     *
+     * @param response 模型原始响应
+     * @return JSON 对象字符串
      */
     private static String extractJson(String response) {
         if (response == null || response.isBlank()) {
@@ -403,16 +473,21 @@ public class QueryContextualizerAgent {
     }
 
     /**
-     * 执行 智能体编排 中的 null To Reason 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 归一化原因字段。
+     *
+     * @param value 模型返回原因
+     * @param fallback 兜底原因
+     * @return 非空原因
      */
     private static String nullToReason(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value.strip();
     }
 
     /**
-     * 规范化 normalize Confidence 输入。
-     * <p>后续逻辑只处理受控取值，减少重复分支和边界判断。</p>
+     * 归一化模型置信度。
+     *
+     * @param confidence 模型返回置信度
+     * @return 0 到 1 之间的置信度
      */
     private static double normalizeConfidence(Double confidence) {
         if (confidence == null || confidence.isNaN()) {

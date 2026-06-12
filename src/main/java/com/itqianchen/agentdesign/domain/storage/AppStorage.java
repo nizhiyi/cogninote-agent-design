@@ -3,8 +3,10 @@ package com.itqianchen.agentdesign.domain.storage;
 import java.nio.file.Path;
 
 /**
- * App Storage 是 系统状态 的不可变数据快照。
- * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+ * 应用运行时使用的本地存储目录集合。
+ *
+ * <p>这些路径由启动初始化统一创建，后端、Lucene 和 Tauri 桌面端必须共享同一 baseDir，
+ * 否则数据库、索引和日志会落到不同位置。</p>
  */
 public record AppStorage(
         Path baseDir,

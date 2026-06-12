@@ -162,8 +162,10 @@ public class QueryContextualizerTriggerDecider {
     }
 
     /**
-     * 规范化用户输入。
-     * <p>去掉多余空白，降低换行和复制文本对打分的影响。</p>
+     * 归一化用户问题文本。
+     *
+     * @param question 用户问题
+     * @return 折叠空白后的问题
      */
     private static String normalize(String question) {
         return question == null ? "" : question.replaceAll("\\s+", " ").trim();

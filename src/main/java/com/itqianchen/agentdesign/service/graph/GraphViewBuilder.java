@@ -36,6 +36,13 @@ public class GraphViewBuilder {
     private final GraphCanonicalizer canonicalizer;
     private final ObjectMapper objectMapper;
 
+    /**
+     * 注入视图构建依赖。
+     *
+     * @param repository 图谱仓储
+     * @param canonicalizer 图谱规范化工具
+     * @param objectMapper JSON 编码器
+     */
     public GraphViewBuilder(
             KnowledgeGraphRepository repository,
             GraphCanonicalizer canonicalizer,
@@ -46,12 +53,28 @@ public class GraphViewBuilder {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 构建指定范围的所有前端视图。
+     *
+     * @param scope 图谱范围
+     * @param runId 运行 ID
+     * @param documents 本次参与构建的文档
+     */
     public void buildViews(KnowledgeGraphScope scope, String runId, List<IndexedDocument> documents) {
         long now = System.currentTimeMillis();
         insertView(scope, runId, KnowledgeGraphViewType.MINDMAP, mindmapPayload(scope, documents), now);
         insertView(scope, runId, KnowledgeGraphViewType.GRAPH, graphPayload(scope), now);
     }
 
+    /**
+     * 写入单个视图快照。
+     *
+     * @param scope 图谱范围
+     * @param runId 运行 ID
+     * @param viewType 视图类型
+     * @param payload 视图 payload
+     * @param now 当前时间戳
+     */
     private void insertView(
             KnowledgeGraphScope scope,
             String runId,
@@ -76,6 +99,13 @@ public class GraphViewBuilder {
         }
     }
 
+    /**
+     * 构建思维导图 payload。
+     *
+     * @param scope 图谱范围
+     * @param documents 文档快照
+     * @return mindmap payload
+     */
     private Map<String, Object> mindmapPayload(KnowledgeGraphScope scope, List<IndexedDocument> documents) {
         List<KnowledgeGraphEvidenceDetailRow> evidenceRows = repository.findNodeEvidenceByScope(scope);
         Map<String, List<KnowledgeGraphEvidenceDetailRow>> evidenceByChunk = new HashMap<>();
@@ -98,6 +128,13 @@ public class GraphViewBuilder {
         );
     }
 
+    /**
+     * 向 Markdown 思维导图追加单个文档。
+     *
+     * @param markdown Markdown 构建器
+     * @param document 文档快照
+     * @param evidenceByChunk 按 chunk 分组的节点证据
+     */
     private void appendDocumentMindmap(
             StringBuilder markdown,
             IndexedDocument document,
@@ -142,6 +179,12 @@ public class GraphViewBuilder {
         }
     }
 
+    /**
+     * 构建节点边图 payload。
+     *
+     * @param scope 图谱范围
+     * @return graph payload
+     */
     private Map<String, Object> graphPayload(KnowledgeGraphScope scope) {
         List<KnowledgeGraphNode> allNodes = repository.findNodesByScope(scope);
         List<KnowledgeGraphEdge> allEdges = repository.findEdgesByScope(scope);
@@ -185,6 +228,12 @@ public class GraphViewBuilder {
         );
     }
 
+    /**
+     * 统计每个节点的度数。
+     *
+     * @param edges 边集合
+     * @return 节点 ID 到度数的映射
+     */
     private static Map<String, Integer> degreeByNodeId(Collection<KnowledgeGraphEdge> edges) {
         Map<String, Integer> degree = new HashMap<>();
         for (KnowledgeGraphEdge edge : edges) {
@@ -194,6 +243,12 @@ public class GraphViewBuilder {
         return degree;
     }
 
+    /**
+     * 清洗 Markdown 单行文本。
+     *
+     * @param value 原始文本
+     * @return 单行 Markdown 文本
+     */
     private static String markdownLine(String value) {
         if (value == null || value.isBlank()) {
             return "未命名";
@@ -205,6 +260,11 @@ public class GraphViewBuilder {
         private final String heading;
         private final Map<String, EntityMention> entities = new LinkedHashMap<>();
 
+        /**
+         * 创建 heading 分桶。
+         *
+         * @param heading heading 文本
+         */
         private HeadingBucket(String heading) {
             this.heading = heading;
         }
@@ -215,19 +275,40 @@ public class GraphViewBuilder {
         private final String type;
         private int count;
 
+        /**
+         * 创建实体提及计数。
+         *
+         * @param name 实体展示名
+         * @param type 实体类型
+         */
         private EntityMention(String name, String type) {
             this.name = name;
             this.type = type == null || type.isBlank() ? "ENTITY" : type;
         }
 
+        /**
+         * 返回实体名称。
+         *
+         * @return 实体名称
+         */
         private String name() {
             return name;
         }
 
+        /**
+         * 返回实体类型。
+         *
+         * @return 实体类型
+         */
         private String type() {
             return type;
         }
 
+        /**
+         * 返回实体提及次数。
+         *
+         * @return 提及次数
+         */
         private int count() {
             return count;
         }

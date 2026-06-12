@@ -10,12 +10,23 @@ import {
   streamKnowledgeGraphRun
 } from '../api/knowledge-graph-api'
 
+/**
+ * 与后端 KnowledgeGraphViewType 保持一致的视图枚举。
+ *
+ * <p>LIST 只是前端展示形态，实际复用 GRAPH payload，不能向后端请求 LIST 视图。</p>
+ */
 export const GRAPH_VIEW_OPTIONS = [
   { value: 'MINDMAP', label: '思维导图' },
   { value: 'GRAPH', label: '关系图' },
   { value: 'LIST', label: '列表' }
 ]
 
+/**
+ * 管理知识图谱范围、视图缓存和生成进度流。
+ *
+ * <p>scopeType/scopeId 决定后端图谱缓存键；同一时间只允许一个 run SSE 连接写入当前 store，
+ * 避免切换范围或重新生成后旧事件覆盖新视图。</p>
+ */
 export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
   const scopeType = ref('ALL')
   const scopeId = ref('')
@@ -23,6 +34,7 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
   const statusSnapshot = ref(null)
   const currentRun = ref(null)
   const progress = ref(null)
+  // 视图按后端 viewType 缓存；LIST 复用 GRAPH payload，只改变前端渲染方式。
   const views = ref({})
   const error = ref('')
   const viewError = ref('')
@@ -35,6 +47,7 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
   const evidenceTarget = ref(null)
   const evidenceItems = ref([])
   const isLoadingEvidence = ref(false)
+  // 切换 scope 或重新生成时先中断旧连接，防止旧 run 的终止事件倒灌到当前页面。
   let runAbortController = null
 
   const selectedScope = computed(() => ({
@@ -70,6 +83,7 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
   }
 
   async function loadCurrentView() {
+    // 后端没有 LIST 视图，列表模式读取 GRAPH payload 后由前端转为邻接表。
     const key = viewType.value === 'LIST' ? 'GRAPH' : viewType.value
     viewError.value = ''
     if (!hasViewReady(key)) {
@@ -155,6 +169,11 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
     })
   }
 
+  /**
+   * 将后端 SSE 事件折叠成本地 run/progress/view 状态。
+   *
+   * <p>终止事件只更新即时进度，随后重新拉取 status，确保前端拿到后端最终落库后的节点、边和视图状态。</p>
+   */
   function handleRunEvent(eventName, payload) {
     if (eventName === 'graph-run-snapshot') {
       currentRun.value = payload
@@ -207,11 +226,17 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
   async function selectScope(nextScopeType, nextScopeId = '') {
     scopeType.value = nextScopeType
     scopeId.value = nextScopeType === 'ALL' ? '' : nextScopeId
+    // scope 是图谱缓存键的一部分，切换后旧视图和进度不能继续展示。
     views.value = {}
     progress.value = null
     await loadStatus()
   }
 
+  /**
+   * 打开节点或边的证据抽屉。
+   *
+   * <p>图谱视图只保存证据 id 和摘要，完整 chunk 内容由抽屉按需回查，避免初次加载大图时拉取过多文本。</p>
+   */
   async function openEvidence(target) {
     evidenceTarget.value = target
     evidenceItems.value = []

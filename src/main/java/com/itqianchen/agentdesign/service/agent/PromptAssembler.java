@@ -14,16 +14,19 @@ public class PromptAssembler {
     private final ChatPromptProperties promptProperties;
 
     /**
-     * 注入 PromptAssembler 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入聊天提示词配置。
+     *
+     * @param promptProperties 提示词配置属性
      */
     public PromptAssembler(ChatPromptProperties promptProperties) {
         this.promptProperties = promptProperties;
     }
 
     /**
-     * 执行 智能体编排 中的 system Prompt 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 选择指定 Agent 的系统提示词。
+     *
+     * @param agentType Agent 类型
+     * @return 系统提示词
      */
     public String systemPrompt(AgentType agentType) {
         return agentType == AgentType.GENERAL_CHAT
@@ -32,8 +35,11 @@ public class PromptAssembler {
     }
 
     /**
-     * 执行 智能体编排 中的 user Prompt 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 选择并填充指定 Agent 的用户提示词。
+     *
+     * @param agentType Agent 类型
+     * @param question 用户原始问题
+     * @return 用户提示词
      */
     public String userPrompt(AgentType agentType, String question) {
         String template = agentType == AgentType.GENERAL_CHAT
@@ -43,8 +49,9 @@ public class PromptAssembler {
     }
 
     /**
-     * 执行 智能体编排 中的 empty Context Prompt 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 返回知识库无上下文时的提示词。
+     *
+     * @return 空上下文提示词
      */
     public String emptyContextPrompt() {
         return promptProperties.rag().emptyContext();

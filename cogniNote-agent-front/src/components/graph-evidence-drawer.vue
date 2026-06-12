@@ -4,6 +4,11 @@ import { FileText } from 'lucide-vue-next'
 import { getDocumentChunk } from '../api/documents-api'
 import { formatScore } from '../utils/formatters'
 
+/**
+ * 图谱节点/关系证据抽屉。
+ *
+ * <p>列表只展示图谱抽取时保存的 quote；用户打开证据时再按 chunkId 回查完整片段，避免大图一次性拉取全文。</p>
+ */
 const props = defineProps({
   modelValue: {
     type: Boolean,
@@ -48,6 +53,7 @@ async function openChunk(evidence) {
   dialogChunk.value = null
   chunkError.value = ''
   isDetailDialogOpen.value = true
+  // 快速点击多条证据会产生并发请求，只允许最后一次请求写入弹窗。
   const requestId = ++chunkRequestId
   isLoadingChunk.value = true
   try {

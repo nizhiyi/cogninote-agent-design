@@ -18,16 +18,18 @@ public class SQLiteDataSourceConfig {
     private final AppStorageInitializer storageInitializer;
 
     /**
-     * 注入 SQLiteDataSourceConfig 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入应用存储初始化器。
+     *
+     * @param storageInitializer 应用存储初始化器
      */
     public SQLiteDataSourceConfig(AppStorageInitializer storageInitializer) {
         this.storageInitializer = storageInitializer;
     }
 
     /**
-     * 执行 业务 中的 data Source 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 创建 SQLite DataSource。
+     *
+     * @return SQLite 数据源
      */
     @Bean
     public DataSource dataSource() {

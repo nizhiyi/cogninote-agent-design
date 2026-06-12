@@ -21,16 +21,21 @@ public class SearchController {
     private final SearchService searchService;
 
     /**
-     * 注入 SearchController 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入检索服务。
+     *
+     * @param searchService 检索编排服务
      */
     public SearchController(SearchService searchService) {
         this.searchService = searchService;
     }
 
     /**
-     * 执行 检索索引 中的 search 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 执行知识库检索。
+     *
+     * <p>请求中的模式和 topK 会由服务层归一化，Controller 保持前端参数原样传入。</p>
+     *
+     * @param request 检索请求
+     * @return 命中的文档片段
      */
     @PostMapping
     public ApiResponse<SearchResponse> search(@Valid @RequestBody SearchRequest request) {

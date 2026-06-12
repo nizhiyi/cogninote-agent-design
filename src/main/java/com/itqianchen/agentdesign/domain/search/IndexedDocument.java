@@ -4,8 +4,9 @@ import com.itqianchen.agentdesign.domain.document.FileType;
 import java.util.List;
 
 /**
- * Indexed Document 是 文档管理 的不可变数据快照。
- * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+ * 写入 Lucene 时使用的文档聚合。
+ *
+ * <p>Repository 会把 document 与 chunk 的扁平查询结果恢复成该结构，索引层不再回查数据库。</p>
  */
 public record IndexedDocument(
         String id,

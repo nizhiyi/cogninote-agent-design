@@ -6,8 +6,10 @@ import org.springframework.ai.rag.Query;
 import org.springframework.ai.rag.generation.augmentation.QueryAugmenter;
 
 /**
- * Cogninote Rag Query Augmenter 承担 智能体编排 模块的主要职责。
- * <p>注释说明维护边界，不改变现有运行逻辑。</p>
+ * 为知识库问答构造最终交给模型的 RAG 查询。
+ *
+ * <p>该 augmenter 同时保留“用户原始问题”和“检索问题”。检索问题只用于补全省略语境，
+ * 不能替代原始问题，否则多轮追问改写失败时会把回答带偏。</p>
  */
 public final class CogninoteRagQueryAugmenter implements QueryAugmenter {
 
@@ -16,8 +18,11 @@ public final class CogninoteRagQueryAugmenter implements QueryAugmenter {
     private final String retrievalQuery;
 
     /**
-     * 注入 CogninoteRagQueryAugmenter 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 绑定空上下文提示、原始问题和检索问题。
+     *
+     * @param emptyContextPrompt 无检索结果时注入的提示
+     * @param originalQuestion 用户原始问题
+     * @param retrievalQuery 用于检索的问题
      */
     public CogninoteRagQueryAugmenter(String emptyContextPrompt, String originalQuestion, String retrievalQuery) {
         this.emptyContextPrompt = emptyContextPrompt;
@@ -26,8 +31,13 @@ public final class CogninoteRagQueryAugmenter implements QueryAugmenter {
     }
 
     /**
-     * 执行 智能体编排 中的 augment 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将 Spring AI 检索到的文档注入 prompt。
+     *
+     * <p>没有检索结果时也明确写入 emptyContextPrompt，让模型知道这是知识库为空，而不是系统漏传上下文。</p>
+     *
+     * @param query Spring AI 原始 Query
+     * @param documents 检索文档
+     * @return 注入知识库上下文后的 Query
      */
     @Override
     public Query augment(Query query, List<Document> documents) {
@@ -62,8 +72,10 @@ public final class CogninoteRagQueryAugmenter implements QueryAugmenter {
     }
 
     /**
-     * 执行 智能体编排 中的 format Documents 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 拼接 Spring AI Document 文本。
+     *
+     * @param documents 检索文档
+     * @return 用空行分隔的上下文文本
      */
     private static String formatDocuments(List<Document> documents) {
         StringBuilder builder = new StringBuilder();

@@ -29,16 +29,18 @@ public class KnowledgeFolderController {
     private final KnowledgeFolderService knowledgeFolderService;
 
     /**
-     * 注入 KnowledgeFolderController 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入知识库目录服务。
+     *
+     * @param knowledgeFolderService 目录导入、重建和可见性服务
      */
     public KnowledgeFolderController(KnowledgeFolderService knowledgeFolderService) {
         this.knowledgeFolderService = knowledgeFolderService;
     }
 
     /**
-     * 查询 知识库 列表。
-     * <p>返回值面向上层展示或接口响应，不暴露底层存储细节。</p>
+     * 返回知识库目录和未归属文档的管理视图。
+     *
+     * @return 知识库目录响应
      */
     @GetMapping
     public ApiResponse<KnowledgeFoldersResponse> listFolders() {
@@ -46,8 +48,12 @@ public class KnowledgeFolderController {
     }
 
     /**
-     * 执行 知识库 中的 import Folder 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 导入一个本地目录为知识库。
+     *
+     * <p>导入会创建或更新目录记录，并触发目录内文档解析、持久化和索引写入。</p>
+     *
+     * @param request 本地目录和递归配置
+     * @return 导入统计和失败明细
      */
     @PostMapping("/import")
     public ApiResponse<IngestDocumentsResponse> importFolder(
@@ -60,8 +66,12 @@ public class KnowledgeFolderController {
     }
 
     /**
-     * 执行 知识库 中的 rebuild Folder 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 重建指定知识库目录的检索索引。
+     *
+     * <p>该操作基于已入库文档，不重新扫描磁盘目录。</p>
+     *
+     * @param id 知识库目录 ID
+     * @return 重建结果统计
      */
     @PostMapping("/{id}/rebuild")
     public ApiResponse<KnowledgeFolderRebuildResponse> rebuildFolder(@PathVariable String id) {
@@ -69,8 +79,13 @@ public class KnowledgeFolderController {
     }
 
     /**
-     * 设置 set Enabled 状态。
-     * <p>状态变更会同步维护当前模块需要的派生信息。</p>
+     * 启用或停用知识库目录。
+     *
+     * <p>停用只影响检索可见性，不删除用户文件或 SQLite 中的解析结果。</p>
+     *
+     * @param id 知识库目录 ID
+     * @param request 新的启用状态
+     * @return 204 空响应
      */
     @PatchMapping("/{id}/enabled")
     public ResponseEntity<Void> setEnabled(
@@ -82,8 +97,12 @@ public class KnowledgeFolderController {
     }
 
     /**
-     * 删除 delete Folder 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     * 删除知识库目录记录。
+     *
+     * <p>删除目录会解除文档归属并由服务层维护索引可见性，不直接删除本地原始文件。</p>
+     *
+     * @param id 知识库目录 ID
+     * @return 204 空响应
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteFolder(@PathVariable String id) {

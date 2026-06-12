@@ -1,6 +1,7 @@
 /**
- * 格式化 format File Size 展示文本。
- * <p>统一页面上的数字、时间或语言标签展示口径。</p>
+ * 将后端返回的字节数转换为文件体积文案。
+ *
+ * <p>这里不做本地化单位切换，保持知识库列表和系统信息页的展示口径一致。</p>
  */
 export function formatFileSize(size) {
   if (size < 1024) {
@@ -13,8 +14,9 @@ export function formatFileSize(size) {
 }
 
 /**
- * 格式化 format Time 展示文本。
- * <p>统一页面上的数字、时间或语言标签展示口径。</p>
+ * 格式化后端毫秒时间戳。
+ *
+ * <p>空值统一展示为 -，避免列表中未索引或未生成图谱的状态被误读成当前时间。</p>
  */
 export function formatTime(timestamp) {
   if (!timestamp) {
@@ -24,8 +26,9 @@ export function formatTime(timestamp) {
 }
 
 /**
- * 格式化 format Score 展示文本。
- * <p>统一页面上的数字、时间或语言标签展示口径。</p>
+ * 格式化检索分数。
+ *
+ * <p>BM25、向量和 RRF 分数来源不同，这里只固定小数位，具体含义由调用组件标注。</p>
  */
 export function formatScore(score) {
   return typeof score === 'number' ? score.toFixed(3) : '-'

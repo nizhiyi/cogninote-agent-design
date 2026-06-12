@@ -52,6 +52,7 @@ impl Drop for BackendProcess {
     fn drop(&mut self) {
         if let Ok(mut child_guard) = self.child.lock() {
             if let Some(mut child) = child_guard.take() {
+                // 桌面窗口退出时必须同步收掉 jpackage 后端，避免端口和 SQLite 文件锁残留。
                 let _ = child.kill();
                 let _ = child.wait();
             }
@@ -143,6 +144,7 @@ fn start_backend_and_open_window(app: &mut App) -> Result<(), String> {
 }
 
 fn select_available_port() -> Result<u16, String> {
+    // README 和后端默认端口都围绕 18080，桌面版只在小范围内漂移，便于日志和防火墙排查。
     for port in MIN_PORT..=MAX_PORT {
         if TcpListener::bind(("127.0.0.1", port)).is_ok() {
             return Ok(port);
@@ -200,6 +202,7 @@ fn prepare_webview_cache_for_current_version(log_path: &Path) -> bool {
         return false;
     }
 
+    // macOS WKWebView 会跨 app 覆盖保留缓存；版本变化时清一次，避免升级后仍加载旧前端资源。
     append_log_line(
         log_path,
         &format!(

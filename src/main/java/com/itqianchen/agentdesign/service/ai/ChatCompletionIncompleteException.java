@@ -7,8 +7,9 @@ package com.itqianchen.agentdesign.service.ai;
 public class ChatCompletionIncompleteException extends RuntimeException {
 
     /**
-     * 注入 ChatCompletionIncompleteException 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 创建模型回答不完整异常。
+     *
+     * @param message 面向前端提示的截断原因和处理建议
      */
     public ChatCompletionIncompleteException(String message) {
         super(message);

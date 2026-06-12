@@ -15,6 +15,11 @@ const knowledgeStore = useKnowledgeFoldersStore()
 const searchStore = useSearchStore()
 const layoutStore = useLayoutStore()
 
+/**
+ * 当前工作区的上下文侧栏。
+ *
+ * <p>侧栏内容由路由决定；会话编辑在流式输出期间禁用，避免用户切换或删除会话时 SSE 仍写入旧会话。</p>
+ */
 const canEditSessions = computed(() =>
   !chatStore.isStreaming && !chatStore.isSubmittingChat && !chatStore.isLoadingSessions
 )

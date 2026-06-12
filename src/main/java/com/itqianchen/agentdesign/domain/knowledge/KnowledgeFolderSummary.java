@@ -1,8 +1,9 @@
 package com.itqianchen.agentdesign.domain.knowledge;
 
 /**
- * Knowledge Folder Summary 是 知识库 的不可变数据快照。
- * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+ * 知识库目录列表页使用的聚合统计。
+ *
+ * <p>计数来自 SQLite 当前状态，用于提示解析、索引和失败情况；它不是 Lucene 的实时命中统计。</p>
  */
 public record KnowledgeFolderSummary(
         KnowledgeFolder folder,

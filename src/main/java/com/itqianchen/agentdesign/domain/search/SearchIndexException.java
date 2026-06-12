@@ -1,14 +1,17 @@
 package com.itqianchen.agentdesign.domain.search;
 
 /**
- * Search Index 异常 表示 检索索引 的可识别异常。
- * <p>统一异常处理器会根据异常类型转换为稳定的 API 响应。</p>
+ * Lucene 索引读写失败时抛出的技术异常。
+ *
+ * <p>统一异常处理器会记录堆栈并返回稳定错误码，调用方不应吞掉这类可重建但需要告警的问题。</p>
  */
 public class SearchIndexException extends RuntimeException {
 
     /**
-     * 注入 SearchIndexException 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 保留底层原因创建索引异常。
+     *
+     * @param message 索引读写失败原因
+     * @param cause 底层 Lucene 或文件系统异常
      */
     public SearchIndexException(String message, Throwable cause) {
         super(message, cause);

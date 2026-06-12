@@ -6,6 +6,11 @@ import java.util.Properties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.info.BuildProperties;
 
+/**
+ * 覆盖后端版本号解析顺序。
+ *
+ * <p>部署显式配置优先于 build-info，缺失时才回落到 dev，避免状态页展示误导性的 SNAPSHOT。</p>
+ */
 class SystemStatusServiceTests {
 
     @Test

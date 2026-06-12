@@ -3,20 +3,29 @@ package com.itqianchen.agentdesign.domain.ai;
 import java.util.List;
 
 /**
- * Ai Embedding 运行时 封装外部 AI 运行时 调用。
- * <p>上层只依赖本地接口，不直接感知 Spring AI 或厂商 SDK 的细节。</p>
+ * 统一 Embedding 模型调用接口。
+ *
+ * <p>query 与 document 分开建模，是为了适配 DashScope 等厂商的检索场景参数。</p>
  */
 public interface AiEmbeddingRuntime {
 
     /**
-     * 执行 AI 运行时 中的 embed Query 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 为检索 query 生成向量。
+     *
+     * <p>实现可以为 query 使用与 document 不同的 provider 参数，调用方不能用 document embedding 代替。</p>
+     *
+     * @param query 用户检索词或改写后的检索语句
+     * @return 与当前模型维度一致的向量
      */
     float[] embedQuery(String query);
 
     /**
-     * 执行 AI 运行时 中的 embed Documents 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 为文档 chunk 批量生成向量。
+     *
+     * <p>返回顺序必须与输入文本顺序一致，索引写入依赖这个顺序回填 chunkId。</p>
+     *
+     * @param texts 待索引 chunk 文本
+     * @return 与输入顺序一一对应的向量列表
      */
     List<float[]> embedDocuments(List<String> texts);
 }

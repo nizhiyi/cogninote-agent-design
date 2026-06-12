@@ -15,8 +15,10 @@ import java.util.UUID;
 import org.springframework.stereotype.Repository;
 
 /**
- * Chat Session 仓储 是 聊天会话 的持久化边界。
- * <p>服务层通过该类型访问数据，避免直接依赖 MyBatis Mapper 细节。</p>
+ * 聊天会话仓储。
+ *
+ * <p>对外隐藏 chat_sessions 与 chat_messages 的一对多表结构，并集中维护会话 id、消息 sequence
+ * 和删除时的消息清理策略。</p>
  */
 @Repository
 public class ChatSessionRepository {
@@ -24,24 +26,29 @@ public class ChatSessionRepository {
     private final ChatSessionMapper chatSessionMapper;
 
     /**
-     * 注入 ChatSessionRepository 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入聊天会话 Mapper。
+     *
+     * @param chatSessionMapper SQLite 会话和消息访问接口
      */
     public ChatSessionRepository(ChatSessionMapper chatSessionMapper) {
         this.chatSessionMapper = chatSessionMapper;
     }
 
     /**
-     * 读取 find Active Sessions 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 查询未删除的完整会话列表。
+     *
+     * @return 活跃会话领域对象
      */
     public List<ChatSession> findActiveSessions() {
         return chatSessionMapper.findActiveSessions();
     }
 
     /**
-     * 读取 find Active Session Summaries 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 查询侧栏使用的轻量会话摘要。
+     *
+     * <p>该查询会携带消息数量，避免前端为了列表展示逐个读取完整消息。</p>
+     *
+     * @return 会话摘要响应列表
      */
     public List<ChatSessionResponse> findActiveSessionSummaries() {
         return chatSessionMapper.findActiveSessionSummaries().stream()
@@ -50,24 +57,41 @@ public class ChatSessionRepository {
     }
 
     /**
-     * 读取 find By Id 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 按 ID 查询未删除会话。
+     *
+     * @param id 会话 ID
+     * @return 找到的会话；不存在或已删除时为空
      */
     public Optional<ChatSession> findById(String id) {
         return chatSessionMapper.findById(id).stream().findFirst();
     }
 
     /**
-     * 创建 create 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建使用随机 ID 的会话。
+     *
+     * @param title 会话标题；空值会落为默认标题
+     * @param useKnowledgeBase 是否启用知识库检索
+     * @param mode 检索模式；空值使用 HYBRID
+     * @param topK 检索数量，会归一到 1 到 50
+     * @param now 创建和更新时间戳
+     * @return 新建会话
      */
     public ChatSession create(String title, boolean useKnowledgeBase, SearchMode mode, int topK, long now) {
         return create(UUID.randomUUID().toString(), title, useKnowledgeBase, mode, topK, now);
     }
 
     /**
-     * 创建 create 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建指定 ID 的会话。
+     *
+     * <p>SSE 流会提前把 conversationId 发给前端，因此首次落库时必须允许使用外部给定 ID。</p>
+     *
+     * @param id 指定会话 ID；为空时生成随机 ID
+     * @param title 会话标题；空值会落为默认标题
+     * @param useKnowledgeBase 是否启用知识库检索
+     * @param mode 检索模式；空值使用 HYBRID
+     * @param topK 检索数量，会归一到 1 到 50
+     * @param now 创建和更新时间戳
+     * @return 新建会话或已存在的活跃会话
      */
     public ChatSession create(
             String id,
@@ -99,8 +123,17 @@ public class ChatSessionRepository {
     }
 
     /**
-     * 确保 ensure Session 所需前置条件存在。
-     * <p>不存在时创建默认资源或抛出明确异常，避免后续流程隐式失败。</p>
+     * 确保聊天流对应的会话已经存在。
+     *
+     * <p>已有会话会同步本轮检索选项；不存在但前端已持有 ID 时使用同一个 ID 创建，避免消息归属分裂。</p>
+     *
+     * @param conversationId 前端或请求指定的会话 ID
+     * @param fallbackTitle 新会话默认标题
+     * @param useKnowledgeBase 是否启用知识库检索
+     * @param mode 检索模式
+     * @param topK 检索数量
+     * @param now 当前时间戳
+     * @return 可写入消息的会话
      */
     public ChatSession ensureSession(
             String conversationId,
@@ -113,10 +146,6 @@ public class ChatSessionRepository {
         if (conversationId != null && !conversationId.isBlank()) {
             Optional<ChatSession> existing = findById(conversationId);
             if (existing.isPresent()) {
-                /**
-                 * 更新 update Options 对应的数据。
-                 * <p>方法负责保持内存快照、数据库记录和返回值语义一致。</p>
-                 */
                 updateOptions(conversationId, null, useKnowledgeBase, mode, topK, now);
                 return findById(conversationId).orElse(existing.get());
             }
@@ -125,10 +154,6 @@ public class ChatSessionRepository {
              * id 创建 SQLite 会话，否则前端持有的会话 id 与落库消息会分叉。
              */
             ChatSession session = create(conversationId, fallbackTitle, useKnowledgeBase, mode, topK, now);
-            /**
-             * 更新 update Options 对应的数据。
-             * <p>方法负责保持内存快照、数据库记录和返回值语义一致。</p>
-             */
             updateOptions(conversationId, null, useKnowledgeBase, mode, topK, now);
             return findById(conversationId).orElse(session);
         }
@@ -136,8 +161,16 @@ public class ChatSessionRepository {
     }
 
     /**
-     * 更新 update Options 对应的数据。
-     * <p>方法负责保持内存快照、数据库记录和返回值语义一致。</p>
+     * 更新会话标题和检索选项。
+     *
+     * <p>标题为空时不覆盖原标题；检索选项会影响后续消息，不回写历史消息快照。</p>
+     *
+     * @param id 会话 ID
+     * @param title 新标题；为空时忽略
+     * @param useKnowledgeBase 是否启用知识库检索
+     * @param mode 检索模式；空值使用 HYBRID
+     * @param topK 检索数量
+     * @param updatedAt 更新时间戳
      */
     public void updateOptions(
             String id,
@@ -158,16 +191,24 @@ public class ChatSessionRepository {
     }
 
     /**
-     * 更新 update Summary 对应的数据。
-     * <p>方法负责保持内存快照、数据库记录和返回值语义一致。</p>
+     * 更新会话摘要及其覆盖到的消息序号。
+     *
+     * @param id 会话 ID
+     * @param summary 摘要文本
+     * @param coveredSequence 摘要覆盖到的最大消息序号
+     * @param updatedAt 更新时间戳
      */
     public void updateSummary(String id, String summary, int coveredSequence, long updatedAt) {
         chatSessionMapper.updateSummary(id, summary, coveredSequence, updatedAt);
     }
 
     /**
-     * 删除 delete Session 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     * 删除会话并清理其消息。
+     *
+     * <p>这里显式删除消息，不依赖 SQLite 外键设置，避免不同运行环境留下孤儿消息。</p>
+     *
+     * @param id 会话 ID
+     * @return 是否删除了活跃会话
      */
     public boolean deleteSession(String id) {
         /*
@@ -182,8 +223,10 @@ public class ChatSessionRepository {
     }
 
     /**
-     * 清理 clear Messages 对应的数据。
-     * <p>清理只移除目标内容，保留会话或模块继续运行所需的外壳状态。</p>
+     * 清空会话消息并重置会话摘要状态。
+     *
+     * @param conversationId 会话 ID
+     * @param updatedAt 更新时间戳
      */
     public void clearMessages(String conversationId, long updatedAt) {
         chatSessionMapper.deleteMessages(conversationId);
@@ -191,32 +234,54 @@ public class ChatSessionRepository {
     }
 
     /**
-     * 读取 find Messages 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 查询会话全部消息。
+     *
+     * @param conversationId 会话 ID
+     * @return 按 sequence 排序的消息列表
      */
     public List<ChatMessage> findMessages(String conversationId) {
         return chatSessionMapper.findMessages(conversationId);
     }
 
     /**
-     * 执行 聊天会话 中的 count Messages 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 统计会话消息数量。
+     *
+     * @param conversationId 会话 ID
+     * @return 消息数量
      */
     public int countMessages(String conversationId) {
         return chatSessionMapper.countMessages(conversationId);
     }
 
     /**
-     * 读取 find Messages After 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 查询指定 sequence 之后的消息。
+     *
+     * <p>用于记忆摘要增量更新，调用方依赖 sequence 单调递增。</p>
+     *
+     * @param conversationId 会话 ID
+     * @param sequence 已处理到的消息序号
+     * @return sequence 更大的消息列表
      */
     public List<ChatMessage> findMessagesAfter(String conversationId, int sequence) {
         return chatSessionMapper.findMessagesAfter(conversationId, sequence);
     }
 
     /**
-     * 追加 append Message 数据。
-     * <p>追加时维护顺序、状态和关联元数据，保证会话历史可追踪。</p>
+     * 追加一条会话消息。
+     *
+     * <p>sequence 在数据库当前最大值基础上递增，同时 touch 会话更新时间，保证侧栏按最新消息排序。</p>
+     *
+     * @param conversationId 会话 ID
+     * @param role 消息角色
+     * @param content 消息内容
+     * @param status 消息状态
+     * @param requestId 流式请求 ID
+     * @param agentType 生成该消息的 Agent 类型
+     * @param retrievalMode 本轮检索模式
+     * @param sourcesJson RAG 来源快照 JSON
+     * @param tokenEstimate 估算 token 数
+     * @param createdAt 创建时间戳
+     * @return 已落库消息
      */
     public ChatMessage appendMessage(
             String conversationId,
@@ -251,8 +316,10 @@ public class ChatSessionRepository {
     }
 
     /**
-     * 执行 聊天会话 中的 to Summary 响应 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将 SQL 摘要行恢复为前端响应。
+     *
+     * @param row 包含会话字段和消息计数的聚合行
+     * @return 会话摘要响应
      */
     private static ChatSessionResponse toSummaryResponse(ChatSessionSummaryRow row) {
         ChatSession session = new ChatSession(
@@ -271,8 +338,10 @@ public class ChatSessionRepository {
     }
 
     /**
-     * 规范化 Top K 输入。
-     * <p>后续逻辑只处理受控取值，减少重复分支和边界判断。</p>
+     * 归一化会话检索数量。
+     *
+     * @param topK 请求值
+     * @return 限制在 1 到 50 的数量
      */
     private static int normalizeTopK(int topK) {
         return Math.clamp(topK, 1, 50);

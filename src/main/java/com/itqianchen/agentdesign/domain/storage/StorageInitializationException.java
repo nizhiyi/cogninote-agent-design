@@ -1,14 +1,17 @@
 package com.itqianchen.agentdesign.domain.storage;
 
 /**
- * Storage Initialization 异常 表示 系统状态 的可识别异常。
- * <p>统一异常处理器会根据异常类型转换为稳定的 API 响应。</p>
+ * 应用存储目录初始化失败时抛出的启动异常。
+ *
+ * <p>这类失败通常表示本地目录权限、磁盘或路径不可用，服务不应带着不完整存储继续运行。</p>
  */
 public class StorageInitializationException extends RuntimeException {
 
     /**
-     * 注入 StorageInitializationException 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 保留底层原因创建存储初始化异常。
+     *
+     * @param message 存储初始化失败原因
+     * @param cause 底层文件系统异常
      */
     public StorageInitializationException(String message, Throwable cause) {
         super(message, cause);

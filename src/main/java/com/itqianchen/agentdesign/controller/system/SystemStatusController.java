@@ -18,16 +18,20 @@ public class SystemStatusController {
     private final SystemStatusService systemStatusService;
 
     /**
-     * 注入 SystemStatusController 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入系统状态服务。
+     *
+     * @param systemStatusService 系统状态聚合服务
      */
     public SystemStatusController(SystemStatusService systemStatusService) {
         this.systemStatusService = systemStatusService;
     }
 
     /**
-     * 执行 系统状态 中的 status 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 读取后端运行状态。
+     *
+     * <p>该接口用于前端启动检查和设置页诊断，不改变任何本地状态。</p>
+     *
+     * @return 系统状态响应
      */
     @GetMapping("/status")
     public ApiResponse<SystemStatusResponse> status() {

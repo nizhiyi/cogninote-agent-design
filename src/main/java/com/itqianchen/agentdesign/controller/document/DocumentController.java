@@ -33,8 +33,11 @@ public class DocumentController {
     private final DocumentQueryService documentQueryService;
 
     /**
-     * 注入 DocumentController 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入文档导入、管理和查询服务。
+     *
+     * @param ingestionService 文档导入编排服务
+     * @param documentManagementService 文档生命周期管理服务
+     * @param documentQueryService 文档读取服务
      */
     public DocumentController(
             DocumentIngestionService ingestionService,
@@ -47,8 +50,9 @@ public class DocumentController {
     }
 
     /**
-     * 查询 文档管理 列表。
-     * <p>返回值面向上层展示或接口响应，不暴露底层存储细节。</p>
+     * 返回文档摘要列表，不展开 chunk 正文。
+     *
+     * @return 文档摘要列表
      */
     @GetMapping
     public ApiResponse<List<DocumentSummaryResponse>> listDocuments() {
@@ -58,6 +62,9 @@ public class DocumentController {
     /**
      * 查询 文档片段详情。
      * <p>该接口供来源预览弹窗读取完整片段内容，不改变聊天消息中的来源快照。</p>
+     *
+     * @param chunkId 文档片段 ID
+     * @return 片段详情
      */
     @GetMapping("/chunks/{chunkId}")
     public ApiResponse<DocumentChunkResponse> getChunk(@PathVariable String chunkId) {
@@ -65,8 +72,12 @@ public class DocumentController {
     }
 
     /**
-     * 执行 文档管理 中的 ingest 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 导入指定目录中的文档。
+     *
+     * <p>请求只携带本地路径和递归策略，具体文件过滤、解析、切块和索引写入由服务层串联。</p>
+     *
+     * @param request 导入目录和递归配置
+     * @return 导入统计和失败明细
      */
     @PostMapping("/ingest")
     public ApiResponse<IngestDocumentsResponse> ingest(@Valid @RequestBody IngestDocumentsRequest request) {
@@ -74,8 +85,12 @@ public class DocumentController {
     }
 
     /**
-     * 删除 delete Document 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     * 删除单个文档及其索引。
+     *
+     * <p>文档不存在时转为 404，避免前端把未删除任何记录误判为成功。</p>
+     *
+     * @param id 文档 ID
+     * @return 204 空响应
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteDocument(@PathVariable String id) {

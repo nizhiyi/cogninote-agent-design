@@ -17,8 +17,9 @@ public record AgentRequest(
 ) {
 
     /**
-     * 将领域对象转换为 AgentRequest。
-     * <p>字段映射集中在这里，减少控制器和服务层的重复拼装。</p>
+     * 从 SSE 请求构造 agent 入参。
+     *
+     * <p>question 在进入 agent 前统一 trim；useKnowledgeBase 缺省为 true 以兼容旧前端请求。</p>
      */
     public static AgentRequest from(ChatStreamRequest request) {
         return new AgentRequest(

@@ -1,8 +1,10 @@
 package com.itqianchen.agentdesign.domain.document;
 
 /**
- * Knowledge Document 是 知识库 的不可变数据快照。
- * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+ * 本地知识文档在 SQLite 中的事实记录。
+ *
+ * <p>sourcePath、lastModified 和 contentHash 用于判断是否需要重新解析；indexedAt 表示当前 chunk
+ * 版本是否已经写入 Lucene。删除该记录只删除应用内元数据，不删除用户本地文件。</p>
  */
 public record KnowledgeDocument(
         String id,
@@ -19,10 +21,6 @@ public record KnowledgeDocument(
         long updatedAt,
         int chunkCount
 ) {
-    /**
-     * 注入 KnowledgeDocument 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
-     */
     public KnowledgeDocument(
             String id,
             String sourcePath,

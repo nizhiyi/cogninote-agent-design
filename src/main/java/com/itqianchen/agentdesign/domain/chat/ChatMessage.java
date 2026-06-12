@@ -4,8 +4,10 @@ import com.itqianchen.agentdesign.domain.agent.AgentType;
 import com.itqianchen.agentdesign.domain.search.SearchMode;
 
 /**
- * Chat Message 是 聊天会话 的不可变数据快照。
- * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+ * 已持久化的聊天消息。
+ *
+ * <p>sequence 是同一 conversationId 内的稳定顺序号，长会话摘要和历史裁剪都依赖它。
+ * sourcesJson 保存回答产生时的 RAG 来源快照，不能用当前索引结果反推替代。</p>
  */
 public record ChatMessage(
         String id,

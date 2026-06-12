@@ -11,8 +11,10 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 /**
- * Chat Context Usage 服务 承载 聊天会话 的应用服务流程。
- * <p>这里集中编排仓储、模型运行时和 DTO 映射，保证控制器保持轻量。</p>
+ * 计算聊天上下文窗口的前端展示用量。
+ *
+ * <p>这里复用 ConversationMemorySnapshotService 的预算和 token 估算口径，避免 UI 展示的可用上下文
+ * 与真实注入模型的历史窗口不一致。</p>
  */
 @Service
 public class ChatContextUsageService {
@@ -23,8 +25,12 @@ public class ChatContextUsageService {
     private final ChatMemoryProperties memoryProperties;
 
     /**
-     * 注入 ChatContextUsageService 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入上下文用量计算依赖。
+     *
+     * @param chatSessionRepository 会话仓储
+     * @param memorySnapshotService 记忆快照服务
+     * @param modelConfigService 模型配置服务
+     * @param memoryProperties 记忆窗口配置
      */
     public ChatContextUsageService(
             ChatSessionRepository chatSessionRepository,
@@ -39,11 +45,14 @@ public class ChatContextUsageService {
     }
 
     /**
-     * 执行 聊天会话 中的 usage 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 计算会话当前上下文用量。
+     *
+     * <p>会话不存在时返回空用量，便于前端在新会话创建前展示当前模型窗口。</p>
+     *
+     * @param conversationId 会话 ID
+     * @return 上下文用量响应
      */
     public ChatContextUsageResponse usage(String conversationId) {
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         ChatSession session = chatSessionRepository.findById(conversationId).orElse(null);
         ModelConfig chatConfig = modelConfigService.activeChatOrDefault();
         if (session == null) {
@@ -54,8 +63,11 @@ public class ChatContextUsageService {
     }
 
     /**
-     * 执行 聊天会话 中的 from Snapshot 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 从记忆快照构建上下文用量响应。
+     *
+     * @param session 会话领域对象
+     * @param snapshot 当前记忆快照
+     * @return 上下文用量响应
      */
     public ChatContextUsageResponse fromSnapshot(ChatSession session, ConversationMemorySnapshot snapshot) {
         int contextWindowTokens = Math.max(1, snapshot.contextWindowTokens());
@@ -77,8 +89,13 @@ public class ChatContextUsageService {
     }
 
     /**
-     * 执行 聊天会话 中的 should Summarize 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 判断是否需要刷新滚动摘要。
+     *
+     * <p>触发条件同时考虑消息数和 token 预算；已有摘要后再次超预算也会继续推进摘要边界。</p>
+     *
+     * @param session 会话领域对象
+     * @param messages 当前全量消息
+     * @return 是否应该生成新摘要
      */
     public boolean shouldSummarize(ChatSession session, List<ChatMessage> messages) {
         if (messages.isEmpty()) {
@@ -87,30 +104,37 @@ public class ChatContextUsageService {
         ModelConfig chatConfig = modelConfigService.activeChatOrDefault();
         int totalTokens = memorySnapshotService.estimateMessageTokens(messages, chatConfig);
         int budgetTokens = memorySnapshotService.historyBudgetTokens(chatConfig);
+        // 已有摘要的会话只要新增原文再次超过预算就继续压缩，避免摘要边界停在旧消息上。
         return messages.size() > memoryProperties.resolvedSummarizeAfterMessages()
                 || totalTokens > budgetTokens
                 || (session.summaryMessageSequence() > 0 && totalTokens > budgetTokens);
     }
 
     /**
-     * 估算 estimate Message Tokens 的 token 用量。
-     * <p>估算值用于上下文预算、裁剪和前端占用展示。</p>
+     * 估算单条消息 token。
+     *
+     * @param message 消息领域对象
+     * @return 估算 token 数
      */
     public int estimateMessageTokens(ChatMessage message) {
         return memorySnapshotService.estimateMessageTokens(message, modelConfigService.activeChatOrDefault());
     }
 
     /**
-     * 估算 estimate Messages Tokens 的 token 用量。
-     * <p>估算值用于上下文预算、裁剪和前端占用展示。</p>
+     * 估算多条消息 token。
+     *
+     * @param messages 消息列表
+     * @return 估算 token 总数
      */
     public int estimateMessagesTokens(List<ChatMessage> messages) {
         return memorySnapshotService.estimateMessageTokens(messages, modelConfigService.activeChatOrDefault());
     }
 
     /**
-     * 执行 聊天会话 中的 empty Usage 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 构建空会话的上下文用量。
+     *
+     * @param chatConfig 当前 Chat 配置
+     * @return 空用量响应
      */
     private static ChatContextUsageResponse emptyUsage(ModelConfig chatConfig) {
         int contextWindowTokens = Math.max(1, chatConfig.resolvedContextWindowTokens());

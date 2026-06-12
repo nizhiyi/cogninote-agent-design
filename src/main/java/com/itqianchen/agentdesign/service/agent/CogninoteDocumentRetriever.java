@@ -23,8 +23,13 @@ public final class CogninoteDocumentRetriever implements DocumentRetriever {
     private volatile KnowledgeContext cachedContext;
 
     /**
-     * 注入 CogninoteDocumentRetriever 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 创建单轮 RAG 文档检索器。
+     *
+     * @param knowledgeContextProvider 知识库上下文提供者
+     * @param originalQuestion 用户原始问题
+     * @param retrievalQuery 用于检索的问题；为空时回退原始问题
+     * @param requestedMode 请求检索模式
+     * @param topK 检索数量
      */
     public CogninoteDocumentRetriever(
             KnowledgeContextProvider knowledgeContextProvider,
@@ -43,32 +48,39 @@ public final class CogninoteDocumentRetriever implements DocumentRetriever {
     }
 
     /**
-     * 执行 智能体编排 中的 original Question 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 返回用户原始问题。
+     *
+     * @return 原始问题
      */
     public String originalQuestion() {
         return originalQuestion;
     }
 
     /**
-     * 执行 智能体编排 中的 retrieval Query 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 返回实际检索 query。
+     *
+     * @return 检索 query
      */
     public String retrievalQuery() {
         return retrievalQuery;
     }
 
     /**
-     * 执行 智能体编排 中的 retrieve Knowledge Context 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 读取并缓存本轮知识库上下文。
+     *
+     * @return 知识库上下文
      */
     public KnowledgeContext retrieveKnowledgeContext() {
         return context();
     }
 
     /**
-     * 执行 智能体编排 中的 retrieve 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 给 Spring AI RAG Advisor 返回检索文档。
+     *
+     * <p>query 参数由 Advisor 传入，但真实检索已使用构造器中的 retrievalQuery，避免格式化 prompt 被误用为检索词。</p>
+     *
+     * @param query Spring AI Query
+     * @return RAG 文档列表
      */
     @Override
     public List<Document> retrieve(Query query) {
@@ -78,18 +90,15 @@ public final class CogninoteDocumentRetriever implements DocumentRetriever {
     }
 
     /**
-     * 执行 智能体编排 中的 context 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 获取本轮检索上下文并做惰性缓存。
+     *
+     * @return 知识库上下文
      */
     private KnowledgeContext context() {
         KnowledgeContext existing = cachedContext;
         if (existing != null) {
             return existing;
         }
-        /**
-         * 执行 智能体编排 中的 synchronized 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         synchronized (this) {
             if (cachedContext == null) {
                 /*
@@ -104,8 +113,10 @@ public final class CogninoteDocumentRetriever implements DocumentRetriever {
     }
 
     /**
-     * 执行 智能体编排 中的 to Document 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将 RAG 来源转换为 Spring AI Document。
+     *
+     * @param source RAG 来源
+     * @return Spring AI Document
      */
     private static Document toDocument(RagSourceResponse source) {
         return Document.builder()
@@ -117,8 +128,10 @@ public final class CogninoteDocumentRetriever implements DocumentRetriever {
     }
 
     /**
-     * 执行 智能体编排 中的 document Text 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 构造模型可读的引用文本。
+     *
+     * @param source RAG 来源
+     * @return 带编号、路径和位置的文档文本
      */
     private static String documentText(RagSourceResponse source) {
         String content = source.content() == null || source.content().isBlank()
@@ -146,8 +159,10 @@ public final class CogninoteDocumentRetriever implements DocumentRetriever {
     }
 
     /**
-     * 执行 智能体编排 中的 metadata 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 构造 Spring AI Document metadata。
+     *
+     * @param source RAG 来源
+     * @return 不含 null 值的 metadata
      */
     private static Map<String, Object> metadata(RagSourceResponse source) {
         Map<String, Object> metadata = new HashMap<>();
@@ -159,37 +174,20 @@ public final class CogninoteDocumentRetriever implements DocumentRetriever {
          * 不能把 null 透传到 RetrievalAugmentationAdvisor 链路里。
          */
         putIfNotNull(metadata, "chunkId", source.chunkId());
-        /**
-         * 执行 智能体编排 中的 put If Not Null 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         putIfNotNull(metadata, "documentId", source.documentId());
-        /**
-         * 执行 智能体编排 中的 put If Not Null 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         putIfNotNull(metadata, "fileName", source.fileName());
-        /**
-         * 执行 智能体编排 中的 put If Not Null 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         putIfNotNull(metadata, "sourcePath", source.sourcePath());
-        /**
-         * 执行 智能体编排 中的 put If Not Null 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         putIfNotNull(metadata, "heading", source.heading());
-        /**
-         * 执行 智能体编排 中的 put If Not Null 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         putIfNotNull(metadata, "pageNumber", source.pageNumber());
         return metadata;
     }
 
     /**
-     * 执行 智能体编排 中的 put If Not Null 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * metadata 中只放非空值。
+     *
+     * @param metadata metadata Map
+     * @param key 字段名
+     * @param value 字段值
      */
     private static void putIfNotNull(Map<String, Object> metadata, String key, Object value) {
         if (value != null) {

@@ -52,6 +52,19 @@ public class KnowledgeGraphService {
     private final TaskExecutor taskExecutor;
     private final ObjectMapper objectMapper;
 
+    /**
+     * 注入图谱应用服务依赖。
+     *
+     * @param graphRepository 图谱仓储
+     * @param folderRepository 知识库目录仓储
+     * @param documentRepository 文档仓储
+     * @param modelConfigService 模型配置服务
+     * @param extractionService 图谱抽取服务
+     * @param mergeService 图谱合并服务
+     * @param publisher 运行事件发布器
+     * @param taskExecutor 后台任务执行器
+     * @param objectMapper JSON 解析器
+     */
     public KnowledgeGraphService(
             KnowledgeGraphRepository graphRepository,
             KnowledgeFolderRepository folderRepository,
@@ -74,25 +87,51 @@ public class KnowledgeGraphService {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 为指定范围创建或复用图谱重建运行。
+     *
+     * @param scopeType 范围类型
+     * @param scopeId 范围 ID；全库范围为空
+     * @return 运行响应
+     */
     public synchronized KnowledgeGraphRunResponse rebuild(String scopeType, String scopeId) {
         KnowledgeGraphScope scope = resolveScope(scopeType, scopeId);
+        // 同一 scope 同时只允许一个活跃 run，避免后台任务互相覆盖派生图。
         return graphRepository.findActiveRun(scope)
                 .map(KnowledgeGraphRunResponse::from)
                 .orElseGet(() -> createAndStartRun(scope));
     }
 
+    /**
+     * 查询图谱运行。
+     *
+     * @param runId 运行 ID
+     * @return 运行响应
+     */
     public KnowledgeGraphRunResponse getRun(String runId) {
         return graphRepository.findRunById(runId)
                 .map(KnowledgeGraphRunResponse::from)
                 .orElseThrow(() -> new ResourceNotFoundException("Knowledge graph run not found: " + runId));
     }
 
+    /**
+     * 订阅图谱运行事件。
+     *
+     * @param runId 运行 ID
+     * @return SSE emitter
+     */
     public SseEmitter subscribe(String runId) {
         KnowledgeGraphRunResponse snapshot = getRun(runId);
         boolean terminal = !"QUEUED".equals(snapshot.status()) && !"RUNNING".equals(snapshot.status());
         return publisher.subscribe(runId, snapshot, terminal);
     }
 
+    /**
+     * 请求取消图谱运行。
+     *
+     * @param runId 运行 ID
+     * @return 是否接受取消
+     */
     public boolean cancel(String runId) {
         KnowledgeGraphRun run = graphRepository.findRunById(runId)
                 .orElseThrow(() -> new ResourceNotFoundException("Knowledge graph run not found: " + runId));
@@ -103,6 +142,13 @@ public class KnowledgeGraphService {
         return true;
     }
 
+    /**
+     * 查询指定范围的图谱状态。
+     *
+     * @param scopeType 范围类型
+     * @param scopeId 范围 ID；全库范围为空
+     * @return 状态响应
+     */
     public KnowledgeGraphStatusResponse status(String scopeType, String scopeId) {
         KnowledgeGraphScope scope = resolveScope(scopeType, scopeId);
         KnowledgeGraphView mindmap = graphRepository.findView(scope, KnowledgeGraphViewType.MINDMAP.name()).orElse(null);
@@ -121,6 +167,14 @@ public class KnowledgeGraphService {
         );
     }
 
+    /**
+     * 查询指定图谱视图。
+     *
+     * @param scopeType 范围类型
+     * @param scopeId 范围 ID；全库范围为空
+     * @param viewType 视图类型
+     * @return 视图响应
+     */
     public KnowledgeGraphViewResponse view(String scopeType, String scopeId, String viewType) {
         KnowledgeGraphScope scope = resolveScope(scopeType, scopeId);
         KnowledgeGraphViewType normalizedViewType = parseViewType(viewType);
@@ -134,19 +188,38 @@ public class KnowledgeGraphService {
         }
     }
 
+    /**
+     * 查询节点证据。
+     *
+     * @param nodeId 节点 ID
+     * @return 证据响应列表
+     */
     public List<KnowledgeGraphEvidenceResponse> nodeEvidence(String nodeId) {
         return graphRepository.findEvidenceByNodeId(nodeId).stream()
                 .map(KnowledgeGraphEvidenceResponse::from)
                 .toList();
     }
 
+    /**
+     * 查询边证据。
+     *
+     * @param edgeId 边 ID
+     * @return 证据响应列表
+     */
     public List<KnowledgeGraphEvidenceResponse> edgeEvidence(String edgeId) {
         return graphRepository.findEvidenceByEdgeId(edgeId).stream()
                 .map(KnowledgeGraphEvidenceResponse::from)
                 .toList();
     }
 
+    /**
+     * 创建运行记录并提交后台任务。
+     *
+     * @param scope 图谱范围
+     * @return 新运行响应
+     */
     private KnowledgeGraphRunResponse createAndStartRun(KnowledgeGraphScope scope) {
+        // run 记录保存启动时的 Chat 配置 ID，后续缓存复用和 merge 都以这个快照判断。
         ModelConfig chatConfigSnapshot = modelConfigService.activeChatOrDefault();
         long now = System.currentTimeMillis();
         KnowledgeGraphRun run = new KnowledgeGraphRun(
@@ -178,6 +251,12 @@ public class KnowledgeGraphService {
         return KnowledgeGraphRunResponse.from(run);
     }
 
+    /**
+     * 执行后台图谱抽取、合并和视图构建任务。
+     *
+     * @param runId 运行 ID
+     * @param scope 图谱范围
+     */
     private void runGraphTask(String runId, KnowledgeGraphScope scope) {
         publisher.clearCancellation(runId);
         try {
@@ -244,6 +323,12 @@ public class KnowledgeGraphService {
         }
     }
 
+    /**
+     * 按 scope 读取可用于图谱构建的文档快照。
+     *
+     * @param scope 图谱范围
+     * @return 文档索引快照列表
+     */
     private List<IndexedDocument> documentsForScope(KnowledgeGraphScope scope) {
         return switch (scope.scopeType()) {
             case ALL -> documentRepository.findAllParsedDocumentsForIndexing();
@@ -254,6 +339,13 @@ public class KnowledgeGraphService {
         };
     }
 
+    /**
+     * 解析并校验图谱范围。
+     *
+     * @param scopeType 范围类型
+     * @param scopeId 范围 ID
+     * @return 规范化后的范围
+     */
     private KnowledgeGraphScope resolveScope(String scopeType, String scopeId) {
         KnowledgeGraphScopeType type = parseScopeType(scopeType);
         if (type == KnowledgeGraphScopeType.ALL) {
@@ -276,6 +368,12 @@ public class KnowledgeGraphService {
         return new KnowledgeGraphScope(type, normalizedScopeId, document.fileName());
     }
 
+    /**
+     * 解析图谱范围类型。
+     *
+     * @param scopeType 请求字符串
+     * @return 范围类型
+     */
     private static KnowledgeGraphScopeType parseScopeType(String scopeType) {
         if (scopeType == null || scopeType.isBlank()) {
             throw new KnowledgeGraphException("scopeType is required");
@@ -287,6 +385,12 @@ public class KnowledgeGraphService {
         }
     }
 
+    /**
+     * 解析图谱视图类型。
+     *
+     * @param viewType 请求字符串
+     * @return 视图类型
+     */
     private static KnowledgeGraphViewType parseViewType(String viewType) {
         if (viewType == null || viewType.isBlank()) {
             throw new KnowledgeGraphException("viewType is required");
@@ -298,6 +402,13 @@ public class KnowledgeGraphService {
         }
     }
 
+    /**
+     * 取两个视图的最大更新时间。
+     *
+     * @param left 左视图
+     * @param right 右视图
+     * @return 最大更新时间；都为空时为 null
+     */
     private static Long maxUpdatedAt(KnowledgeGraphView left, KnowledgeGraphView right) {
         Long leftTime = left == null ? null : left.updatedAt();
         Long rightTime = right == null ? null : right.updatedAt();

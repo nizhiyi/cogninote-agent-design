@@ -1,6 +1,11 @@
 <script setup>
 import { computed } from 'vue'
 
+/**
+ * 渲染后端生成的 Markdown 思维导图。
+ *
+ * <p>当前只识别 H1-H4 标题作为层级节点，正文段落会被忽略，避免模型生成的解释文字挤入导图结构。</p>
+ */
 const props = defineProps({
   payload: {
     type: Object,

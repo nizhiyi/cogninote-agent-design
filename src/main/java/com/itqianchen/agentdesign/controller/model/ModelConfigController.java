@@ -37,8 +37,11 @@ public class ModelConfigController {
     private final ModelConnectionTestService modelConnectionTestService;
 
     /**
-     * 注入 ModelConfigController 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入模型配置、模型目录和连接测试服务。
+     *
+     * @param modelConfigService 模型配置持久化服务
+     * @param modelCatalogService 提供商模型列表查询服务
+     * @param modelConnectionTestService 临时配置连通性测试服务
      */
     public ModelConfigController(
             ModelConfigService modelConfigService,
@@ -51,8 +54,9 @@ public class ModelConfigController {
     }
 
     /**
-     * 查询 模型配置 列表。
-     * <p>返回值面向上层展示或接口响应，不暴露底层存储细节。</p>
+     * 按角色列出模型配置。
+     *
+     * <p>role 非法时提前转换为统一配置错误，避免前端把空列表误判为未配置。</p>
      */
     @GetMapping("/api/model-configs")
     public ApiResponse<List<ModelConfigResponse>> listConfigs(@RequestParam String role) {
@@ -83,8 +87,12 @@ public class ModelConfigController {
     }
 
     /**
-     * 创建 create Settings 配置 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 在设置页创建模型配置并返回新的页面快照。
+     *
+     * <p>返回整页快照可让前端一次性同步列表、选中项和激活项，减少并发状态漂移。</p>
+     *
+     * @param request 新模型配置
+     * @return 更新后的设置页快照
      */
     @PostMapping("/api/model-configs/settings/configs")
     public ApiResponse<ModelConfigSettingsResponse> createSettingsConfig(
@@ -94,8 +102,11 @@ public class ModelConfigController {
     }
 
     /**
-     * 更新 update Settings 配置 对应的数据。
-     * <p>方法负责保持内存快照、数据库记录和返回值语义一致。</p>
+     * 在设置页更新模型配置并返回新的页面快照。
+     *
+     * @param id 配置 ID
+     * @param request 更新后的配置内容
+     * @return 更新后的设置页快照
      */
     @PutMapping("/api/model-configs/settings/configs/{id}")
     public ApiResponse<ModelConfigSettingsResponse> updateSettingsConfig(
@@ -106,8 +117,12 @@ public class ModelConfigController {
     }
 
     /**
-     * 删除 delete Settings 配置 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     * 删除设置页中的模型配置。
+     *
+     * <p>服务层会保证每个角色仍有激活配置；否则删除会以配置错误失败。</p>
+     *
+     * @param id 配置 ID
+     * @return 更新后的设置页快照
      */
     @DeleteMapping("/api/model-configs/settings/configs/{id}")
     public ApiResponse<ModelConfigSettingsResponse> deleteSettingsConfig(@PathVariable String id) {
@@ -115,8 +130,12 @@ public class ModelConfigController {
     }
 
     /**
-     * 执行 模型配置 中的 activate Settings 配置 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 激活设置页中的模型配置。
+     *
+     * <p>同一角色只能有一个激活配置，旧激活项由服务层在事务内切换。</p>
+     *
+     * @param id 配置 ID
+     * @return 更新后的设置页快照
      */
     @PostMapping("/api/model-configs/settings/configs/{id}/activate")
     public ApiResponse<ModelConfigSettingsResponse> activateSettingsConfig(@PathVariable String id) {
@@ -124,8 +143,10 @@ public class ModelConfigController {
     }
 
     /**
-     * 创建 create 配置 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 兼容旧调用方创建模型配置。
+     *
+     * @param request 模型配置请求
+     * @return 新配置
      */
     @PostMapping("/api/model-configs")
     public ApiResponse<ModelConfigResponse> createConfig(@Valid @RequestBody ModelConfigRequest request) {
@@ -133,8 +154,11 @@ public class ModelConfigController {
     }
 
     /**
-     * 更新 update 配置 对应的数据。
-     * <p>方法负责保持内存快照、数据库记录和返回值语义一致。</p>
+     * 兼容旧调用方更新模型配置。
+     *
+     * @param id 配置 ID
+     * @param request 更新后的配置内容
+     * @return 更新后的配置
      */
     @PutMapping("/api/model-configs/{id}")
     public ApiResponse<ModelConfigResponse> updateConfig(
@@ -145,8 +169,12 @@ public class ModelConfigController {
     }
 
     /**
-     * 删除 delete 配置 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     * 兼容旧调用方删除模型配置。
+     *
+     * <p>删除后不会返回设置页快照，旧接口调用方需要自行刷新。</p>
+     *
+     * @param id 配置 ID
+     * @return 空响应
      */
     @DeleteMapping("/api/model-configs/{id}")
     public ApiResponse<Void> deleteConfig(@PathVariable String id) {
@@ -155,8 +183,10 @@ public class ModelConfigController {
     }
 
     /**
-     * 执行 模型配置 中的 activate 配置 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 兼容旧调用方激活模型配置。
+     *
+     * @param id 配置 ID
+     * @return 激活后的配置
      */
     @PostMapping("/api/model-configs/{id}/activate")
     public ApiResponse<ModelConfigResponse> activateConfig(@PathVariable String id) {
@@ -164,8 +194,10 @@ public class ModelConfigController {
     }
 
     /**
-     * 测试 test Role 配置 是否可用。
-     * <p>使用最小请求验证配置、网络和模型服务是否连通。</p>
+     * 使用请求中的临时配置验证当前角色模型，不持久化到本地 SQLite。
+     *
+     * @param request 临时模型配置
+     * @return 连接测试结果
      */
     @PostMapping("/api/model-configs/test")
     public ApiResponse<ModelConfigTestResponse> testRoleConfig(@Valid @RequestBody ModelConfigRequest request) {
@@ -173,18 +205,24 @@ public class ModelConfigController {
     }
 
     /**
-     * 拉取 fetch Role Models 数据。
-     * <p>外部 HTTP 或模型提供商响应会在这里转换为本地 DTO。</p>
+     * 查询当前角色可选模型列表。
+     *
+     * <p>该接口会触达模型提供商，失败时返回配置错误，用于设置页下拉选项。</p>
+     *
+     * @param request 当前角色的临时配置
+     * @return 提供商返回的模型选项
      */
     @PostMapping("/api/model-configs/models")
     public ApiResponse<ModelOptionsResponse> fetchRoleModels(@Valid @RequestBody ModelConfigRequest request) {
-        // 调用外部模型服务接口，返回值需要在当前层转换为本地 DTO。
         return ApiResponse.ok(modelCatalogService.fetchModels(request));
     }
 
     /**
-     * 读取 get 配置 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 读取旧版单页模型配置。
+     *
+     * <p>响应同时包含对话和向量配置，保持旧前端接口形态。</p>
+     *
+     * @return 旧版配置响应
      */
     @GetMapping("/api/model-config")
     public ApiResponse<LegacyModelConfigResponse> getConfig() {
@@ -195,8 +233,12 @@ public class ModelConfigController {
     }
 
     /**
-     * 更新 save 配置 对应的数据。
-     * <p>方法负责保持内存快照、数据库记录和返回值语义一致。</p>
+     * 保存旧版单页模型配置。
+     *
+     * <p>旧接口会把一个请求拆分为对话和向量配置，服务层负责兼容字段归属。</p>
+     *
+     * @param request 旧版模型配置请求
+     * @return 保存后的对话配置
      */
     @PutMapping("/api/model-config")
     public ApiResponse<ModelConfigResponse> saveConfig(@Valid @RequestBody ModelConfigRequest request) {
@@ -204,8 +246,10 @@ public class ModelConfigController {
     }
 
     /**
-     * 测试 test 配置 是否可用。
-     * <p>使用最小请求验证配置、网络和模型服务是否连通。</p>
+     * 兼容旧模型设置接口的连接测试，不持久化请求中的临时配置。
+     *
+     * @param request 临时模型配置
+     * @return 连接测试结果
      */
     @PostMapping("/api/model-config/test")
     public ApiResponse<ModelConfigTestResponse> testConfig(@Valid @RequestBody ModelConfigRequest request) {
@@ -213,12 +257,15 @@ public class ModelConfigController {
     }
 
     /**
-     * 拉取 fetch Models 数据。
-     * <p>外部 HTTP 或模型提供商响应会在这里转换为本地 DTO。</p>
+     * 兼容旧模型设置接口的模型列表查询。
+     *
+     * <p>返回结构保持旧前端可消费的 options 形态，新设置页走按角色区分的新接口。</p>
+     *
+     * @param request 临时模型配置
+     * @return 模型选项列表
      */
     @PostMapping("/api/model-config/models")
     public ApiResponse<ModelOptionsResponse> fetchModels(@Valid @RequestBody ModelConfigRequest request) {
-        // 调用外部模型服务接口，返回值需要在当前层转换为本地 DTO。
         return ApiResponse.ok(modelCatalogService.fetchModels(request));
     }
 

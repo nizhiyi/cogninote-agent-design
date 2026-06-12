@@ -16,39 +16,43 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 /**
- * Model Catalog 服务 承载 模型配置 的应用服务流程。
- * <p>这里集中编排仓储、模型运行时和 DTO 映射，保证控制器保持轻量。</p>
+ * 从模型供应商拉取可选模型列表。
+ *
+ * <p>该服务会访问外部 /models 接口，调用前必须先按连接测试规则补齐配置，避免空地址或错误 role
+ * 产生不可解释的第三方请求。</p>
  */
 @Service
 public class ModelCatalogService {
 
     private final ModelConfigService modelConfigService;
-    // 调用外部模型服务接口，返回值需要在当前层转换为本地 DTO。
     private final RestClient restClient;
 
     /**
-     * 注入 ModelCatalogService 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入模型配置服务和 RestClient 构造器。
+     *
+     * @param modelConfigService 模型配置服务
+     * @param restClientBuilder RestClient 构造器
      */
     public ModelCatalogService(ModelConfigService modelConfigService, RestClient.Builder restClientBuilder) {
         this.modelConfigService = modelConfigService;
-        // 调用外部模型服务接口，返回值需要在当前层转换为本地 DTO。
         this.restClient = restClientBuilder.build();
     }
 
     /**
-     * 拉取 fetch Models 数据。
-     * <p>外部 HTTP 或模型提供商响应会在这里转换为本地 DTO。</p>
+     * 从 provider 的 /models 接口拉取模型列表。
+     *
+     * <p>request 会先按连接测试配置规则补齐默认值，避免空 baseUrl 或 role 直接打到外部服务。</p>
+     *
+     * @param request 临时模型配置请求
+     * @return 模型选项响应
      */
     public ModelOptionsResponse fetchModels(ModelConfigRequest request) {
         ModelConfig config = modelConfigService.connectionTestConfig(request);
 
         try {
-            // 调用外部模型服务接口，返回值需要在当前层转换为本地 DTO。
             JsonNode response = restClient.get()
                     .uri(modelsUri(config))
                     .header("Authorization", "Bearer " + config.apiKey())
-                    // 调用外部模型服务接口，返回值需要在当前层转换为本地 DTO。
                     .retrieve()
                     .body(JsonNode.class);
             return new ModelOptionsResponse(parseModels(response), System.currentTimeMillis());
@@ -58,8 +62,10 @@ public class ModelCatalogService {
     }
 
     /**
-     * 执行 模型配置 中的 models Uri 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 选择 Provider 的模型列表接口地址。
+     *
+     * @param config 已归一化的模型配置
+     * @return /models URI
      */
     private static java.net.URI modelsUri(ModelConfig config) {
         return switch (config.provider()) {
@@ -69,8 +75,10 @@ public class ModelCatalogService {
     }
 
     /**
-     * 解析 parse Models 输入。
-     * <p>将外部文本或结构转换为模块内部可直接使用的对象。</p>
+     * 解析 OpenAI/DashScope 兼容的 data[] 模型列表。
+     *
+     * @param response /models JSON 响应
+     * @return 模型选项列表
      */
     private static List<ModelOptionResponse> parseModels(JsonNode response) {
         JsonNode data = response == null ? null : response.path("data");
@@ -87,8 +95,10 @@ public class ModelCatalogService {
     }
 
     /**
-     * 执行 模型配置 中的 to Model Option 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将单个 JSON 节点转换为模型选项。
+     *
+     * @param node 模型 JSON 节点
+     * @return 模型选项
      */
     private static ModelOptionResponse toModelOption(JsonNode node) {
         String id = text(node, "id");
@@ -100,8 +110,11 @@ public class ModelCatalogService {
     }
 
     /**
-     * 执行 模型配置 中的 text 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 读取 JSON 文本字段。
+     *
+     * @param node JSON 节点
+     * @param fieldName 字段名
+     * @return 去空白后的文本
      */
     private static String text(JsonNode node, String fieldName) {
         JsonNode value = node == null ? null : node.get(fieldName);
@@ -109,8 +122,10 @@ public class ModelCatalogService {
     }
 
     /**
-     * 将输入映射为 classify 对应的业务分类。
-     * <p>分类规则集中维护，避免调用方散落字符串或枚举判断。</p>
+     * /models 通常缺少能力字段，只能根据模型 ID 做保守分类。
+     *
+     * @param modelId 模型 ID
+     * @return 模型能力分类
      */
     private static ModelCapability classify(String modelId) {
         if (modelId == null || modelId.isBlank()) {

@@ -5,7 +5,6 @@ import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-// Spring AI ChatClient 负责把本地 Prompt 转为模型提供商请求。
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -14,8 +13,9 @@ import org.springframework.ai.chat.prompt.Prompt;
 import reactor.core.publisher.Flux;
 
 /**
- * Spring Ai Chat 运行时 封装外部 聊天会话 调用。
- * <p>上层只依赖本地接口，不直接感知 Spring AI 或厂商 SDK 的细节。</p>
+ * 基于 Spring AI ChatModel 的本地 Chat 运行时实现。
+ *
+ * <p>这里把 ChatResponse 转为纯文本 Flux，并把 finishReason=length 等截断信号提升为业务异常。</p>
  */
 final class SpringAiChatRuntime implements AiChatRuntime {
 
@@ -23,8 +23,10 @@ final class SpringAiChatRuntime implements AiChatRuntime {
     private final ChatModel chatModel;
 
     /**
-     * 注入 SpringAiChatRuntime 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 绑定 Provider 标签和 Spring AI ChatModel。
+     *
+     * @param providerLabel 用于错误消息的 Provider 名称
+     * @param chatModel 已按用户配置构造的 ChatModel
      */
     SpringAiChatRuntime(String providerLabel, ChatModel chatModel) {
         this.providerLabel = providerLabel;
@@ -32,8 +34,12 @@ final class SpringAiChatRuntime implements AiChatRuntime {
     }
 
     /**
-     * 启动 stream 流式流程。
-     * <p>方法串联请求准备、事件流返回和结束后的状态收尾。</p>
+     * 直接按 Prompt 进行流式生成。
+     *
+     * <p>返回值只包含文本片段，截断完成原因会在流中转换为 ChatCompletionIncompleteException。</p>
+     *
+     * @param prompt Spring AI Prompt
+     * @return 文本增量流
      */
     @Override
     public Flux<String> stream(Prompt prompt) {
@@ -42,8 +48,15 @@ final class SpringAiChatRuntime implements AiChatRuntime {
     }
 
     /**
-     * 启动 stream 流式流程。
-     * <p>方法串联请求准备、事件流返回和结束后的状态收尾。</p>
+     * 通过 ChatClient 运行带 advisor 的流式生成。
+     *
+     * <p>记忆和 RAG 依赖 advisor 参数传递，因此该路径不能退化成直接调用 ChatModel。</p>
+     *
+     * @param systemPrompt 系统提示词
+     * @param userMessage 用户消息
+     * @param advisors 本轮需要启用的 advisor
+     * @param advisorParams advisor 上下文参数
+     * @return 文本增量流
      */
     @Override
     public Flux<String> stream(
@@ -52,10 +65,9 @@ final class SpringAiChatRuntime implements AiChatRuntime {
             List<Advisor> advisors,
             Map<String, Object> advisorParams
     ) {
-        // Spring AI ChatClient 负责把本地 Prompt 转为模型提供商请求。
+        // ChatClient 才支持 advisors；直接调用 ChatModel 会丢失记忆和 RAG advisor 参数。
         ChatClient.ChatClientRequestSpec spec = ChatClient.builder(chatModel)
                 .build()
-                // Spring AI ChatClient 负责把本地 Prompt 转为模型提供商请求。
                 .prompt()
                 .system(systemPrompt)
                 .user(userMessage);
@@ -75,15 +87,18 @@ final class SpringAiChatRuntime implements AiChatRuntime {
     }
 
     /**
-     * 执行一次同步 call Text 调用。
-     * <p>外部模型响应会被转换为本地可处理的文本结果。</p>
+     * 同步获取模型文本结果。
+     *
+     * <p>用于内部决策链路，返回空字符串代表 Provider 没有给出可展示文本，不代表调用失败。</p>
+     *
+     * @param systemPrompt 系统提示词
+     * @param userMessage 用户消息
+     * @return 模型文本或空字符串
      */
     @Override
     public String callText(String systemPrompt, String userMessage) {
-        // Spring AI ChatClient 负责把本地 Prompt 转为模型提供商请求。
         ChatResponse response = ChatClient.builder(chatModel)
                 .build()
-                // Spring AI ChatClient 负责把本地 Prompt 转为模型提供商请求。
                 .prompt()
                 .system(systemPrompt)
                 .user(userMessage)
@@ -94,8 +109,11 @@ final class SpringAiChatRuntime implements AiChatRuntime {
     }
 
     /**
-     * 测试 test Connection 是否可用。
-     * <p>使用最小请求验证配置、网络和模型服务是否连通。</p>
+     * 执行最小调用验证模型配置。
+     *
+     * <p>底层 RuntimeException 会包装为 ModelConfigurationException，统一返回给设置页。</p>
+     *
+     * @param prompt 测试 Prompt
      */
     @Override
     public void testConnection(Prompt prompt) {
@@ -107,8 +125,10 @@ final class SpringAiChatRuntime implements AiChatRuntime {
     }
 
     /**
-     * 执行 聊天会话 中的 extract Text 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 从 Spring AI 响应中提取文本。
+     *
+     * @param response Spring AI 响应，可能为空或只包含元数据
+     * @return 文本内容；没有文本时返回 null
      */
     private static String extractText(ChatResponse response) {
         if (response == null || response.getResult() == null || response.getResult().getOutput() == null) {
@@ -120,8 +140,12 @@ final class SpringAiChatRuntime implements AiChatRuntime {
     }
 
     /**
-     * 执行 聊天会话 中的 to Text Stream 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将单个 ChatResponse 转换为文本 Flux。
+     *
+     * <p>截断信号必须在这里抛出，否则上层 SSE 无法区分“正常结束”和“达到输出上限”。</p>
+     *
+     * @param response Spring AI 响应
+     * @return 文本片段或截断错误
      */
     private static Flux<String> toTextStream(ChatResponse response) {
         String text = extractText(response);
@@ -142,8 +166,10 @@ final class SpringAiChatRuntime implements AiChatRuntime {
     }
 
     /**
-     * 执行 聊天会话 中的 finish Reason 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 读取 Provider 返回的完成原因。
+     *
+     * @param response Spring AI 响应
+     * @return finishReason；没有元数据时返回 null
      */
     private static String finishReason(ChatResponse response) {
         if (response == null || response.getResult() == null || response.getResult().getMetadata() == null) {
@@ -153,8 +179,12 @@ final class SpringAiChatRuntime implements AiChatRuntime {
     }
 
     /**
-     * 判断 is Incomplete Finish Reason 条件是否成立。
-     * <p>业务判定集中在这里，避免调用方重复实现同一规则。</p>
+     * 判断完成原因是否代表回答不完整。
+     *
+     * <p>不同 Provider 对输出上限的字段命名不一致，这里统一归一为同一类业务错误。</p>
+     *
+     * @param finishReason Provider 返回的完成原因
+     * @return 是否应向调用方报告回答被截断
      */
     private static boolean isIncompleteFinishReason(String finishReason) {
         if (finishReason == null || finishReason.isBlank()) {

@@ -3,8 +3,9 @@ package com.itqianchen.agentdesign.domain.search;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Search 配置属性 映射 检索索引 的 YAML 配置。
- * <p>通过类型化配置隔离环境变量、默认值和业务代码。</p>
+ * 检索索引和混合排序的配置属性。
+ *
+ * <p>外部请求可以覆盖部分检索参数，所有入口都应通过这里统一夹紧边界。</p>
  */
 @ConfigurationProperties(prefix = "app.search")
 public record SearchProperties(
@@ -18,8 +19,10 @@ public record SearchProperties(
         int rrfK
 ) {
     /**
-     * 规范化 normalized Top K 输入。
-     * <p>后续逻辑只处理受控取值，减少重复分支和边界判断。</p>
+     * 返回请求级 topK 的安全取值。
+     *
+     * @param requestedTopK 请求中指定的 topK；为空时使用配置默认值
+     * @return 夹紧到 1 到 50 之间的 topK
      */
     public int normalizedTopK(Integer requestedTopK) {
         int value = requestedTopK == null ? topK : requestedTopK;
@@ -27,16 +30,21 @@ public record SearchProperties(
     }
 
     /**
-     * 执行 检索索引 中的 hybrid Candidate Limit 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 计算混合检索候选集大小。
+     *
+     * <p>候选集必须至少覆盖 topK，同时满足配置的最小候选数量，避免 RRF 融合时样本过少。</p>
+     *
+     * @param topK 已归一化的最终返回数量
+     * @return 混合检索候选数量
      */
     public int hybridCandidateLimit(int topK) {
         return Math.max(topK * Math.max(1, hybridCandidateMultiplier), Math.max(1, hybridMinCandidates));
     }
 
     /**
-     * 规范化 normalized Rrf K 输入。
-     * <p>后续逻辑只处理受控取值，减少重复分支和边界判断。</p>
+     * 返回 RRF 排序常数的安全取值。
+     *
+     * @return 至少为 1 的 RRF k 值
      */
     public int normalizedRrfK() {
         return Math.max(1, rrfK);

@@ -9,6 +9,13 @@ public record KnowledgeGraphScope(
         String scopeId,
         String displayName
 ) {
+    /**
+     * 返回数据库查询使用的 scopeId。
+     *
+     * <p>ALL 范围统一使用 null 表示全局，避免查询层同时处理 null 和空字符串两种全局语义。</p>
+     *
+     * @return 归一化后的 scopeId
+     */
     public String normalizedScopeId() {
         return scopeType == KnowledgeGraphScopeType.ALL ? null : scopeId;
     }

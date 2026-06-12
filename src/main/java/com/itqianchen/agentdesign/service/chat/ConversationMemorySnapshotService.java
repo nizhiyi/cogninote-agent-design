@@ -11,8 +11,9 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 /**
- * Conversation Memory Snapshot 服务 承载 聊天会话 的应用服务流程。
- * <p>这里集中编排仓储、模型运行时和 DTO 映射，保证控制器保持轻量。</p>
+ * 按当前模型上下文窗口生成会话记忆快照。
+ *
+ * <p>快照只选取 summaryMessageSequence 之后的消息，并从最近消息向前填充预算，保证最新对话优先进入模型。</p>
  */
 @Service
 public class ConversationMemorySnapshotService {
@@ -23,8 +24,12 @@ public class ConversationMemorySnapshotService {
     private final ModelConfigService modelConfigService;
 
     /**
-     * 注入 ConversationMemorySnapshotService 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入会话、记忆配置、token 估算和模型配置依赖。
+     *
+     * @param chatSessionRepository 会话仓储
+     * @param memoryProperties 记忆窗口配置
+     * @param tokenEstimator token 估算器
+     * @param modelConfigService 模型配置服务
      */
     public ConversationMemorySnapshotService(
             ChatSessionRepository chatSessionRepository,
@@ -39,26 +44,30 @@ public class ConversationMemorySnapshotService {
     }
 
     /**
-     * 执行 聊天会话 中的 snapshot 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 生成会话完整记忆快照。
+     *
+     * @param conversationId 会话 ID
+     * @return 记忆快照
      */
     public ConversationMemorySnapshot snapshot(String conversationId) {
         return snapshot(conversationId, Integer.MAX_VALUE);
     }
 
     /**
-     * 执行 聊天会话 中的 snapshot 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 生成截至指定 sequence 的记忆快照。
+     *
+     * <p>用于模型调用前截取当时可见历史，避免正在追加的消息提前进入上下文。</p>
+     *
+     * @param conversationId 会话 ID
+     * @param maxSequenceInclusive 最大可见消息序号
+     * @return 记忆快照
      */
     public ConversationMemorySnapshot snapshot(String conversationId, int maxSequenceInclusive) {
         ModelConfig chatConfig = modelConfigService.activeChatOrDefault();
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         ChatSession session = chatSessionRepository.findById(conversationId).orElse(null);
         if (session == null) {
             return emptySnapshot(chatConfig);
         }
-
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         List<ChatMessage> messages = chatSessionRepository.findMessagesAfter(
                 conversationId,
                 session.summaryMessageSequence()
@@ -75,21 +84,19 @@ public class ConversationMemorySnapshotService {
                 lastSequence,
                 summaryTokens,
                 recentMessageTokens,
-                // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
                 chatSessionRepository.countMessages(conversationId),
                 chatConfig.resolvedContextWindowTokens(),
                 historyBudgetTokens(chatConfig),
-                /**
-                 * 执行 聊天会话 中的 estimation Method 步骤。
-                 * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-                 */
                 estimationMethod(session.summary(), selected, chatConfig)
         );
     }
 
     /**
-     * 执行 聊天会话 中的 select By Budget 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 按预算从最近消息向前选择历史。
+     *
+     * @param messages 候选消息
+     * @param chatConfig 当前 Chat 配置
+     * @return 预算内的最近消息
      */
     private List<ChatMessage> selectByBudget(List<ChatMessage> messages, ModelConfig chatConfig) {
         if (messages.isEmpty()) {
@@ -101,6 +108,7 @@ public class ConversationMemorySnapshotService {
         List<ChatMessage> selected = new ArrayList<>();
         int tokens = 0;
 
+        // 从最新消息向前取，既保留最近上下文，也允许 minimumRecentMessages 突破预算兜住短对话连贯性。
         for (int index = messages.size() - 1; index >= 0; index--) {
             ChatMessage message = messages.get(index);
             int nextTokens = tokens + estimateMessageTokens(message, chatConfig);
@@ -115,8 +123,12 @@ public class ConversationMemorySnapshotService {
     }
 
     /**
-     * 执行 聊天会话 中的 history Budget Tokens 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 计算历史消息可使用的 token 预算。
+     *
+     * <p>默认使用上下文窗口的 80%，为系统提示词、用户新问题和检索上下文保留空间。</p>
+     *
+     * @param chatConfig 当前 Chat 配置
+     * @return 历史消息预算 token
      */
     public int historyBudgetTokens(ModelConfig chatConfig) {
         int contextWindowTokens = chatConfig == null ? 0 : chatConfig.resolvedContextWindowTokens();
@@ -127,8 +139,11 @@ public class ConversationMemorySnapshotService {
     }
 
     /**
-     * 估算 estimate Message Tokens 的 token 用量。
-     * <p>估算值用于上下文预算、裁剪和前端占用展示。</p>
+     * 估算消息列表 token。
+     *
+     * @param messages 消息列表
+     * @param chatConfig 当前 Chat 配置
+     * @return 估算 token 总数
      */
     public int estimateMessageTokens(List<ChatMessage> messages, ModelConfig chatConfig) {
         int tokens = 0;
@@ -139,24 +154,32 @@ public class ConversationMemorySnapshotService {
     }
 
     /**
-     * 估算 estimate Message Tokens 的 token 用量。
-     * <p>估算值用于上下文预算、裁剪和前端占用展示。</p>
+     * 估算单条消息 token。
+     *
+     * @param message 消息领域对象
+     * @param chatConfig 当前 Chat 配置
+     * @return 至少为 1 的估算 token 数
      */
     public int estimateMessageTokens(ChatMessage message, ModelConfig chatConfig) {
         return Math.max(1, tokenEstimator.estimateChatMessage(message.content(), chatConfig));
     }
 
     /**
-     * 估算 estimate Summary Tokens 的 token 用量。
-     * <p>估算值用于上下文预算、裁剪和前端占用展示。</p>
+     * 估算摘要 token。
+     *
+     * @param summary 摘要文本
+     * @param chatConfig 当前 Chat 配置
+     * @return 摘要 token 数
      */
     public int estimateSummaryTokens(String summary, ModelConfig chatConfig) {
         return summary == null || summary.isBlank() ? 0 : tokenEstimator.estimateChatMessage(summary, chatConfig);
     }
 
     /**
-     * 执行 聊天会话 中的 empty Snapshot 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 构建空会话快照。
+     *
+     * @param chatConfig 当前 Chat 配置
+     * @return 空快照
      */
     private ConversationMemorySnapshot emptySnapshot(ModelConfig chatConfig) {
         return new ConversationMemorySnapshot(
@@ -173,8 +196,12 @@ public class ConversationMemorySnapshotService {
     }
 
     /**
-     * 执行 聊天会话 中的 estimation Method 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 选择快照展示的 token 估算方法。
+     *
+     * @param summary 摘要文本
+     * @param selected 已选消息
+     * @param chatConfig 当前 Chat 配置
+     * @return 估算方法名称
      */
     private String estimationMethod(String summary, List<ChatMessage> selected, ModelConfig chatConfig) {
         if (summary != null && !summary.isBlank()) {
@@ -189,8 +216,10 @@ public class ConversationMemorySnapshotService {
     }
 
     /**
-     * 执行 聊天会话 中的 to Memory Entry 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将消息转换为模型记忆条目。
+     *
+     * @param message 聊天消息
+     * @return 记忆条目
      */
     private static ConversationMemoryEntry toMemoryEntry(ChatMessage message) {
         return new ConversationMemoryEntry(

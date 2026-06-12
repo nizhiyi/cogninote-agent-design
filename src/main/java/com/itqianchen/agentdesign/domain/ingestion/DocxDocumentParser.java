@@ -11,15 +11,18 @@ import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.springframework.stereotype.Component;
 
 /**
- * Docx Document 解析器 将来源内容解析为后续 ingestion 可消费的结构。
- * <p>解析结果会进入切块、索引和检索链路，格式稳定性很重要。</p>
+ * 解析 DOCX 文档文本。
+ *
+ * <p>Apache POI 只抽取正文文本，复杂版式和批注不会进入知识库索引。</p>
  */
 @Component
 public class DocxDocumentParser implements DocumentParser {
 
     /**
-     * 执行 文档管理 中的 supports 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 仅接受 OOXML DOCX，避免旧版二进制 DOC 被 POI 以错误格式打开。
+     *
+     * @param fileType 已识别的文件类型
+     * @return 是否由当前解析器处理
      */
     @Override
     public boolean supports(FileType fileType) {
@@ -27,12 +30,17 @@ public class DocxDocumentParser implements DocumentParser {
     }
 
     /**
-     * 解析 parse 输入。
-     * <p>将外部文本或结构转换为模块内部可直接使用的对象。</p>
+     * 抽取 DOCX 正文文本。
+     *
+     * <p>Apache POI 不保留复杂版式、批注和修订信息；这些内容不会进入知识库索引。读取失败会包装为
+     * DocumentParseException，便于导入流程带着路径定位失败文件。</p>
+     *
+     * @param path DOCX 文件路径
+     * @return 单章节的解析结果
+     * @throws DocumentParseException 当文件无法读取或 DOCX 结构无法解析时抛出
      */
     @Override
     public ParsedDocument parse(Path path) {
-        // 文件系统访问可能抛出 IO 异常，调用方需要保留失败上下文。
         try (InputStream inputStream = Files.newInputStream(path);
              XWPFDocument document = new XWPFDocument(inputStream);
              XWPFWordExtractor extractor = new XWPFWordExtractor(document)) {

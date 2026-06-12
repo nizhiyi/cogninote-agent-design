@@ -1,8 +1,10 @@
 package com.itqianchen.agentdesign.domain.document;
 
 /**
- * Knowledge Chunk 是 知识库 的不可变数据快照。
- * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+ * 文档解析后落库的最小检索片段。
+ *
+ * <p>chunkIndex 在单文档内保持稳定顺序，pageNumber 和 heading 保留来源定位信息；
+ * contentHash 用于索引重建时识别片段内容版本。</p>
  */
 public record KnowledgeChunk(
         String id,

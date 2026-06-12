@@ -18,8 +18,11 @@ public class ChatAgentRouter {
     private final Map<AgentType, ChatAgent> agents;
 
     /**
-     * 注入 ChatAgentRouter 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 收集并校验所有 ChatAgent。
+     *
+     * <p>同一个 AgentType 只能注册一个实现，否则路由结果会不确定。</p>
+     *
+     * @param agents Spring 注入的 Agent 列表
      */
     public ChatAgentRouter(List<ChatAgent> agents) {
         EnumMap<AgentType, ChatAgent> byType = new EnumMap<>(AgentType.class);
@@ -33,8 +36,10 @@ public class ChatAgentRouter {
     }
 
     /**
-     * 执行 聊天会话 中的 route 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 按请求开关选择 Agent。
+     *
+     * @param request Agent 请求
+     * @return 具体 Agent
      */
     public ChatAgent route(AgentRequest request) {
         AgentType targetType = request.useKnowledgeBase()
@@ -48,8 +53,10 @@ public class ChatAgentRouter {
     }
 
     /**
-     * 启动 stream 流式流程。
-     * <p>方法串联请求准备、事件流返回和结束后的状态收尾。</p>
+     * 路由并执行 Agent。
+     *
+     * @param request Agent 请求
+     * @return Agent 聊天流
      */
     public AgentChatStream stream(AgentRequest request) {
         return route(request).stream(request);

@@ -4,20 +4,28 @@ import com.itqianchen.agentdesign.domain.document.FileType;
 import java.nio.file.Path;
 
 /**
- * Document 解析器 将来源内容解析为后续 ingestion 可消费的结构。
- * <p>解析结果会进入切块、索引和检索链路，格式稳定性很重要。</p>
+ * 解析本地文件为 ingestion 后续可消费的结构。
+ *
+ * <p>实现只负责读取和抽取文本，不写数据库或索引。</p>
  */
 public interface DocumentParser {
 
     /**
-     * 执行 文档管理 中的 supports 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 声明当前解析器支持的文件类型。
+     *
+     * <p>注册表只根据这个契约路由解析器；新增文件类型时实现类必须保持该判断与 FileType 枚举一致。</p>
+     *
+     * @param fileType 已从文件名解析出的类型
+     * @return 当前解析器是否能安全处理该类型
      */
     boolean supports(FileType fileType);
 
     /**
-     * 解析 parse 输入。
-     * <p>将外部文本或结构转换为模块内部可直接使用的对象。</p>
+     * 解析指定路径，失败时抛出 DocumentParseException 并保留路径上下文。
+     *
+     * @param path 本地文件路径，调用方负责确保文件存在且类型已通过 supports 校验
+     * @return 供切块流程消费的文档文本结构
+     * @throws DocumentParseException 当文件读取或格式解析失败时抛出
      */
     ParsedDocument parse(Path path);
 }

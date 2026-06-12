@@ -1,8 +1,18 @@
+/**
+ * 设置页 query.item 的兼容别名。
+ *
+ * <p>旧链接会通过 aliases 落到新的分组项，避免历史入口跳到默认外观页。</p>
+ */
 export const SETTINGS_ITEM_ALIASES = {
   'system-theme': 'appearance',
   'knowledge-query-contextualizer': 'chat-retrieval'
 }
 
+/**
+ * 设置页左侧导航结构。
+ *
+ * <p>id 会出现在 URL query 中，修改时需要同步 SETTINGS_ITEM_ALIASES 做兼容跳转。</p>
+ */
 export const SETTINGS_NAV_GROUPS = [
   {
     id: 'system',

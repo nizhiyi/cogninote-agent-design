@@ -3,20 +3,29 @@ package com.itqianchen.agentdesign.domain.ai;
 import com.itqianchen.agentdesign.domain.model.ModelConfig;
 
 /**
- * Ai 运行时 工厂 负责创建 AI 运行时 运行对象。
- * <p>提供商差异、客户端参数和缓存复用应收敛在这里。</p>
+ * 根据用户保存的模型配置创建 Chat 或 Embedding 运行时。
+ *
+ * <p>实现必须把厂商 URL、模型参数和客户端缓存封装在内部，业务层只依赖本地运行时接口。</p>
  */
 public interface AiRuntimeFactory {
 
     /**
-     * 执行 AI 运行时 中的 chat 运行时 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 按配置创建 Chat 运行时。
+     *
+     * <p>实现可以缓存底层客户端，但必须在 URL、模型、密钥或生成参数变化时切换到新实例。</p>
+     *
+     * @param config 已归一化的模型配置
+     * @return Chat 运行时
      */
     AiChatRuntime chatRuntime(ModelConfig config);
 
     /**
-     * 执行 AI 运行时 中的 embedding 运行时 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 按配置创建 Embedding 运行时。
+     *
+     * <p>Embedding 维度是索引字段契约的一部分，配置变化时不能复用旧维度的客户端。</p>
+     *
+     * @param config 已归一化的模型配置
+     * @return Embedding 运行时
      */
     AiEmbeddingRuntime embeddingRuntime(ModelConfig config);
 }

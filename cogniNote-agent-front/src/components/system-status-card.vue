@@ -1,4 +1,9 @@
 <script setup>
+/**
+ * 系统信息设置卡片。
+ *
+ * <p>descriptions 由设置页聚合系统状态和索引状态后传入，本组件只负责展示和刷新事件转发。</p>
+ */
 defineProps({
   descriptions: {
     type: Array,

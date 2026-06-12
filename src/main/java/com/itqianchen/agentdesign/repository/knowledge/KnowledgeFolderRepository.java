@@ -9,8 +9,9 @@ import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
 /**
- * Knowledge Folder 仓储 是 知识库 的持久化边界。
- * <p>服务层通过该类型访问数据，避免直接依赖 MyBatis Mapper 细节。</p>
+ * 知识库目录仓储。
+ *
+ * <p>目录统计行会在这里恢复为领域对象，Service 只关心目录、文档数量和索引状态，不关心 SQL 聚合列。</p>
  */
 @Repository
 public class KnowledgeFolderRepository {
@@ -18,90 +19,102 @@ public class KnowledgeFolderRepository {
     private final KnowledgeFolderMapper knowledgeFolderMapper;
 
     /**
-     * 注入 KnowledgeFolderRepository 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入知识库目录 Mapper。
+     *
+     * @param knowledgeFolderMapper SQLite 目录访问接口
      */
     public KnowledgeFolderRepository(KnowledgeFolderMapper knowledgeFolderMapper) {
         this.knowledgeFolderMapper = knowledgeFolderMapper;
     }
 
     /**
-     * 读取 find All Summaries 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 查询所有知识库目录摘要。
+     *
+     * <p>SQL 聚合列会在这里恢复为领域摘要，服务层无需关心统计字段来源。</p>
+     *
+     * @return 目录摘要列表
      */
     public List<KnowledgeFolderSummary> findAllSummaries() {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         return knowledgeFolderMapper.findAllSummaries().stream()
                 .map(KnowledgeFolderRepository::toSummary)
                 .toList();
     }
 
     /**
-     * 读取 find By Id 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 按 ID 查询知识库目录。
+     *
+     * @param id 目录 ID
+     * @return 目录记录；不存在时为空
      */
     public Optional<KnowledgeFolder> findById(String id) {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         return knowledgeFolderMapper.findById(id).stream().findFirst();
     }
 
     /**
-     * 读取 find By Folder Path 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 按本地路径查询知识库目录。
+     *
+     * @param folderPath 规范化后的本地目录路径
+     * @return 目录记录；不存在时为空
      */
     public Optional<KnowledgeFolder> findByFolderPath(String folderPath) {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         return knowledgeFolderMapper.findByFolderPath(folderPath).stream().findFirst();
     }
 
     /**
-     * 执行 知识库 中的 upsert 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 新增或更新知识库目录。
+     *
+     * @param folder 目录领域对象
      */
     public void upsert(KnowledgeFolder folder) {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         knowledgeFolderMapper.upsert(folder);
     }
 
     /**
-     * 更新 update Enabled 对应的数据。
-     * <p>方法负责保持内存快照、数据库记录和返回值语义一致。</p>
+     * 更新目录检索可见性。
+     *
+     * @param id 目录 ID
+     * @param enabled 是否启用
+     * @param updatedAt 更新时间戳
      */
     public void updateEnabled(String id, boolean enabled, long updatedAt) {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         knowledgeFolderMapper.updateEnabled(id, enabled, updatedAt);
     }
 
     /**
-     * 执行 知识库 中的 mark Ingested 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 标记目录最近一次导入时间。
+     *
+     * @param id 目录 ID
+     * @param timestamp 导入完成时间戳
      */
     public void markIngested(String id, long timestamp) {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         knowledgeFolderMapper.markIngested(id, timestamp);
     }
 
     /**
-     * 执行 知识库 中的 mark Indexed 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 标记目录最近一次索引时间。
+     *
+     * @param id 目录 ID
+     * @param timestamp 索引完成时间戳
      */
     public void markIndexed(String id, long timestamp) {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         knowledgeFolderMapper.markIndexed(id, timestamp);
     }
 
     /**
-     * 删除 delete By Id 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     * 删除知识库目录记录。
+     *
+     * @param id 目录 ID
+     * @return 是否删除了目录记录
      */
     public boolean deleteById(String id) {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         return knowledgeFolderMapper.deleteById(id) > 0;
     }
 
     /**
-     * 执行 知识库 中的 to Summary 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将 SQL 聚合行恢复为目录摘要领域对象。
+     *
+     * @param row 目录和统计聚合行
+     * @return 知识库目录摘要
      */
     private static KnowledgeFolderSummary toSummary(KnowledgeFolderSummaryRow row) {
         return new KnowledgeFolderSummary(

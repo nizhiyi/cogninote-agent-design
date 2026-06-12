@@ -12,8 +12,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 /**
- * App Storage 初始化器 在应用启动时准备 系统状态 资源。
- * <p>启动阶段副作用需要保持幂等，避免重复运行破坏已有数据。</p>
+ * 计算并创建 CogniNote 的本地数据目录。
+ *
+ * <p>桌面版默认落在系统应用数据目录，测试或开发环境可通过配置覆盖 baseDir/databasePath。
+ * 初始化必须幂等，不能清理用户已有数据库、索引或日志。</p>
  */
 @Component
 public class AppStorageInitializer implements ApplicationListener<ApplicationReadyEvent> {
@@ -25,8 +27,9 @@ public class AppStorageInitializer implements ApplicationListener<ApplicationRea
     private final AppStorage appStorage;
 
     /**
-     * 注入 AppStorageInitializer 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 计算应用存储路径。
+     *
+     * @param storageProperties 存储配置
      */
     public AppStorageInitializer(StorageProperties storageProperties) {
         this.storageProperties = storageProperties;
@@ -43,66 +46,43 @@ public class AppStorageInitializer implements ApplicationListener<ApplicationRea
     }
 
     /**
-     * 执行 系统状态 中的 app Storage 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 提供启动期解析完成的应用存储路径。
+     *
+     * <p>返回对象只描述路径，不代表目录已经创建；需要写入文件前应先经过 ensureInitialized。</p>
+     *
+     * @return 应用存储路径
      */
     public AppStorage appStorage() {
         return appStorage;
     }
 
     /**
-     * 响应 on Application 事件 生命周期事件。
-     * <p>常用于应用启动、框架回调或资源初始化场景。</p>
+     * 应用就绪后确保目录存在。
+     *
+     * @param event Spring Boot 应用就绪事件
      */
     @Override
     public void onApplicationEvent(ApplicationReadyEvent event) {
-        /**
-         * 确保 ensure Initialized 所需前置条件存在。
-         * <p>不存在时创建默认资源或抛出明确异常，避免后续流程隐式失败。</p>
-         */
         ensureInitialized();
     }
 
     /**
-     * 确保 ensure Initialized 所需前置条件存在。
-     * <p>不存在时创建默认资源或抛出明确异常，避免后续流程隐式失败。</p>
+     * 幂等创建应用目录。
      */
     public void ensureInitialized() {
-        /**
-         * 创建 create Directory 对应的数据。
-         * <p>创建流程集中处理默认值、校验和持久化边界。</p>
-         */
         createDirectory(appStorage.baseDir());
-        /**
-         * 创建 create Directory 对应的数据。
-         * <p>创建流程集中处理默认值、校验和持久化边界。</p>
-         */
         createDirectory(appStorage.configDir());
-        /**
-         * 创建 create Directory 对应的数据。
-         * <p>创建流程集中处理默认值、校验和持久化边界。</p>
-         */
         createDirectory(appStorage.dataDir());
-        /**
-         * 创建 create Directory 对应的数据。
-         * <p>创建流程集中处理默认值、校验和持久化边界。</p>
-         */
         createDirectory(appStorage.databasePath().getParent());
-        /**
-         * 创建 create Directory 对应的数据。
-         * <p>创建流程集中处理默认值、校验和持久化边界。</p>
-         */
         createDirectory(appStorage.luceneIndexDir());
-        /**
-         * 创建 create Directory 对应的数据。
-         * <p>创建流程集中处理默认值、校验和持久化边界。</p>
-         */
         createDirectory(appStorage.logsDir());
     }
 
     /**
-     * 解析 resolve Base Dir 的最终取值。
-     * <p>默认值、兼容规则和异常输入兜底集中在这里。</p>
+     * 解析应用基础目录。
+     *
+     * @param configuredBaseDir 配置覆盖值
+     * @return 规范化基础目录
      */
     private Path resolveBaseDir(String configuredBaseDir) {
         if (StringUtils.hasText(configuredBaseDir)) {
@@ -119,11 +99,15 @@ public class AppStorageInitializer implements ApplicationListener<ApplicationRea
     }
 
     /**
-     * 解析 resolve Database Path 的最终取值。
-     * <p>默认值、兼容规则和异常输入兜底集中在这里。</p>
+     * 解析 SQLite 数据库路径。
+     *
+     * @param configuredDatabasePath 配置覆盖值
+     * @param defaultDatabasePath 默认数据库路径
+     * @return 规范化数据库路径
      */
     private Path resolveDatabasePath(String configuredDatabasePath, Path defaultDatabasePath) {
         if (StringUtils.hasText(configuredDatabasePath)) {
+            // databasePath 允许单独覆盖，方便测试把数据库放到临时目录而不影响其他存储路径。
             return Path.of(configuredDatabasePath).toAbsolutePath().normalize();
         }
 
@@ -131,12 +115,12 @@ public class AppStorageInitializer implements ApplicationListener<ApplicationRea
     }
 
     /**
-     * 创建 create Directory 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 创建目录。
+     *
+     * @param directory 目录路径
      */
     private void createDirectory(Path directory) {
         try {
-            // 文件系统访问可能抛出 IO 异常，调用方需要保留失败上下文。
             Files.createDirectories(directory);
         } catch (IOException ex) {
             throw new StorageInitializationException("Failed to create application directory: " + directory, ex);

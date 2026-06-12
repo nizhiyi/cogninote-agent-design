@@ -11,6 +11,9 @@ public record KnowledgeGraphPromptProperties(
         Extraction extraction
 ) {
 
+    /**
+     * 校验图谱抽取 Prompt 配置必须存在。
+     */
     public KnowledgeGraphPromptProperties {
         if (extraction == null) {
             throw new IllegalArgumentException("app.knowledge-graph.prompts.extraction must be configured");
@@ -27,6 +30,11 @@ public record KnowledgeGraphPromptProperties(
             String user
     ) {
 
+        /**
+         * 校验图谱抽取模板的必填项和所有运行期占位符。
+         *
+         * <p>缺少任一占位符都会让抽取结果失去文档来源或 chunk 边界，必须在启动期失败。</p>
+         */
         public Extraction {
             requireText(version, "app.knowledge-graph.prompts.extraction.version");
             requireText(system, "app.knowledge-graph.prompts.extraction.system");
@@ -39,12 +47,25 @@ public record KnowledgeGraphPromptProperties(
         }
     }
 
+    /**
+     * 校验配置文本不能为空。
+     *
+     * @param value 配置值
+     * @param propertyName 配置项名称，用于错误消息定位
+     */
     private static void requireText(String value, String propertyName) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(propertyName + " must not be blank");
         }
     }
 
+    /**
+     * 校验 Prompt 模板必须包含指定占位符。
+     *
+     * @param value Prompt 模板文本
+     * @param propertyName 配置项名称，用于错误消息定位
+     * @param placeholder 必须存在的占位符
+     */
     private static void requirePlaceholder(String value, String propertyName, String placeholder) {
         if (!value.contains(placeholder)) {
             throw new IllegalArgumentException(propertyName + " must contain " + placeholder);

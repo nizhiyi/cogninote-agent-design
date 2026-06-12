@@ -25,8 +25,9 @@ public record ModelConfigResponse(
         Long updatedAt
 ) {
     /**
-     * 将领域对象转换为 ModelConfigResponse。
-     * <p>字段映射集中在这里，减少控制器和服务层的重复拼装。</p>
+     * 构造模型设置页的配置响应。
+     *
+     * <p>contextWindowTokens 只对 Chat 配置有意义，Embedding 响应保持 null 以免前端误展示。</p>
      */
     public static ModelConfigResponse from(ModelConfig config) {
         return new ModelConfigResponse(

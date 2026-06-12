@@ -21,8 +21,9 @@ public record ChatMessageResponse(
 ) {
 
     /**
-     * 将领域对象转换为 ChatMessageResponse。
-     * <p>字段映射集中在这里，减少控制器和服务层的重复拼装。</p>
+     * 把领域消息转成前端状态。
+     *
+     * <p>status 暴露为小写字符串，匹配 Pinia store 的消息状态约定。</p>
      */
     public static ChatMessageResponse from(ChatMessage message, List<RagSourceResponse> sources) {
         return new ChatMessageResponse(

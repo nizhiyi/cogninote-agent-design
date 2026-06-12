@@ -72,50 +72,22 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 
-/**
- * Chat 智能体 路由器 测试 承担 聊天会话 模块的主要职责。
- * <p>注释说明维护边界，不改变现有运行逻辑。</p>
- */
 class ChatAgentRouterTests {
 
-    /**
-     * 执行 聊天会话 中的 prompt Assembler No Longer Requires Manual Context Placeholder 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-     */
     @Test
     void promptAssemblerNoLongerRequiresManualContextPlaceholder() {
         PromptAssembler promptAssembler = new PromptAssembler(defaultPromptProperties());
 
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(promptAssembler.systemPrompt(AgentType.KNOWLEDGE_BASE)).contains("Markdown");
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(promptAssembler.userPrompt(AgentType.KNOWLEDGE_BASE, "如何打包？"))
                 .contains("如何打包？")
                 .doesNotContain("{context}");
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(promptAssembler.systemPrompt(AgentType.GENERAL_CHAT))
                 .contains("普通对话助手")
                 .doesNotContain("当前知识库中没有足够依据");
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(promptAssembler.emptyContextPrompt()).contains("没有检索到");
     }
 
-    /**
-     * 执行 聊天会话 中的 hybrid Falls Back To Keyword When Embedding Is Unavailable 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-     */
     @Test
     void hybridFallsBackToKeywordWhenEmbeddingIsUnavailable() {
         AgentFixture fixture = new AgentFixture(new FakeKnowledgeStore(true), Flux.just("答案片段"));
@@ -129,32 +101,12 @@ class ChatAgentRouterTests {
                 true
         ));
 
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(stream.retrievalMode()).isEqualTo(SearchMode.KEYWORD);
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(stream.sources()).hasSize(1);
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(stream.answer().collectList().block()).containsExactly("答案片段");
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(fixture.knowledgeStore.seenModes).containsExactly(SearchMode.HYBRID, SearchMode.KEYWORD);
     }
 
-    /**
-     * 执行 聊天会话 中的 pure Model Chat Uses Memory Advisor Without Searching Knowledge Base 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-     */
     @Test
     void pureModelChatUsesMemoryAdvisorWithoutSearchingKnowledgeBase() {
         AgentFixture fixture = new AgentFixture(new FakeKnowledgeStore(false), Flux.just("纯对话答案"));
@@ -168,74 +120,24 @@ class ChatAgentRouterTests {
                 false
         ));
 
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(stream.retrievalMode()).isNull();
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(stream.sources()).isEmpty();
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(stream.answer().collectList().block()).containsExactly("纯对话答案");
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(fixture.knowledgeStore.seenModes).isEmpty();
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(fixture.runtime.lastAdvisors).hasSize(1);
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(fixture.runtime.lastSystemPrompt)
                 .contains("普通对话助手")
                 .doesNotContain("知识库中没有足够依据");
-
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         List<ChatMessage> messages = fixture.chatSessionRepository.findMessages("conversation-2");
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(messages)
                 .extracting(ChatMessage::role)
                 .containsExactly(ChatMessageRole.USER, ChatMessageRole.ASSISTANT);
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(messages.get(1).status()).isEqualTo(ChatMessageStatus.DONE);
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(messages.get(1).content()).isEqualTo("纯对话答案");
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(messages.get(0).agentType()).isEqualTo(AgentType.GENERAL_CHAT);
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(messages.get(1).agentType()).isEqualTo(AgentType.GENERAL_CHAT);
     }
 
-    /**
-     * 执行 聊天会话 中的 rag Chat Passes Retrieval Advisor And Persists Sources 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-     */
     @Test
     void ragChatPassesRetrievalAdvisorAndPersistsSources() {
         AgentFixture fixture = new AgentFixture(new FakeKnowledgeStore(false), Flux.just("可以使用 Launch4j。"));
@@ -249,62 +151,24 @@ class ChatAgentRouterTests {
                 true
         ));
 
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(stream.sources()).singleElement()
                 .satisfies(source -> assertThat(source.content()).contains("Launch4j"));
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(stream.answer().collectList().block()).containsExactly("可以使用 Launch4j。");
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(fixture.runtime.lastAdvisors)
                 .anySatisfy(advisor -> assertThat(advisor.getClass().getName()).contains("RetrievalAugmentationAdvisor"));
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(fixture.runtime.lastAdvisorParams)
                 .containsEntry(ChatMemory.CONVERSATION_ID, "conversation-3")
                 .containsEntry(CogninoteMemoryAdvisor.MAX_MESSAGE_SEQUENCE, 0)
                 .containsEntry(CogninoteMemoryAdvisor.AGENT_TYPE, AgentType.KNOWLEDGE_BASE);
-
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         List<ChatMessage> messages = fixture.chatSessionRepository.findMessages("conversation-3");
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(messages).hasSize(2);
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(messages.get(1).retrievalMode()).isEqualTo(SearchMode.KEYWORD);
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(messages.get(1).agentType()).isEqualTo(AgentType.KNOWLEDGE_BASE);
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(fixture.chatSessionService.getSession("conversation-3").messages().get(1).sources())
                 .singleElement()
                 .satisfies(source -> assertThat(source.fileName()).isEqualTo("packaging.md"));
     }
 
-    /**
-     * 执行 聊天会话 中的 switching From Knowledge Base To Pure Chat Uses General Prompt And Keeps History As Reference Only 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-     */
     @Test
     void switchingFromKnowledgeBaseToPureChatUsesGeneralPromptAndKeepsHistoryAsReferenceOnly() {
         AgentFixture fixture = new AgentFixture(new FakeKnowledgeStore(false), Flux.just("知识库依据不足"));
@@ -327,53 +191,19 @@ class ChatAgentRouterTests {
                 false
         ));
 
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(pureStream.retrievalMode()).isNull();
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(pureStream.answer().collectList().block()).containsExactly("Java 是一种通用编程语言。");
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(fixture.runtime.lastSystemPrompt)
                 .contains("普通对话助手")
                 .doesNotContain("当前知识库中没有足够依据");
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(fixture.runtime.lastAdvisorParams)
                 .containsEntry(CogninoteMemoryAdvisor.AGENT_TYPE, AgentType.GENERAL_CHAT);
-
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         List<ChatMessage> messages = fixture.chatSessionRepository.findMessages("conversation-5");
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(messages).hasSize(4);
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(messages.get(1).agentType()).isEqualTo(AgentType.KNOWLEDGE_BASE);
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(messages.get(3).agentType()).isEqualTo(AgentType.GENERAL_CHAT);
     }
 
-    /**
-     * 执行 聊天会话 中的 document Retriever Omits Null Metadata Values 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-     */
     @Test
     void documentRetrieverOmitsNullMetadataValues() {
         CogninoteDocumentRetriever retriever = new CogninoteDocumentRetriever(
@@ -389,28 +219,12 @@ class ChatAgentRouterTests {
 
         List<Document> documents = retriever.retrieve(new Query("ignored by cogninote retriever"));
 
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(documents).singleElement().satisfies(document -> {
-            /**
-             * 执行 聊天会话 中的 assert That 步骤。
-             * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-             */
             assertThat(document.getMetadata()).doesNotContainKeys("heading", "pageNumber");
-            /**
-             * 执行 聊天会话 中的 assert That 步骤。
-             * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-             */
             assertThat(document.getMetadata().values()).doesNotContainNull();
         });
     }
 
-    /**
-     * 执行 聊天会话 中的 explicit Cancel Persists Partial Assistant Message As Stopped 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-     */
     @Test
     void explicitCancelPersistsPartialAssistantMessageAsStopped() {
         AgentFixture fixture = new AgentFixture(
@@ -432,34 +246,13 @@ class ChatAgentRouterTests {
         stream.onCancel().run();
         subscription.dispose();
 
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(received).containsExactly("半截");
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         List<ChatMessage> messages = fixture.chatSessionRepository.findMessages("conversation-4");
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(messages).hasSize(2);
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(messages.get(1).status()).isEqualTo(ChatMessageStatus.STOPPED);
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(messages.get(1).content()).isEqualTo("半截");
     }
 
-    /**
-     * 执行 聊天会话 中的 knowledge Base Contextualizes Follow Up Question For Retrieval Only 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-     */
     @Test
     void knowledgeBaseContextualizesFollowUpQuestionForRetrievalOnly() {
         AgentFixture fixture = new AgentFixture(new FakeKnowledgeStore(false), Flux.just("红黑树说明"));
@@ -485,38 +278,17 @@ class ChatAgentRouterTests {
                 true
         ));
 
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(stream.answer().collectList().block())
                 .containsExactly("下面给出 Java 中 TreeMap 的红黑树使用示例。");
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(fixture.knowledgeStore.seenQueries.getLast())
                 .contains("红黑树")
                 .contains("Java")
                 .contains("代码示例");
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(fixture.runtime.lastCallTextUserMessage)
                 .contains("红黑树是什么？在 Java 中哪里用到了这个结构？")
                 .contains("给出代码示例");
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(fixture.runtime.lastUserMessage).contains("给出代码示例");
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         List<ChatMessage> messages = fixture.chatSessionRepository.findMessages("conversation-rbtree");
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(messages)
                 .extracting(ChatMessage::content)
                 .contains("给出代码示例")
@@ -672,10 +444,6 @@ class ChatAgentRouterTests {
         assertThat(fixture.knowledgeStore.seenQueries.getLast()).isEqualTo("给出代码示例");
     }
 
-    /**
-     * 执行 聊天会话 中的 contextualizer Falls Back To Original Question When Model Returns Invalid Json 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-     */
     @Test
     void contextualizerFallsBackToOriginalQuestionWhenModelReturnsInvalidJson() {
         AgentFixture fixture = new AgentFixture(new FakeKnowledgeStore(false), Flux.just("仍然可以回答。"));
@@ -691,17 +459,9 @@ class ChatAgentRouterTests {
                 true
         )).answer().collectList().block();
 
-        /**
-         * 执行 聊天会话 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(fixture.knowledgeStore.seenQueries.getLast()).isEqualTo("HashMap 是怎么扩容的？");
     }
 
-    /**
-     * 执行 聊天会话 中的 default Prompt 配置属性 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-     */
     private static ChatPromptProperties defaultPromptProperties() {
         return new ChatPromptProperties(
                 new ChatPromptProperties.PromptTemplate(
@@ -744,10 +504,6 @@ class ChatAgentRouterTests {
         );
     }
 
-    /**
-     * 执行 聊天会话 中的 hit 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-     */
     private static SearchHitResponse hit(String chunkId) {
         return new SearchHitResponse(
                 chunkId,
@@ -763,10 +519,6 @@ class ChatAgentRouterTests {
         );
     }
 
-    /**
-     * 执行 聊天会话 中的 hit Without Optional Metadata 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-     */
     private static SearchHitResponse hitWithoutOptionalMetadata(String chunkId) {
         return new SearchHitResponse(
                 chunkId,
@@ -782,10 +534,6 @@ class ChatAgentRouterTests {
         );
     }
 
-    /**
-     * 智能体 Fixture 承担 聊天会话 模块的主要职责。
-     * <p>注释说明维护边界，不改变现有运行逻辑。</p>
-     */
     private static final class AgentFixture {
         private final FakeKnowledgeStore knowledgeStore;
         private final RecordingAiRuntime runtime;
@@ -794,10 +542,6 @@ class ChatAgentRouterTests {
         private final ChatSettingsService chatSettingsService;
         private final ChatAgentRouter agent;
 
-        /**
-         * 执行 聊天会话 中的 智能体 Fixture 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         private AgentFixture(FakeKnowledgeStore knowledgeStore, Flux<String> answer) {
             this.knowledgeStore = knowledgeStore;
             this.runtime = new RecordingAiRuntime(answer);
@@ -816,7 +560,6 @@ class ChatAgentRouterTests {
                     new AppSettingRepository(sqlSession.getMapper(AppSettingMapper.class)),
                     queryContextualizerProperties
             );
-            // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
             modelConfigRepository.save(activeChatConfig());
             ModelConfigService modelConfigService = new ModelConfigService(modelConfigRepository);
             this.chatSessionRepository = new ChatSessionRepository(sqlSession.getMapper(ChatSessionMapper.class));
@@ -882,10 +625,6 @@ class ChatAgentRouterTests {
             chatSettingsService.update(new ChatSettingsRequest(mode));
         }
 
-        /**
-         * 执行 聊天会话 中的 sqlite Sql Session 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         private static SqlSession sqliteSqlSession() {
             try {
                 SQLiteDataSource dataSource = new SQLiteDataSource();
@@ -904,10 +643,6 @@ class ChatAgentRouterTests {
             }
         }
 
-        /**
-         * 执行 聊天会话 中的 active Chat 配置 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         private static ModelConfig activeChatConfig() {
             long now = System.currentTimeMillis();
             return new ModelConfig(
@@ -929,62 +664,34 @@ class ChatAgentRouterTests {
         }
     }
 
-    /**
-     * Fake Knowledge 存储 是 聊天会话 的存储实现。
-     * <p>对上层暴露领域接口，对下层封装具体索引或持久化细节。</p>
-     */
     private static final class FakeKnowledgeStore implements KnowledgeStore {
         private final boolean failHybrid;
         private final SearchHitResponse hit;
         private final List<SearchMode> seenModes = new ArrayList<>();
         private final List<String> seenQueries = new ArrayList<>();
 
-        /**
-         * 执行 聊天会话 中的 Fake Knowledge 存储 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         private FakeKnowledgeStore(boolean failHybrid) {
             this(failHybrid, hit("chunk-1"));
         }
 
-        /**
-         * 执行 聊天会话 中的 Fake Knowledge 存储 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         private FakeKnowledgeStore(boolean failHybrid, SearchHitResponse hit) {
             this.failHybrid = failHybrid;
             this.hit = hit;
         }
 
-        /**
-         * 执行 聊天会话 中的 index Document 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         @Override
         public void indexDocument(IndexedDocument document) {
         }
 
-        /**
-         * 删除 delete By Document Id 对应的数据。
-         * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
-         */
         @Override
         public void deleteByDocumentId(String documentId) {
         }
 
-        /**
-         * 执行 聊天会话 中的 rebuild By Document Ids 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         @Override
         public RebuildIndexResponse rebuildByDocumentIds(List<IndexedDocument> documents) {
             return null;
         }
 
-        /**
-         * 执行 聊天会话 中的 search 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         @Override
         public SearchResponse search(SearchRequest request) {
             seenModes.add(request.modeOrDefault());
@@ -995,19 +702,11 @@ class ChatAgentRouterTests {
             return new SearchResponse(request.query(), request.modeOrDefault(), List.of(hit));
         }
 
-        /**
-         * 执行 聊天会话 中的 status 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         @Override
         public IndexStatusResponse status() {
             return null;
         }
 
-        /**
-         * 执行 聊天会话 中的 rebuild All 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         @Override
         public RebuildIndexResponse rebuildAll() {
             return null;
@@ -1015,33 +714,20 @@ class ChatAgentRouterTests {
     }
 
     /**
-     * Fake Ai 运行时 工厂 负责创建 聊天会话 运行对象。
-     * <p>提供商差异、客户端参数和缓存复用应收敛在这里。</p>
+     * 测试用运行时工厂，固定返回同一个 RecordingAiRuntime 以断言路由后的提示词。
      */
     private static final class FakeAiRuntimeFactory implements AiRuntimeFactory {
         private final RecordingAiRuntime runtime;
 
-        /**
-         * 执行 聊天会话 中的 Fake Ai 运行时 工厂 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         private FakeAiRuntimeFactory(RecordingAiRuntime runtime) {
             this.runtime = runtime;
         }
 
-        /**
-         * 执行 聊天会话 中的 chat 运行时 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         @Override
         public AiChatRuntime chatRuntime(ModelConfig config) {
             return runtime;
         }
 
-        /**
-         * 执行 聊天会话 中的 embedding 运行时 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         @Override
         public AiEmbeddingRuntime embeddingRuntime(ModelConfig config) {
             throw new UnsupportedOperationException("Embedding runtime is not used in this test");
@@ -1049,8 +735,7 @@ class ChatAgentRouterTests {
     }
 
     /**
-     * Recording Ai 运行时 封装外部 聊天会话 调用。
-     * <p>上层只依赖本地接口，不直接感知 Spring AI 或厂商 SDK 的细节。</p>
+     * 记录 agent 实际发送给模型的 prompt 与用户消息，避免测试依赖真实模型服务。
      */
     private static final class RecordingAiRuntime implements AiChatRuntime {
         private Flux<String> stream;
@@ -1065,27 +750,15 @@ class ChatAgentRouterTests {
         private List<Advisor> lastAdvisors = List.of();
         private Map<String, Object> lastAdvisorParams = Map.of();
 
-        /**
-         * 执行 聊天会话 中的 Recording Ai 运行时 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         private RecordingAiRuntime(Flux<String> stream) {
             this.stream = stream;
         }
 
-        /**
-         * 启动 stream 流式流程。
-         * <p>方法串联请求准备、事件流返回和结束后的状态收尾。</p>
-         */
         @Override
         public Flux<String> stream(Prompt prompt) {
             return stream;
         }
 
-        /**
-         * 启动 stream 流式流程。
-         * <p>方法串联请求准备、事件流返回和结束后的状态收尾。</p>
-         */
         @Override
         public Flux<String> stream(
                 String systemPrompt,
@@ -1100,10 +773,6 @@ class ChatAgentRouterTests {
             return stream;
         }
 
-        /**
-         * 执行一次同步 call Text 调用。
-         * <p>外部模型响应会被转换为本地可处理的文本结果。</p>
-         */
         @Override
         public String callText(String systemPrompt, String userMessage) {
             callTextCalls++;
@@ -1112,33 +781,22 @@ class ChatAgentRouterTests {
             return contextualizerResponse;
         }
 
-        /**
-         * 测试 test Connection 是否可用。
-         * <p>使用最小请求验证配置、网络和模型服务是否连通。</p>
-         */
         @Override
         public void testConnection(Prompt prompt) {
         }
     }
 
     /**
-     * Fake Document 仓储 是 聊天会话 的持久化边界。
-     * <p>服务层通过该类型访问数据，避免直接依赖 MyBatis Mapper 细节。</p>
+     * 路由测试使用的最小文档仓储替身。
+     *
+     * <p>只覆盖 RAG 来源补全需要的 chunk 查询，其他持久化能力不参与当前测试。</p>
      */
     private static final class FakeDocumentRepository extends DocumentRepository {
 
-        /**
-         * 执行 聊天会话 中的 Fake Document 仓储 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         private FakeDocumentRepository() {
             super(null);
         }
 
-        /**
-         * 读取 find Stored Chunks By Ids 对应的数据。
-         * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
-         */
         @Override
         public List<StoredChunk> findStoredChunksByIds(List<String> chunkIds) {
             return chunkIds.stream()

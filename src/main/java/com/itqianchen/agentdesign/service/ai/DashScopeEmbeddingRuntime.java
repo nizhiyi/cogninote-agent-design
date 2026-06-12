@@ -7,8 +7,9 @@ import java.util.List;
 import org.springframework.ai.embedding.EmbeddingModel;
 
 /**
- * Dash Scope Embedding 运行时 封装外部 AI 运行时 调用。
- * <p>上层只依赖本地接口，不直接感知 Spring AI 或厂商 SDK 的细节。</p>
+ * DashScope Embedding 运行时。
+ *
+ * <p>DashScope 检索模型要求 query 和 document 使用不同 textType，否则相似度效果会下降。</p>
  */
 final class DashScopeEmbeddingRuntime implements AiEmbeddingRuntime {
 
@@ -19,8 +20,12 @@ final class DashScopeEmbeddingRuntime implements AiEmbeddingRuntime {
     private final ModelConfig config;
 
     /**
-     * 注入 DashScopeEmbeddingRuntime 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 保留 DashScope 模型工厂和当前配置。
+     *
+     * <p>EmbeddingModel 按 textType 延迟获取，避免 query/document 共用错误的 DashScope 参数。</p>
+     *
+     * @param dashScopeModelFactory DashScope 模型工厂
+     * @param config 当前 Embedding 配置
      */
     DashScopeEmbeddingRuntime(DashScopeModelFactory dashScopeModelFactory, ModelConfig config) {
         this.dashScopeModelFactory = dashScopeModelFactory;
@@ -28,31 +33,34 @@ final class DashScopeEmbeddingRuntime implements AiEmbeddingRuntime {
     }
 
     /**
-     * 执行 AI 运行时 中的 embed Query 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 使用 DashScope query textType 生成检索向量。
+     *
+     * @param query 用户检索词
+     * @return query 向量
      */
     @Override
     public float[] embedQuery(String query) {
-        // 向量模型调用可能受网络和模型配置影响，异常会交给上层统一处理。
         return embeddingModel(QUERY_TEXT_TYPE).embed(query);
     }
 
     /**
-     * 执行 AI 运行时 中的 embed Documents 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 使用 DashScope document textType 生成索引向量。
+     *
+     * @param texts 待索引文本
+     * @return 文档向量列表
      */
     @Override
     public List<float[]> embedDocuments(List<String> texts) {
-        // 向量模型调用可能受网络和模型配置影响，异常会交给上层统一处理。
         return embeddingModel(DOCUMENT_TEXT_TYPE).embed(texts);
     }
 
     /**
-     * 执行 AI 运行时 中的 embedding Model 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 按 DashScope 检索语义选择 EmbeddingModel。
+     *
+     * @param textType DashScope 要求的 query 或 document
+     * @return 指定 textType 的模型实例
      */
     private EmbeddingModel embeddingModel(String textType) {
-        // 向量模型调用可能受网络和模型配置影响，异常会交给上层统一处理。
         return dashScopeModelFactory.embeddingModel(config, textType);
     }
 }

@@ -11,8 +11,10 @@ import {
 import { useSearchStore } from './search'
 
 /**
- * 定义 知识库 的 Pinia Store。
- * <p>集中维护响应式状态、派生值和异步动作，组件只消费 Store 暴露的接口。</p>
+ * 管理知识库目录树、目录级操作和展开状态。
+ *
+ * <p>folders/unassignedDocuments 是后端快照；busyFolderIds 与 expandedFolderIds 只属于前端交互状态，
+ * 刷新目录数据时不应被后端响应覆盖。</p>
  */
 export const useKnowledgeFoldersStore = defineStore('knowledgeFolders', () => {
   const folders = ref([])
@@ -45,10 +47,6 @@ export const useKnowledgeFoldersStore = defineStore('knowledgeFolders', () => {
     }
   })
 
-  /**
-   * 加载 fetch Folders 对应的数据。
-   * <p>接口结果会被转换为页面或 Store 可直接消费的结构。</p>
-   */
   async function fetchFolders() {
     isLoading.value = true
     error.value = ''
@@ -66,10 +64,6 @@ export const useKnowledgeFoldersStore = defineStore('knowledgeFolders', () => {
     }
   }
 
-  /**
-   * 执行 知识库 中的 ensure Folders Loaded 步骤。
-   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
-   */
   function ensureFoldersLoaded() {
     if (folders.value.length || unassignedDocuments.value.length || isLoading.value) {
       return Promise.resolve()
@@ -77,10 +71,6 @@ export const useKnowledgeFoldersStore = defineStore('knowledgeFolders', () => {
     return fetchFolders()
   }
 
-  /**
-   * 执行 知识库 中的 choose Folder 步骤。
-   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
-   */
   async function chooseFolder() {
     error.value = ''
     try {
@@ -93,10 +83,6 @@ export const useKnowledgeFoldersStore = defineStore('knowledgeFolders', () => {
     }
   }
 
-  /**
-   * 执行 知识库 中的 import Folder 步骤。
-   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
-   */
   async function importFolder() {
     const trimmedFolderPath = folderPath.value.trim()
     if (!trimmedFolderPath) {
@@ -123,10 +109,6 @@ export const useKnowledgeFoldersStore = defineStore('knowledgeFolders', () => {
     }
   }
 
-  /**
-   * 执行 知识库 中的 rebuild Folder 步骤。
-   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
-   */
   async function rebuildFolder(id) {
     const searchStore = useSearchStore()
     setFolderBusy(id, true)
@@ -143,10 +125,6 @@ export const useKnowledgeFoldersStore = defineStore('knowledgeFolders', () => {
     }
   }
 
-  /**
-   * 切换 toggle Folder Enabled 状态。
-   * <p>状态切换只影响当前组件，不改变后端数据。</p>
-   */
   async function toggleFolderEnabled(folder) {
     const searchStore = useSearchStore()
     setFolderBusy(folder.id, true)
@@ -155,6 +133,7 @@ export const useKnowledgeFoldersStore = defineStore('knowledgeFolders', () => {
     try {
       await setKnowledgeFolderEnabled(folder.id, !folder.enabled)
       await refreshKnowledgeState(searchStore)
+      // 启停目录会改变可检索范围，已有搜索结果需要重跑才能剔除或补入目录内 chunk。
       if (searchStore.searchResult?.hits?.length) {
         await searchStore.searchKnowledge()
       }
@@ -165,10 +144,6 @@ export const useKnowledgeFoldersStore = defineStore('knowledgeFolders', () => {
     }
   }
 
-  /**
-   * 删除或清理 delete Folder 对应的数据。
-   * <p>清理时同步处理本地缓存，避免界面保留过期状态。</p>
-   */
   async function deleteFolder(id) {
     const searchStore = useSearchStore()
     setFolderBusy(id, true)
@@ -178,6 +153,7 @@ export const useKnowledgeFoldersStore = defineStore('knowledgeFolders', () => {
       await deleteKnowledgeFolder(id)
       expandedFolderIds.value.delete(id)
       await refreshKnowledgeState(searchStore)
+      // 删除目录只删应用内元数据和索引；已有搜索结果仍可能保留旧命中，需要重新查询。
       if (searchStore.searchResult?.hits?.length) {
         await searchStore.searchKnowledge()
       }
@@ -188,10 +164,6 @@ export const useKnowledgeFoldersStore = defineStore('knowledgeFolders', () => {
     }
   }
 
-  /**
-   * 切换 toggle Expanded 状态。
-   * <p>状态切换只影响当前组件，不改变后端数据。</p>
-   */
   function toggleExpanded(id) {
     if (expandedFolderIds.value.has(id)) {
       expandedFolderIds.value.delete(id)
@@ -200,27 +172,16 @@ export const useKnowledgeFoldersStore = defineStore('knowledgeFolders', () => {
     }
   }
 
-  /**
-   * 判断 is Expanded 条件。
-   * <p>集中维护 UI 分支使用的同一套判定规则。</p>
-   */
   function isExpanded(id) {
     return expandedFolderIds.value.has(id)
   }
 
-  /**
-   * 判断 is Folder Busy 条件。
-   * <p>集中维护 UI 分支使用的同一套判定规则。</p>
-   */
   function isFolderBusy(id) {
     return busyFolderIds.value.has(id)
   }
 
-  /**
-   * 更新 set Folder Busy 对应的状态。
-   * <p>状态写入后需要保持控件、Store 和后端快照一致。</p>
-   */
   function setFolderBusy(id, busy) {
+    // Set 必须替换新实例，否则 Vue 依赖追踪无法稳定通知按钮 loading 状态。
     const next = new Set(busyFolderIds.value)
     if (busy) {
       next.add(id)
@@ -230,11 +191,8 @@ export const useKnowledgeFoldersStore = defineStore('knowledgeFolders', () => {
     busyFolderIds.value = next
   }
 
-  /**
-   * 加载 refresh Knowledge State 对应的数据。
-   * <p>接口结果会被转换为页面或 Store 可直接消费的结构。</p>
-   */
   async function refreshKnowledgeState(searchStore) {
+    // 目录操作会同时影响目录列表和索引统计，两者必须一起刷新才能保持页面摘要一致。
     await fetchFolders()
     await searchStore.fetchIndexStatus()
   }

@@ -26,8 +26,15 @@ public class KnowledgeBaseChatAgent extends AbstractChatAgent {
     private final QueryContextualizerAgent queryContextualizerAgent;
 
     /**
-     * 注入 KnowledgeBaseChatAgent 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入知识库聊天 Agent 依赖。
+     *
+     * @param modelConfigService 模型配置服务
+     * @param aiRuntimeFactory AI 运行时工厂
+     * @param knowledgeContextProvider 知识库上下文提供者
+     * @param promptAssembler 提示词装配器
+     * @param chatSessionService 会话服务
+     * @param memoryAdvisor 会话记忆 Advisor
+     * @param queryContextualizerAgent 追问补全 Agent
      */
     public KnowledgeBaseChatAgent(
             ModelConfigService modelConfigService,
@@ -46,8 +53,9 @@ public class KnowledgeBaseChatAgent extends AbstractChatAgent {
     }
 
     /**
-     * 执行 聊天会话 中的 type 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 返回知识库聊天 Agent 类型。
+     *
+     * @return KNOWLEDGE_BASE
      */
     @Override
     public AgentType type() {
@@ -55,8 +63,10 @@ public class KnowledgeBaseChatAgent extends AbstractChatAgent {
     }
 
     /**
-     * 执行 聊天会话 中的 supports 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 知识库 Agent 只处理启用知识库的请求。
+     *
+     * @param request Agent 请求
+     * @return 是否支持
      */
     @Override
     public boolean supports(AgentRequest request) {
@@ -64,8 +74,12 @@ public class KnowledgeBaseChatAgent extends AbstractChatAgent {
     }
 
     /**
-     * 执行 聊天会话 中的 prepare Invocation 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 准备知识库聊天的检索上下文和 Advisor 链。
+     *
+     * <p>如果 AUTO 补全后仍无来源，会再做一次弱检索重试，尽量恢复省略追问的主题。</p>
+     *
+     * @param request Agent 调用上下文
+     * @return 模型调用上下文
      */
     @Override
     protected AgentInvocation prepareInvocation(AgentInvocationRequest request) {
@@ -111,6 +125,10 @@ public class KnowledgeBaseChatAgent extends AbstractChatAgent {
     /**
      * 创建知识库文档检索器。
      * <p>原始问题用于最终回答，检索 query 可由补全 Agent 生成，两者必须保持分离。</p>
+     *
+     * @param request Agent 调用上下文
+     * @param query 原始问题和检索问题
+     * @return 文档检索器
      */
     private CogninoteDocumentRetriever documentRetriever(
             AgentInvocationRequest request,
@@ -128,6 +146,10 @@ public class KnowledgeBaseChatAgent extends AbstractChatAgent {
     /**
      * 判断是否需要在 AUTO 模式下做弱检索补全重试。
      * <p>当前弱检索只按“无来源”处理，避免因为分数阈值不稳定而重复打扰模型。</p>
+     *
+     * @param query 当前查询补全结果
+     * @param knowledgeContext 首次检索上下文
+     * @return 是否需要重试补全
      */
     private static boolean shouldRetryWithContextualizer(
             QueryContextualization query,

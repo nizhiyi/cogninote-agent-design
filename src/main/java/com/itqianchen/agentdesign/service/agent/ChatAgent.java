@@ -11,20 +11,27 @@ import com.itqianchen.agentdesign.domain.agent.AgentType;
 public interface ChatAgent {
 
     /**
-     * 执行 聊天会话 中的 type 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 返回 Agent 类型。
+     *
+     * @return Agent 类型
      */
     AgentType type();
 
     /**
-     * 执行 聊天会话 中的 supports 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 判断当前 Agent 是否支持该请求。
+     *
+     * @param request Agent 请求
+     * @return 是否支持
      */
     boolean supports(AgentRequest request);
 
     /**
-     * 启动 stream 流式流程。
-     * <p>方法串联请求准备、事件流返回和结束后的状态收尾。</p>
+     * 返回可取消的 agent 流。
+     *
+     * <p>实现必须负责把用户消息和助手终态写入会话，调用方只做 SSE 适配。</p>
+     *
+     * @param request Agent 请求
+     * @return 可取消的聊天流
      */
     AgentChatStream stream(AgentRequest request);
 }

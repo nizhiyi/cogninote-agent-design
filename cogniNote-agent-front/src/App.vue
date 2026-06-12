@@ -1,5 +1,4 @@
 <script setup>
-// App 负责 业务 页面或组件的状态组织、用户交互和后端同步。
 import { onMounted } from 'vue'
 import AppShell from './components/app-shell.vue'
 import { useChatStore } from './stores/chat'
@@ -16,6 +15,11 @@ const searchStore = useSearchStore()
 const modelConfigStore = useModelConfigStore()
 const themeStore = useThemeStore()
 
+/**
+ * 应用启动时拉取首屏共享快照。
+ *
+ * <p>这些请求互不阻塞业务页面渲染；失败状态由各自 store 暴露给侧栏、设置页和知识库页。</p>
+ */
 onMounted(() => {
   themeStore.applyTheme()
   chatStore.initializeSessions()

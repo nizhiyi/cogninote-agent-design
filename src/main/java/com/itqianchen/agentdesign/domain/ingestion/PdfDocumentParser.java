@@ -11,15 +11,18 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Component;
 
 /**
- * Pdf Document 解析器 将来源内容解析为后续 ingestion 可消费的结构。
- * <p>解析结果会进入切块、索引和检索链路，格式稳定性很重要。</p>
+ * 解析带文本层的 PDF。
+ *
+ * <p>按页切成 ParsedSection，pageNumber 会透传到检索来源；当前阶段不做 OCR。</p>
  */
 @Component
 public class PdfDocumentParser implements DocumentParser {
 
     /**
-     * 执行 文档管理 中的 supports 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 仅接受 PDF，注册表依赖该判断避免非 PDF 进入 PDFBox 解析流程。
+     *
+     * @param fileType 已识别的文件类型
+     * @return 是否由当前解析器处理
      */
     @Override
     public boolean supports(FileType fileType) {
@@ -27,8 +30,14 @@ public class PdfDocumentParser implements DocumentParser {
     }
 
     /**
-     * 解析 parse 输入。
-     * <p>将外部文本或结构转换为模块内部可直接使用的对象。</p>
+     * 按页抽取 PDF 文本层。
+     *
+     * <p>pageNumber 会传递给检索来源展示；扫描件或纯图片 PDF 当前不做 OCR，抽取为空时直接失败，
+     * 防止导入一个无法搜索的空文档。</p>
+     *
+     * @param path PDF 文件路径
+     * @return 按页组织的解析结果
+     * @throws DocumentParseException 当文件不可读、PDF 损坏或没有可抽取文本层时抛出
      */
     @Override
     public ParsedDocument parse(Path path) {

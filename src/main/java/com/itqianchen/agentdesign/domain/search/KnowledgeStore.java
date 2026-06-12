@@ -7,44 +7,59 @@ import com.itqianchen.agentdesign.dto.search.SearchResponse;
 import java.util.List;
 
 /**
- * Knowledge 存储 是 知识库 的存储实现。
- * <p>对上层暴露领域接口，对下层封装具体索引或持久化细节。</p>
+ * 知识库检索索引的领域边界。
+ *
+ * <p>SQLite 中的文档和 chunk 是事实来源，具体实现只负责维护可重建的检索索引。
+ * 调用方不应把索引状态当成业务数据的唯一来源。</p>
  */
 public interface KnowledgeStore {
 
     /**
-     * 执行 知识库 中的 index Document 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将单个已解析文档写入索引，覆盖同一 documentId 的旧索引记录。
+     *
+     * @param document 已持久化的文档快照，chunk 列表必须来自 SQLite
      */
     void indexDocument(IndexedDocument document);
 
     /**
-     * 删除 delete By Document Id 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     * 从索引中删除指定文档的所有 chunk。
+     *
+     * @param documentId 文档 ID；删除业务记录仍由调用方或仓储层负责
      */
     void deleteByDocumentId(String documentId);
 
     /**
-     * 执行 知识库 中的 rebuild By Document Ids 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 只重建调用方传入的文档集合。
+     *
+     * <p>实现应允许单个文档失败而不阻断整批重建，并通过返回值暴露失败数量。</p>
+     *
+     * @param documents 待重建的文档快照
+     * @return 本批重建的统计结果
      */
     RebuildIndexResponse rebuildByDocumentIds(List<IndexedDocument> documents);
 
     /**
-     * 执行 知识库 中的 search 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 执行知识库搜索。
+     *
+     * <p>不同 {@link SearchMode} 对模型配置有不同要求；向量或混合搜索缺少 Embedding
+     * 能力时应抛出明确异常，而不是静默降级成不完整结果。</p>
+     *
+     * @param request 搜索请求，query 不能为空白字符串
+     * @return 已补齐来源信息的搜索结果
      */
     SearchResponse search(SearchRequest request);
 
     /**
-     * 执行 知识库 中的 status 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 读取索引与业务数据的当前状态。
+     *
+     * @return 索引目录、chunk 数量、待索引数量和 Embedding 可用性
      */
     IndexStatusResponse status();
 
     /**
-     * 执行 知识库 中的 rebuild All 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 按 SQLite 中所有已解析文档重建整个索引。
+     *
+     * @return 全量重建统计
      */
     RebuildIndexResponse rebuildAll();
 }

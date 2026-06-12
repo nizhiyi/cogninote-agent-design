@@ -22,8 +22,10 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import reactor.core.publisher.Flux;
 
 /**
- * Abstract Chat 智能体 定义一个智能体执行路径。
- * <p>负责把用户问题、系统提示词、记忆和检索上下文组合成模型调用。</p>
+ * ChatAgent 的公共流式执行骨架。
+ *
+ * <p>这里统一处理会话创建、用户消息落库、模型流订阅和助手消息终态保存；
+ * 子类只负责准备检索上下文和 advisor。</p>
  */
 public abstract class AbstractChatAgent implements ChatAgent {
 
@@ -35,8 +37,12 @@ public abstract class AbstractChatAgent implements ChatAgent {
     private final ChatSessionService chatSessionService;
 
     /**
-     * 注入 AbstractChatAgent 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入流式执行骨架所需依赖。
+     *
+     * @param modelConfigService 模型配置服务
+     * @param aiRuntimeFactory AI 运行时工厂
+     * @param promptAssembler 提示词装配器
+     * @param chatSessionService 会话服务
      */
     protected AbstractChatAgent(
             ModelConfigService modelConfigService,
@@ -51,8 +57,10 @@ public abstract class AbstractChatAgent implements ChatAgent {
     }
 
     /**
-     * 启动 stream 流式流程。
-     * <p>方法串联请求准备、事件流返回和结束后的状态收尾。</p>
+     * 执行一次可取消的 agent 流，并保证 done/error/stopped 只落库一次。
+     *
+     * @param request Agent 请求
+     * @return 可订阅和取消的聊天流
      */
     @Override
     public final AgentChatStream stream(AgentRequest request) {
@@ -70,7 +78,6 @@ public abstract class AbstractChatAgent implements ChatAgent {
         boolean useKnowledgeBase = type() == AgentType.KNOWLEDGE_BASE;
 
         chatSessionService.ensureSession(conversationId, question, useKnowledgeBase, requestedMode, topK);
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         ChatMessage userMessage = chatSessionService.appendUserMessage(
                 conversationId,
                 question,
@@ -94,20 +101,14 @@ public abstract class AbstractChatAgent implements ChatAgent {
         Map<String, Object> advisorParams = Map.of(
                 ChatMemory.CONVERSATION_ID, conversationId,
                 CogninoteMemoryAdvisor.MAX_MESSAGE_SEQUENCE, userMessage.sequence() - 1,
-                /**
-                 * 执行 聊天会话 中的 type 步骤。
-                 * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-                 */
                 CogninoteMemoryAdvisor.AGENT_TYPE, type()
         );
         StringBuilder assistantAnswer = new StringBuilder();
         AtomicBoolean saved = new AtomicBoolean(false);
-        // 这里开始真正的模型对话调用，后续 Flux 事件会驱动前端流式展示。
+        // 模型流是冷流，defer 确保订阅发生后才真正发起外部调用和开始累计答案。
         Flux<String> answer = Flux.defer(() -> aiRuntimeFactory.chatRuntime(chatConfig)
                 .stream(
-                        // 提示词组装是模型输入的最后一道边界，系统提示和用户提示在这里汇合。
                         promptAssembler.systemPrompt(type()),
-                        // 提示词组装是模型输入的最后一道边界，系统提示和用户提示在这里汇合。
                         promptAssembler.userPrompt(type(), question),
                         invocation.advisors(),
                         advisorParams
@@ -168,14 +169,17 @@ public abstract class AbstractChatAgent implements ChatAgent {
     }
 
     /**
-     * 执行 聊天会话 中的 prepare Invocation 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 子类准备检索上下文和 advisor。
+     *
+     * @param request 已经完成会话和用户消息落库的调用上下文
+     * @return 模型调用所需上下文
      */
     protected abstract AgentInvocation prepareInvocation(AgentInvocationRequest request);
 
     /**
-     * 智能体 Invocation 请求 定义 聊天会话 接口允许接收的请求字段。
-     * <p>字段校验应和前端表单、接口文档保持一致。</p>
+     * 子类准备模型调用所需的稳定上下文。
+     *
+     * <p>chatConfig 已完成 active/apiKey 校验，子类不需要再次读取模型配置。</p>
      */
     protected record AgentInvocationRequest(
             String requestId,
@@ -188,16 +192,18 @@ public abstract class AbstractChatAgent implements ChatAgent {
     ) {
     }
 
-    /**
-     * 智能体 Invocation 是 聊天会话 的不可变数据快照。
-     * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
-     */
     protected record AgentInvocation(KnowledgeContext knowledgeContext, List<Advisor> advisors) {
     }
 
     /**
-     * 执行 聊天会话 中的 log 智能体 Completed 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 记录 Agent 正常完成日志。
+     *
+     * @param requestId 请求 ID
+     * @param conversationId 会话 ID
+     * @param chatConfig Chat 模型配置
+     * @param knowledgeContext 知识库上下文
+     * @param topK 检索数量
+     * @param startedAt 请求开始时间戳
      */
     private void logAgentCompleted(
             String requestId,
@@ -222,8 +228,13 @@ public abstract class AbstractChatAgent implements ChatAgent {
     }
 
     /**
-     * 更新 save Assistant Done 对应的数据。
-     * <p>方法负责保持内存快照、数据库记录和返回值语义一致。</p>
+     * 保存正常完成的助手回复。
+     *
+     * @param saved 终态保存幂等标记
+     * @param conversationId 会话 ID
+     * @param content 助手回复
+     * @param requestId 请求 ID
+     * @param knowledgeContext 知识库上下文
      */
     private void saveAssistantDone(
             AtomicBoolean saved,
@@ -235,7 +246,6 @@ public abstract class AbstractChatAgent implements ChatAgent {
         if (content.isBlank() || !saved.compareAndSet(false, true)) {
             return;
         }
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         chatSessionService.appendAssistantDone(
                 conversationId,
                 content,
@@ -247,8 +257,13 @@ public abstract class AbstractChatAgent implements ChatAgent {
     }
 
     /**
-     * 更新 save Assistant Stopped 对应的数据。
-     * <p>方法负责保持内存快照、数据库记录和返回值语义一致。</p>
+     * 保存用户停止时已经生成的助手回复。
+     *
+     * @param saved 终态保存幂等标记
+     * @param conversationId 会话 ID
+     * @param content 已生成内容
+     * @param requestId 请求 ID
+     * @param knowledgeContext 知识库上下文
      */
     private void saveAssistantStopped(
             AtomicBoolean saved,
@@ -260,7 +275,6 @@ public abstract class AbstractChatAgent implements ChatAgent {
         if (content.isBlank() || !saved.compareAndSet(false, true)) {
             return;
         }
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         chatSessionService.appendAssistantStopped(
                 conversationId,
                 content,
@@ -272,8 +286,13 @@ public abstract class AbstractChatAgent implements ChatAgent {
     }
 
     /**
-     * 更新 save Assistant Error 对应的数据。
-     * <p>方法负责保持内存快照、数据库记录和返回值语义一致。</p>
+     * 保存异常结束前已经生成的助手回复。
+     *
+     * @param saved 终态保存幂等标记
+     * @param conversationId 会话 ID
+     * @param content 已生成内容
+     * @param requestId 请求 ID
+     * @param knowledgeContext 知识库上下文
      */
     private void saveAssistantError(
             AtomicBoolean saved,
@@ -285,7 +304,6 @@ public abstract class AbstractChatAgent implements ChatAgent {
         if (content.isBlank() || !saved.compareAndSet(false, true)) {
             return;
         }
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         chatSessionService.appendAssistantError(
                 conversationId,
                 content,
@@ -297,8 +315,11 @@ public abstract class AbstractChatAgent implements ChatAgent {
     }
 
     /**
-     * 规范化 Top K 输入。
-     * <p>后续逻辑只处理受控取值，减少重复分支和边界判断。</p>
+     * 归一化检索数量。
+     *
+     * @param requestedTopK 请求值
+     * @param configuredTopK 模型配置中的默认值
+     * @return 限制在 1 到 50 的检索数量
      */
     private static int normalizeTopK(Integer requestedTopK, int configuredTopK) {
         int value = requestedTopK == null ? configuredTopK : requestedTopK;

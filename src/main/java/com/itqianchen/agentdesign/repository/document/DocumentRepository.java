@@ -18,8 +18,9 @@ import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
 /**
- * Document 仓储 是 文档管理 的持久化边界。
- * <p>服务层通过该类型访问数据，避免直接依赖 MyBatis Mapper 细节。</p>
+ * 文档和 chunk 的仓储边界。
+ *
+ * <p>SQLite 中的解析结果是索引重建的事实来源，Lucene 删除或重建失败时都应回到这里重新收敛。</p>
  */
 @Repository
 public class DocumentRepository {
@@ -30,37 +31,42 @@ public class DocumentRepository {
     private final DocumentMapper documentMapper;
 
     /**
-     * 注入 DocumentRepository 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入文档 Mapper。
+     *
+     * @param documentMapper SQLite 文档和 chunk 访问接口
      */
     public DocumentRepository(DocumentMapper documentMapper) {
         this.documentMapper = documentMapper;
     }
 
     /**
-     * 读取 find By Id 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 按 ID 查询文档元数据。
+     *
+     * @param id 文档 ID
+     * @return 文档元数据；不存在时为空
      */
     public Optional<KnowledgeDocument> findById(String id) {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         return documentMapper.findById(id).stream().findFirst();
     }
 
     /**
-     * 读取 find All Order By Updated At Desc 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 查询所有文档元数据。
+     *
+     * @return 按更新时间倒序排列的文档列表
      */
     public List<KnowledgeDocument> findAllOrderByUpdatedAtDesc() {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         return documentMapper.findAllOrderByUpdatedAtDesc();
     }
 
     /**
-     * 读取 find Parsed Document For Indexing 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 查询单个已解析文档的索引快照。
+     *
+     * <p>只返回 PARSED 状态文档，避免失败或处理中数据写入 Lucene。</p>
+     *
+     * @param documentId 文档 ID
+     * @return 可索引文档聚合
      */
     public Optional<IndexedDocument> findParsedDocumentForIndexing(String documentId) {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         return mapIndexedDocuments(documentMapper.findParsedDocumentForIndexing(
                 documentId,
                 DocumentStatus.PARSED.name()
@@ -68,38 +74,40 @@ public class DocumentRepository {
     }
 
     /**
-     * 读取 find By Knowledge Folder Id Order By Updated At Desc 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 查询指定知识库目录下的文档。
+     *
+     * @param knowledgeFolderId 知识库目录 ID
+     * @return 按更新时间倒序排列的文档列表
      */
     public List<KnowledgeDocument> findByKnowledgeFolderIdOrderByUpdatedAtDesc(String knowledgeFolderId) {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         return documentMapper.findByKnowledgeFolderIdOrderByUpdatedAtDesc(knowledgeFolderId);
     }
 
     /**
-     * 读取 find Unassigned Order By Updated At Desc 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 查询未归属任何知识库目录的文档。
+     *
+     * @return 未归属文档列表
      */
     public List<KnowledgeDocument> findUnassignedOrderByUpdatedAtDesc() {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         return documentMapper.findUnassignedOrderByUpdatedAtDesc();
     }
 
     /**
-     * 读取 find All Parsed Documents For Indexing 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 查询全部已解析文档的索引快照。
+     *
+     * @return 可用于全量重建索引的文档聚合列表
      */
     public List<IndexedDocument> findAllParsedDocumentsForIndexing() {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         return mapIndexedDocuments(documentMapper.findAllParsedDocumentsForIndexing(DocumentStatus.PARSED.name()));
     }
 
     /**
-     * 读取 find Parsed Documents For Indexing By Knowledge Folder Id 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 查询指定知识库目录下已解析文档的索引快照。
+     *
+     * @param knowledgeFolderId 知识库目录 ID
+     * @return 可用于目录重建索引的文档聚合列表
      */
     public List<IndexedDocument> findParsedDocumentsForIndexingByKnowledgeFolderId(String knowledgeFolderId) {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         return mapIndexedDocuments(documentMapper.findParsedDocumentsForIndexingByKnowledgeFolderId(
                 DocumentStatus.PARSED.name(),
                 knowledgeFolderId
@@ -107,17 +115,22 @@ public class DocumentRepository {
     }
 
     /**
-     * 读取 find Chunks By Document Id 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 查询文档的全部 chunk。
+     *
+     * @param documentId 文档 ID
+     * @return 文档 chunk 列表
      */
     public List<KnowledgeChunk> findChunksByDocumentId(String documentId) {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         return documentMapper.findChunksByDocumentId(documentId);
     }
 
     /**
-     * 读取 find Stored Chunks By Ids 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 按 chunkId 批量读取已存储片段。
+     *
+     * <p>返回顺序尽量跟随输入 ID，且限制单次 IN 查询规模，避免来源抽屉加载异常拖慢 SQLite。</p>
+     *
+     * @param chunkIds 待查询的 chunkId 列表
+     * @return 已找到的片段，缺失 ID 会被忽略
      */
     public List<StoredChunk> findStoredChunksByIds(List<String> chunkIds) {
         if (chunkIds.isEmpty()) {
@@ -127,7 +140,7 @@ public class DocumentRepository {
         List<String> lookupIds = chunkIds.size() > MAX_STORED_CHUNK_LOOKUP_SIZE
                 ? chunkIds.subList(0, MAX_STORED_CHUNK_LOOKUP_SIZE)
                 : chunkIds;
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
+        // 来源抽屉一次只展示有限片段，限制 IN 查询规模避免极端搜索结果拖慢 SQLite。
         List<StoredChunk> chunks = documentMapper.findStoredChunksByIds(lookupIds);
         Map<String, StoredChunk> byId = new LinkedHashMap<>();
         for (StoredChunk chunk : chunks) {
@@ -141,118 +154,136 @@ public class DocumentRepository {
     }
 
     /**
-     * 读取 find Stored Chunk By Id 对应的数据。
-     * <p>复用批量查询的 folder enabled 过滤规则，避免详情接口绕过知识库启用状态。</p>
+     * 按 chunkId 查询单个已存储片段。
+     *
+     * @param chunkId 文档片段 ID
+     * @return 片段详情；不存在时为空
      */
     public Optional<StoredChunk> findStoredChunkById(String chunkId) {
         return findStoredChunksByIds(List.of(chunkId)).stream().findFirst();
     }
 
     /**
-     * 执行 文档管理 中的 upsert Document 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 新增或更新文档元数据。
+     *
+     * <p>该方法不处理 chunk，调用方必须在解析成功后通过 replaceChunks 同步完整片段集合。</p>
+     *
+     * @param document 文档元数据
      */
     public void upsertDocument(KnowledgeDocument document) {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         documentMapper.upsertDocument(document);
     }
 
     /**
-     * 更新 update Knowledge Folder Id 对应的数据。
-     * <p>方法负责保持内存快照、数据库记录和返回值语义一致。</p>
+     * 更新文档所属知识库目录。
+     *
+     * @param documentId 文档 ID
+     * @param knowledgeFolderId 新的目录 ID；可为空表示解除归属
+     * @param updatedAt 更新时间戳
      */
     public void updateKnowledgeFolderId(String documentId, String knowledgeFolderId, long updatedAt) {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         documentMapper.updateKnowledgeFolderId(documentId, knowledgeFolderId, updatedAt);
     }
 
     /**
-     * 读取 find Document Ids By Knowledge Folder Id 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 查询目录下所有文档 ID。
+     *
+     * @param knowledgeFolderId 知识库目录 ID
+     * @return 文档 ID 列表
      */
     public List<String> findDocumentIdsByKnowledgeFolderId(String knowledgeFolderId) {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         return documentMapper.findDocumentIdsByKnowledgeFolderId(knowledgeFolderId);
     }
 
     /**
-     * 执行 文档管理 中的 mark Indexed 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 标记文档已写入检索索引。
+     *
+     * @param documentId 文档 ID
+     * @param indexedAt 索引完成时间戳
      */
     public void markIndexed(String documentId, long indexedAt) {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         documentMapper.markIndexed(documentId, indexedAt);
     }
 
     /**
-     * 清理 clear Indexed 对应的数据。
-     * <p>清理只移除目标内容，保留会话或模块继续运行所需的外壳状态。</p>
+     * 清除单个文档的索引时间。
+     *
+     * <p>调用方在删除或重建 Lucene 索引后使用该标记表达“需要重新索引”。</p>
+     *
+     * @param documentId 文档 ID
      */
     public void clearIndexed(String documentId) {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         documentMapper.clearIndexed(documentId);
     }
 
     /**
-     * 清理 clear Indexed By Knowledge Folder Id 对应的数据。
-     * <p>清理只移除目标内容，保留会话或模块继续运行所需的外壳状态。</p>
+     * 清除目录下文档的索引时间。
+     *
+     * @param knowledgeFolderId 知识库目录 ID
      */
     public void clearIndexedByKnowledgeFolderId(String knowledgeFolderId) {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         documentMapper.clearIndexedByKnowledgeFolderId(knowledgeFolderId);
     }
 
     /**
-     * 执行 文档管理 中的 index Statistics 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 读取索引状态统计。
+     *
+     * @return 文档、chunk 和未索引数量统计
      */
     public IndexStatistics indexStatistics() {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         return documentMapper.indexStatistics();
     }
 
     /**
-     * 执行 文档管理 中的 replace Chunks 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 用当前解析结果完整替换文档 chunk。
+     *
+     * <p>先删后写可以清除旧文件残留片段；批量大小受 SQLite 单次写入和测试稳定性约束。</p>
+     *
+     * @param documentId 文档 ID
+     * @param chunks 新的完整 chunk 集合
      */
     public void replaceChunks(String documentId, List<KnowledgeChunk> chunks) {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
+        // chunk 是文档当前解析结果的完整替换，先删后写可清除旧文件残留片段。
         documentMapper.deleteChunksByDocumentId(documentId);
 
         for (int start = 0; start < chunks.size(); start += CHUNK_INSERT_BATCH_SIZE) {
             int end = Math.min(start + CHUNK_INSERT_BATCH_SIZE, chunks.size());
             for (KnowledgeChunk chunk : chunks.subList(start, end)) {
-                // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
                 documentMapper.insertChunk(chunk);
             }
         }
     }
 
     /**
-     * 删除 delete By Id 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     * 删除文档及其 chunk。
+     *
+     * @param id 文档 ID
+     * @return 是否删除了文档记录
      */
     public boolean deleteById(String id) {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
+        // SQLite 外键开关在不同运行环境可能不一致，显式先删 chunks 防止孤儿片段。
         documentMapper.deleteChunksByDocumentId(id);
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         return documentMapper.deleteDocumentById(id) > 0;
     }
 
     /**
-     * 删除 delete By Knowledge Folder Id 对应的数据。
-     * <p>删除时同步处理关联状态，避免调用方遗漏清理步骤。</p>
+     * 删除知识库目录下的应用内文档元数据。
+     *
+     * <p>只删除 SQLite 中的解析结果和 chunk，不触碰用户本地原始文件。</p>
+     *
+     * @param knowledgeFolderId 知识库目录 ID
+     * @return 删除的文档数量
      */
     public int deleteByKnowledgeFolderId(String knowledgeFolderId) {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
+        // 删除目录时只清应用内文档和 chunk 元数据，不触碰用户文件系统。
         documentMapper.deleteChunksByKnowledgeFolderId(knowledgeFolderId);
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         return documentMapper.deleteDocumentsByKnowledgeFolderId(knowledgeFolderId);
     }
 
     /**
-     * 将输入映射为 map Indexed Documents 对应的业务分类。
-     * <p>分类规则集中维护，避免调用方散落字符串或枚举判断。</p>
+     * 将 mapper 的 document x chunk 扁平行恢复为索引写入需要的文档聚合。
+     *
+     * <p>聚合顺序沿用 SQL 返回顺序，便于 Lucene 重建时保持 chunk 顺序稳定。</p>
      */
     private static List<IndexedDocument> mapIndexedDocuments(List<IndexedDocumentRow> rows) {
         Map<String, IndexedDocumentBuilder> documents = new LinkedHashMap<>();
@@ -282,10 +313,6 @@ public class DocumentRepository {
                 .toList();
     }
 
-    /**
-     * Indexed Document 构建器 负责构建 文档管理 相关的标准化对象。
-     * <p>构建过程集中处理拼接、清洗和兼容规则。</p>
-     */
     private static class IndexedDocumentBuilder {
         private final String id;
         private final String sourcePath;
@@ -294,8 +321,12 @@ public class DocumentRepository {
         private final List<IndexedChunk> chunks = new ArrayList<>();
 
         /**
-         * 执行 文档管理 中的 Indexed Document 构建器 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+         * 保留文档元数据并收集 chunk 行。
+         *
+         * @param id 文档 ID
+         * @param sourcePath 原始文件路径
+         * @param fileName 文件名
+         * @param fileType 文件类型
          */
         private IndexedDocumentBuilder(String id, String sourcePath, String fileName, FileType fileType) {
             this.id = id;
@@ -305,8 +336,9 @@ public class DocumentRepository {
         }
 
         /**
-         * 构建 build 对象。
-         * <p>第三方 API、框架对象或复杂参数的创建细节集中在此处。</p>
+         * 构建不可变的索引文档快照。
+         *
+         * @return 索引文档
          */
         private IndexedDocument build() {
             return new IndexedDocument(id, sourcePath, fileName, fileType, List.copyOf(chunks));

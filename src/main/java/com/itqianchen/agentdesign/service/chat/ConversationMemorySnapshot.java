@@ -3,8 +3,10 @@ package com.itqianchen.agentdesign.service.chat;
 import java.util.List;
 
 /**
- * Conversation Memory Snapshot 是 聊天会话 的不可变数据快照。
- * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+ * 某次模型调用可使用的历史上下文快照。
+ *
+ * <p>summary 是较早消息的压缩内容，recentMessages 是预算内保留的原文；lastIncludedSequence
+ * 用于摘要写回时确定已经覆盖到哪条消息。</p>
  */
 public record ConversationMemorySnapshot(
         String summary,

@@ -16,8 +16,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 /**
- * Spring Ai Embedding 网关 将基础设施能力适配为 检索索引 领域网关。
- * <p>领域层通过网关调用外部能力，避免直接耦合具体 SDK。</p>
+ * Embedding 模型的运行时适配器。
+ *
+ * <p>优先使用数据库中的 active EMBEDDING 配置；没有配置时才回退到 Spring Boot 自动装配模型。
+ * 不可用时由检索层降级到关键词检索，而不是阻止应用启动。</p>
  */
 @Component
 public class SpringAiEmbeddingGateway implements EmbeddingGateway {
@@ -30,8 +32,14 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
     private final String dashscopeApiKey;
 
     /**
-     * 注入 SpringAiEmbeddingGateway 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入 Embedding 运行时依赖。
+     *
+     * @param embeddingModel Spring Boot 自动配置的 EmbeddingModel
+     * @param modelConfigRepository 模型配置仓储
+     * @param aiRuntimeFactory AI 运行时工厂
+     * @param embeddingProperties Embedding 配置
+     * @param embeddingProvider 自动配置 Provider 名称
+     * @param dashscopeApiKey DashScope 自动配置 API Key
      */
     public SpringAiEmbeddingGateway(
             Optional<EmbeddingModel> embeddingModel,
@@ -50,12 +58,12 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
     }
 
     /**
-     * 判断 is Available 条件是否成立。
-     * <p>业务判定集中在这里，避免调用方重复实现同一规则。</p>
+     * 判断当前是否有可用 Embedding 能力。
+     *
+     * @return 是否可生成向量
      */
     @Override
     public boolean isAvailable() {
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         Optional<ModelConfig> configuredModel = modelConfigRepository.findActive(ModelConfigRole.EMBEDDING)
                 .filter(ModelConfig::hasApiKey);
         if (configuredModel.isPresent()) {
@@ -72,12 +80,12 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
     }
 
     /**
-     * 执行 检索索引 中的 dimensions 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 返回当前 Embedding 维度。
+     *
+     * @return 向量维度
      */
     @Override
     public int dimensions() {
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         return modelConfigRepository.findActive(ModelConfigRole.EMBEDDING)
                 .filter(ModelConfig::hasApiKey)
                 .map(ModelConfig::resolvedEmbeddingDimensions)
@@ -85,8 +93,10 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
     }
 
     /**
-     * 执行 检索索引 中的 embed Documents 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 为文档 chunk 生成向量。
+     *
+     * @param texts 文档 chunk 文本
+     * @return 向量列表
      */
     @Override
     public List<float[]> embedDocuments(List<String> texts) {
@@ -94,8 +104,10 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
     }
 
     /**
-     * 执行 检索索引 中的 embed Query 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 为检索 query 生成向量。
+     *
+     * @param query 检索 query
+     * @return query 向量
      */
     @Override
     public float[] embedQuery(String query) {
@@ -104,8 +116,11 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
     }
 
     /**
-     * 执行 检索索引 中的 embed Texts 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 批量生成向量并校验维度。
+     *
+     * @param texts 待生成向量的文本
+     * @param purpose query 或 document 场景
+     * @return 向量列表
      */
     private List<float[]> embedTexts(List<String> texts, EmbeddingPurpose purpose) {
         if (!isAvailable()) {
@@ -136,8 +151,9 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
     }
 
     /**
-     * 执行 检索索引 中的 active Embedding Model 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 读取自动配置的 EmbeddingModel。
+     *
+     * @return EmbeddingModel
      */
     private EmbeddingModel activeEmbeddingModel() {
         return embeddingModel.orElseThrow(() ->
@@ -145,11 +161,13 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
     }
 
     /**
-     * 执行 检索索引 中的 embed Slice 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 按批次生成向量。
+     *
+     * @param texts 当前批次文本
+     * @param purpose query 或 document 场景
+     * @return 当前批次向量
      */
     private List<float[]> embedSlice(List<String> texts, EmbeddingPurpose purpose) {
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         return modelConfigRepository.findActive(ModelConfigRole.EMBEDDING)
                 .filter(ModelConfig::hasApiKey)
                 .map(config -> embedConfigured(config, texts, purpose))
@@ -157,8 +175,12 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
     }
 
     /**
-     * 执行 检索索引 中的 embed Configured 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 使用数据库中激活的 Embedding 配置生成向量。
+     *
+     * @param config Embedding 配置
+     * @param texts 文本列表
+     * @param purpose query 或 document 场景
+     * @return 向量列表
      */
     private List<float[]> embedConfigured(ModelConfig config, List<String> texts, EmbeddingPurpose purpose) {
         if (purpose == EmbeddingPurpose.QUERY) {
@@ -168,8 +190,11 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
     }
 
     /**
-     * 执行 检索索引 中的 embed Auto Configured 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 使用 Spring Boot 自动配置模型生成向量。
+     *
+     * @param texts 文本列表
+     * @param purpose query 或 document 场景
+     * @return 向量列表
      */
     private List<float[]> embedAutoConfigured(List<String> texts, EmbeddingPurpose purpose) {
         EmbeddingModel model = activeEmbeddingModel();
@@ -179,10 +204,6 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
         return model.embed(texts);
     }
 
-    /**
-     * Embedding Purpose 枚举 检索索引 的稳定取值。
-     * <p>枚举值可能进入数据库或 API 响应，修改时需要考虑兼容性。</p>
-     */
     private enum EmbeddingPurpose {
         DOCUMENT,
         QUERY

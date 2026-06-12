@@ -5,38 +5,44 @@ import java.util.List;
 import org.springframework.ai.embedding.EmbeddingModel;
 
 /**
- * Spring Ai Embedding 运行时 封装外部 AI 运行时 调用。
- * <p>上层只依赖本地接口，不直接感知 Spring AI 或厂商 SDK 的细节。</p>
+ * 基于 Spring AI EmbeddingModel 的通用 Embedding 运行时。
+ *
+ * <p>适用于 query/document 不需要额外区分参数的 provider。</p>
  */
 final class SpringAiEmbeddingRuntime implements AiEmbeddingRuntime {
 
     private final EmbeddingModel embeddingModel;
 
     /**
-     * 注入 SpringAiEmbeddingRuntime 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 绑定已经按用户配置构造的 EmbeddingModel。
+     *
+     * @param embeddingModel Spring AI EmbeddingModel
      */
     SpringAiEmbeddingRuntime(EmbeddingModel embeddingModel) {
         this.embeddingModel = embeddingModel;
     }
 
     /**
-     * 执行 AI 运行时 中的 embed Query 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 为检索 query 生成向量。
+     *
+     * <p>通用 Provider 不区分 query/document 参数，因此直接复用同一模型实例。</p>
+     *
+     * @param query 用户检索词
+     * @return query 向量
      */
     @Override
     public float[] embedQuery(String query) {
-        // 向量模型调用可能受网络和模型配置影响，异常会交给上层统一处理。
         return embeddingModel.embed(query);
     }
 
     /**
-     * 执行 AI 运行时 中的 embed Documents 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 为文档 chunk 批量生成向量。
+     *
+     * @param texts 待索引文本，返回顺序与输入顺序一致
+     * @return 文档向量列表
      */
     @Override
     public List<float[]> embedDocuments(List<String> texts) {
-        // 向量模型调用可能受网络和模型配置影响，异常会交给上层统一处理。
         return embeddingModel.embed(texts);
     }
 }

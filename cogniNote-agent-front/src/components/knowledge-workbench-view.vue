@@ -13,6 +13,11 @@ const searchStore = useSearchStore()
 const modelConfigStore = useModelConfigStore()
 const activePanel = ref('folders')
 
+/**
+ * 知识库工作区的面板编排组件。
+ *
+ * <p>这里聚合目录、索引和模型配置三个 store 的启动快照，避免每个子面板重复触发初始化请求。</p>
+ */
 const panelOptions = [
   { id: 'folders', label: '资料管理', icon: FolderOpen },
   { id: 'search', label: '检索测试', icon: Search },
@@ -30,6 +35,7 @@ const compactSummary = computed(() => {
 })
 
 onMounted(() => {
+  // 三个请求互不依赖，并行加载能让侧栏摘要和当前面板尽快进入可用状态。
   void Promise.all([
     knowledgeStore.ensureFoldersLoaded(),
     searchStore.ensureIndexStatusLoaded(),

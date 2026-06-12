@@ -13,13 +13,14 @@ import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-// SSE 发送是前端流式体验的边界，异常通常表示客户端已断开。
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import reactor.core.Disposable;
 
 /**
- * Chat Sse 事件 Mapper 声明 聊天会话 相关的 MyBatis SQL 操作。
- * <p>方法签名需要和注解 SQL、数据库表结构保持一致。</p>
+ * 将 Agent 事件流桥接为 Spring MVC SSE 响应。
+ *
+ * <p>SSE 连接只是浏览器观察通道，普通断线不自动取消模型生成；只有显式停止请求才会通过
+ * {@link ChatStreamCancellationRegistry} 取消底层订阅。</p>
  */
 @Component
 public class ChatSseEventMapper {
@@ -29,16 +30,19 @@ public class ChatSseEventMapper {
     private final ChatStreamCancellationRegistry cancellationRegistry;
 
     /**
-     * 注入 ChatSseEventMapper 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入流取消注册表。
+     *
+     * @param cancellationRegistry 聊天流取消注册表
      */
     public ChatSseEventMapper(ChatStreamCancellationRegistry cancellationRegistry) {
         this.cancellationRegistry = cancellationRegistry;
     }
 
     /**
-     * 执行 聊天会话 中的 subscribe 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 订阅 Agent 输出并按 meta/delta/done/error 事件写入前端 SSE。
+     *
+     * @param emitter Spring MVC SSE emitter
+     * @param stream Agent 输出流和元数据
      */
     public void subscribe(SseEmitter emitter, AgentChatStream stream) {
         AtomicBoolean completed = new AtomicBoolean(false);
@@ -54,10 +58,6 @@ public class ChatSseEventMapper {
             log.warn("agent_chat_sse_closed requestId={} conversationId={}", stream.requestId(), stream.conversationId(), error);
         });
 
-        /**
-         * 执行 聊天会话 中的 send Safely 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         sendSafely(emitter, completed, new AgentEvent.Meta(
                 stream.requestId(),
                 stream.conversationId(),
@@ -69,10 +69,6 @@ public class ChatSseEventMapper {
         StreamCancellation cancellation = cancellationRegistry.register(stream.requestId(), stream.onCancel());
         if (cancellation.isDisposed()) {
             // 停止请求可能先于模型订阅注册到达；此时不要再启动模型调用。
-            /**
-             * 执行 聊天会话 中的 complete Safely 步骤。
-             * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-             */
             completeSafely(emitter, completed);
             return;
         }
@@ -86,28 +82,12 @@ public class ChatSseEventMapper {
                                     stream.conversationId(),
                                     error
                             );
-                            /**
-                             * 执行 聊天会话 中的 send Safely 步骤。
-                             * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-                             */
                             sendSafely(emitter, completed, new AgentEvent.Error(error.getMessage()));
-                            /**
-                             * 执行 聊天会话 中的 complete Safely 步骤。
-                             * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-                             */
                             completeSafely(emitter, completed);
                             cancellationRegistry.unregister(stream.requestId(), cancellation);
                         },
                         () -> {
-                            /**
-                             * 执行 聊天会话 中的 send Safely 步骤。
-                             * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-                             */
                             sendSafely(emitter, completed, new AgentEvent.Done(null, stream.currentContextUsage()));
-                            /**
-                             * 执行 聊天会话 中的 complete Safely 步骤。
-                             * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-                             */
                             completeSafely(emitter, completed);
                             cancellationRegistry.unregister(stream.requestId(), cancellation);
                         }
@@ -117,15 +97,18 @@ public class ChatSseEventMapper {
     }
 
     /**
-     * 执行 聊天会话 中的 cancellation Handle 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将 Reactive Streams Subscription 包装成 Reactor Disposable。
+     *
+     * @param subscription 底层订阅
+     * @return 可交给取消注册表的句柄
      */
     private static Disposable cancellationHandle(Subscription subscription) {
         AtomicBoolean disposed = new AtomicBoolean(false);
         return new Disposable() {
             /**
-             * 执行 聊天会话 中的 dispose 步骤。
-             * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+             * 取消底层模型流订阅。
+             *
+             * <p>取消动作需要幂等，停止请求和 Reactor 回调可能在不同线程同时触发。</p>
              */
             @Override
             public void dispose() {
@@ -135,8 +118,9 @@ public class ChatSseEventMapper {
             }
 
             /**
-             * 判断 is Disposed 条件是否成立。
-             * <p>业务判定集中在这里，避免调用方重复实现同一规则。</p>
+             * 返回取消句柄是否已经生效。
+             *
+             * @return 已取消时为 true
              */
             @Override
             public boolean isDisposed() {
@@ -146,42 +130,38 @@ public class ChatSseEventMapper {
     }
 
     /**
-     * 执行 聊天会话 中的 send Safely 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 安全发送单个 Agent 事件。
+     *
+     * <p>发送失败会关闭 emitter 并标记完成，避免后续流回调重复写已经关闭的响应。</p>
+     *
+     * @param emitter SSE emitter
+     * @param completed SSE 是否已完成
+     * @param event Agent 事件
+     * @return 是否发送成功
      */
     private static boolean sendSafely(SseEmitter emitter, AtomicBoolean completed, AgentEvent event) {
         if (completed.get()) {
             return false;
         }
         try {
-            /**
-             * 执行 聊天会话 中的 send 步骤。
-             * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-             */
             send(emitter, event);
             return true;
         } catch (IOException ex) {
-            /**
-             * 执行 聊天会话 中的 close After Send Failure 步骤。
-             * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-             */
             closeAfterSendFailure(emitter, completed, ex);
             return false;
         } catch (IllegalStateException ex) {
             // 客户端断开或 emitter 已关闭时，Spring 可能抛出 IllegalStateException。
             // 这里统一标记完成，避免 Reactor 回调线程继续重复发送产生日志噪音。
-            /**
-             * 执行 聊天会话 中的 close After Send Failure 步骤。
-             * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-             */
             closeAfterSendFailure(emitter, completed, ex);
             return false;
         }
     }
 
     /**
-     * 执行 聊天会话 中的 complete Safely 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 安全完成 SSE 响应。
+     *
+     * @param emitter SSE emitter
+     * @param completed SSE 是否已完成
      */
     private static void completeSafely(SseEmitter emitter, AtomicBoolean completed) {
         if (!completed.compareAndSet(false, true)) {
@@ -195,8 +175,13 @@ public class ChatSseEventMapper {
     }
 
     /**
-     * 执行 聊天会话 中的 close After Send Failure 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 发送失败后关闭 SSE 响应。
+     *
+     * <p>不能调用 completeWithError，否则全局异常处理会尝试把 JSON API 响应写入 SSE 流。</p>
+     *
+     * @param emitter SSE emitter
+     * @param completed SSE 是否已完成
+     * @param ex 发送异常
      */
     private static void closeAfterSendFailure(SseEmitter emitter, AtomicBoolean completed, Exception ex) {
         if (!completed.compareAndSet(false, true)) {
@@ -216,12 +201,15 @@ public class ChatSseEventMapper {
     }
 
     /**
-     * 执行 聊天会话 中的 send 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将领域事件写成具体 SSE 事件。
+     *
+     * @param emitter SSE emitter
+     * @param event Agent 事件
+     * @throws IOException 当底层响应写入失败时抛出
      */
     private static void send(SseEmitter emitter, AgentEvent event) throws IOException {
         if (event instanceof AgentEvent.Meta meta) {
-            // SSE 发送是前端流式体验的边界，异常通常表示客户端已断开。
+            // meta 必须先发，前端依赖 requestId、conversationId 和来源列表初始化本地流状态。
             emitter.send(SseEmitter.event()
                     .name("meta")
                     .data(new ChatMetaEvent(
@@ -234,21 +222,18 @@ public class ChatSseEventMapper {
             return;
         }
         if (event instanceof AgentEvent.Delta delta) {
-            // SSE 发送是前端流式体验的边界，异常通常表示客户端已断开。
             emitter.send(SseEmitter.event()
                     .name("delta")
                     .data(new ChatDeltaEvent(delta.text())));
             return;
         }
         if (event instanceof AgentEvent.Done done) {
-            // SSE 发送是前端流式体验的边界，异常通常表示客户端已断开。
             emitter.send(SseEmitter.event()
                     .name("done")
                     .data(new ChatDoneEvent(done.usage(), done.contextUsage())));
             return;
         }
         if (event instanceof AgentEvent.Error error) {
-            // SSE 发送是前端流式体验的边界，异常通常表示客户端已断开。
             emitter.send(SseEmitter.event()
                     .name("error")
                     .data(new ChatErrorEvent(error.message())));

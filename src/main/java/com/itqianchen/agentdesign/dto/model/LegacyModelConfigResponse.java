@@ -23,8 +23,9 @@ public record LegacyModelConfigResponse(
         ModelConfigResponse embedding
 ) {
     /**
-     * 将领域对象转换为 LegacyModelConfigResponse。
-     * <p>字段映射集中在这里，减少控制器和服务层的重复拼装。</p>
+     * 兼容旧模型配置接口。
+     *
+     * <p>旧接口把 Chat 和 Embedding 压平成一份响应，新设置页仍可读取嵌套的 chat/embedding 字段。</p>
      */
     public static LegacyModelConfigResponse from(ModelConfig chat, ModelConfig embedding) {
         return new LegacyModelConfigResponse(

@@ -2,6 +2,11 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { getIndexStatus, rebuildSearchIndex, searchKnowledge as requestSearch } from '../api/search-api'
 
+/**
+ * 与后端 SearchMode 枚举保持一致的检索模式。
+ *
+ * <p>HYBRID/VECTOR 依赖 Embedding 配置；后端可能降级为 KEYWORD，调用方应以响应中的 mode 为准。</p>
+ */
 export const SEARCH_MODES = [
   { label: '关键词', value: 'KEYWORD' },
   { label: '向量', value: 'VECTOR' },
@@ -9,8 +14,9 @@ export const SEARCH_MODES = [
 ]
 
 /**
- * 定义 业务 的 Pinia Store。
- * <p>集中维护响应式状态、派生值和异步动作，组件只消费 Store 暴露的接口。</p>
+ * 管理检索页和其他知识库操作共享的索引状态。
+ *
+ * <p>文档、目录和模型配置 store 都会触发索引状态刷新，因此这里保存的是后端快照，不做本地乐观更新。</p>
  */
 export const useSearchStore = defineStore('search', () => {
   const indexStatus = ref(null)
@@ -25,10 +31,6 @@ export const useSearchStore = defineStore('search', () => {
   const mode = ref('KEYWORD')
   const topK = ref(8)
 
-  /**
-   * 加载 fetch Index Status 对应的数据。
-   * <p>接口结果会被转换为页面或 Store 可直接消费的结构。</p>
-   */
   async function fetchIndexStatus() {
     isLoadingIndexStatus.value = true
     indexError.value = ''
@@ -42,10 +44,6 @@ export const useSearchStore = defineStore('search', () => {
     }
   }
 
-  /**
-   * 执行 业务 中的 ensure Index Status Loaded 步骤。
-   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
-   */
   function ensureIndexStatusLoaded() {
     if (indexStatus.value || isLoadingIndexStatus.value) {
       return Promise.resolve()
@@ -53,10 +51,6 @@ export const useSearchStore = defineStore('search', () => {
     return fetchIndexStatus()
   }
 
-  /**
-   * 执行 业务 中的 rebuild Index 步骤。
-   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
-   */
   async function rebuildIndex() {
     isRebuildingIndex.value = true
     rebuildResult.value = null
@@ -72,10 +66,6 @@ export const useSearchStore = defineStore('search', () => {
     }
   }
 
-  /**
-   * 执行 业务 中的 search Knowledge 步骤。
-   * <p>该函数是当前组件或模块中的一个明确维护边界。</p>
-   */
   async function searchKnowledge() {
     const trimmedQuery = query.value.trim()
     if (!trimmedQuery) {
@@ -91,6 +81,7 @@ export const useSearchStore = defineStore('search', () => {
       searchResult.value = await requestSearch({
         query: trimmedQuery,
         mode: mode.value,
+        // topK 来自表单控件，提交前统一转数字，避免后端 Bean Validation 收到字符串。
         topK: Number(topK.value)
       })
     } catch (err) {

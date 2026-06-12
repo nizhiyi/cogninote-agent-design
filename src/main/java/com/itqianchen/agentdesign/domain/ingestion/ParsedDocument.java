@@ -4,16 +4,18 @@ import com.itqianchen.agentdesign.domain.document.FileType;
 import java.util.List;
 
 /**
- * Parsed Document 是 文档管理 的不可变数据快照。
- * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+ * 文档解析器和切片器之间的统一输出。
+ *
+ * <p>sections 保留标题、页码和正文，避免 PDF/DOCX/TXT 解析器在下游各自暴露不同结构。</p>
  */
 public record ParsedDocument(
         FileType fileType,
         List<ParsedSection> sections
 ) {
     /**
-     * 执行 文档管理 中的 plain Text 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 拼接出降级流程可用的纯文本。
+     *
+     * <p>空 section 会被忽略，段落之间保留空行，便于哈希、日志和纯文本兜底检索保持稳定口径。</p>
      */
     public String plainText() {
         return sections.stream()

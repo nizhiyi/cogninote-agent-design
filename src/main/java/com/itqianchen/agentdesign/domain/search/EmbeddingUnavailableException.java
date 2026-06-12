@@ -1,22 +1,26 @@
 package com.itqianchen.agentdesign.domain.search;
 
 /**
- * Embedding Unavailable 异常 表示 检索索引 的可识别异常。
- * <p>统一异常处理器会根据异常类型转换为稳定的 API 响应。</p>
+ * 向量能力不可用时抛出的检索异常。
+ *
+ * <p>该异常用于区分“用户未配置 embedding”与普通索引故障，前端可以给出配置引导。</p>
  */
 public class EmbeddingUnavailableException extends RuntimeException {
 
     /**
-     * 注入 EmbeddingUnavailableException 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 使用可展示消息创建向量不可用异常。
+     *
+     * @param message 向量能力不可用原因
      */
     public EmbeddingUnavailableException(String message) {
         super(message);
     }
 
     /**
-     * 注入 EmbeddingUnavailableException 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 保留底层原因创建向量不可用异常。
+     *
+     * @param message 向量能力不可用原因
+     * @param cause 底层模型配置或调用异常
      */
     public EmbeddingUnavailableException(String message, Throwable cause) {
         super(message, cause);

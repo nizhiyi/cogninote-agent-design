@@ -10,12 +10,18 @@ import org.springframework.core.Ordered;
 import org.springframework.stereotype.Component;
 
 /**
- * Database Schema 初始化器 在应用启动时准备 数据库元数据 资源。
- * <p>启动阶段副作用需要保持幂等，避免重复运行破坏已有数据。</p>
+ * 启动时初始化和轻量迁移本地 SQLite schema。
+ *
+ * <p>这里只执行幂等 DDL 和明确白名单内的 ADD COLUMN，避免桌面应用升级时意外改写用户数据。</p>
  */
 @Component
 public class DatabaseSchemaInitializer implements ApplicationListener<ApplicationReadyEvent>, Ordered {
 
+    /**
+     * 允许自动执行的列迁移。
+     *
+     * <p>SQLite 的 ALTER TABLE 语义有限，新增列必须显式列在白名单里，防止调用方传入任意 DDL。</p>
+     */
     private static final Map<String, String> ALLOWED_COLUMN_MIGRATIONS = Map.of(
             "documents.knowledge_folder_id", "TEXT",
             "model_config.display_name", "TEXT NOT NULL DEFAULT 'DashScope'",
@@ -27,26 +33,29 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
     private final DatabaseSchemaMapper databaseSchemaMapper;
 
     /**
-     * 注入 DatabaseSchemaInitializer 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入 schema 初始化 Mapper。
+     *
+     * @param databaseSchemaMapper 启动期 DDL 和迁移 SQL Mapper
      */
     public DatabaseSchemaInitializer(DatabaseSchemaMapper databaseSchemaMapper) {
         this.databaseSchemaMapper = databaseSchemaMapper;
     }
 
     /**
-     * 响应 on Application 事件 生命周期事件。
-     * <p>常用于应用启动、框架回调或资源初始化场景。</p>
+     * 在应用就绪后初始化 SQLite schema。
+     *
+     * @param event Spring Boot 应用就绪事件
      */
     @Override
     public void onApplicationEvent(ApplicationReadyEvent event) {
-        /**
-         * 执行 数据库元数据 中的 initialize 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         initialize();
     }
 
+    /**
+     * 返回最高优先级，保证 schema 先于其他启动清理执行。
+     *
+     * @return Ordered.HIGHEST_PRECEDENCE
+     */
     @Override
     public int getOrder() {
         // Schema 必须先于各业务模块的启动清理运行，避免新表尚未创建就被查询。
@@ -54,42 +63,22 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
     }
 
     /**
-     * 执行 数据库元数据 中的 initialize 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 执行幂等建表、补列、索引创建和旧配置迁移。
      */
     public void initialize() {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         databaseSchemaMapper.createKnowledgeFoldersTable();
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         databaseSchemaMapper.createDocumentsTable();
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         databaseSchemaMapper.createChunksTable();
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         databaseSchemaMapper.createLegacyModelConfigTable();
         // 旧版本数据库中已经存在 model_config 时，CREATE TABLE 不会补列。
         // 这里显式做轻量迁移，保证用户本地 SQLite 能跟随阶段升级继续使用。
-        /**
-         * 执行 数据库元数据 中的 add Column If Missing 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         addColumnIfMissing("documents", "knowledge_folder_id", "TEXT");
-        /**
-         * 执行 数据库元数据 中的 add Column If Missing 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         addColumnIfMissing("model_config", "display_name", "TEXT NOT NULL DEFAULT 'DashScope'");
         addColumnIfMissing("model_config", "base_url",
                 "TEXT NOT NULL DEFAULT 'https://dashscope.aliyuncs.com/api/v1'");
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         databaseSchemaMapper.createModelConfigsTable();
-        /**
-         * 执行 数据库元数据 中的 add Column If Missing 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         addColumnIfMissing("model_configs", "context_window_tokens", "INTEGER");
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         databaseSchemaMapper.createChatSessionsTable();
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         databaseSchemaMapper.createChatMessagesTable();
         /*
          * 第 23 阶段开始，追问补全策略属于全局聊天设置。
@@ -102,30 +91,16 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
         databaseSchemaMapper.createKnowledgeGraphEdgesTable();
         databaseSchemaMapper.createKnowledgeGraphEvidenceTable();
         databaseSchemaMapper.createKnowledgeGraphViewsTable();
-        /**
-         * 执行 数据库元数据 中的 add Column If Missing 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         addColumnIfMissing("chat_messages", "agent_type", "TEXT");
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         databaseSchemaMapper.createKnowledgeFoldersPathIndex();
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         databaseSchemaMapper.createKnowledgeFoldersEnabledIndex();
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         databaseSchemaMapper.createDocumentsKnowledgeFolderIdIndex();
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         databaseSchemaMapper.createDocumentsUpdatedAtIndex();
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         databaseSchemaMapper.createChunksDocumentIdIndex();
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         databaseSchemaMapper.createModelConfigsRoleIndex();
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         databaseSchemaMapper.createModelConfigsRoleActiveIndex();
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         databaseSchemaMapper.createChatSessionsUpdatedAtIndex();
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         databaseSchemaMapper.createChatMessagesSequenceIndex();
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         databaseSchemaMapper.createChatMessagesConversationIdIndex();
         databaseSchemaMapper.createKnowledgeGraphNodesScopeCanonicalIndex();
         databaseSchemaMapper.createKnowledgeGraphEdgesScopeIndex();
@@ -135,21 +110,12 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
         databaseSchemaMapper.createKnowledgeGraphEvidenceChunkIndex();
         databaseSchemaMapper.createKnowledgeGraphRunsScopeStatusIndex();
         databaseSchemaMapper.createKnowledgeGraphViewsScopeIndex();
-        /**
-         * 执行 数据库元数据 中的 cleanup Soft Deleted Chat Sessions 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         cleanupSoftDeletedChatSessions();
-        /**
-         * 执行 数据库元数据 中的 migrate Legacy Model 配置 If Needed 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         migrateLegacyModelConfigIfNeeded();
     }
 
     /**
-     * 执行 数据库元数据 中的 cleanup Soft Deleted Chat Sessions 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 清理旧版本软删除会话的物理残留。
      */
     private void cleanupSoftDeletedChatSessions() {
         /*
@@ -157,13 +123,15 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
          * 新版本把用户删除视为销毁操作；启动时顺手清掉历史软删除残留，避免升级后旧数据继续存在。
          */
         databaseSchemaMapper.deleteSoftDeletedChatMessages();
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         databaseSchemaMapper.deleteSoftDeletedChatSessions();
     }
 
     /**
-     * 执行 数据库元数据 中的 add Column If Missing 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 在白名单允许范围内为旧表补列。
+     *
+     * @param tableName 表名
+     * @param columnName 列名
+     * @param definition 列定义
      */
     private void addColumnIfMissing(String tableName, String columnName, String definition) {
         String migrationKey = tableName + "." + columnName;
@@ -171,20 +139,21 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
         if (!definition.equals(allowedDefinition)) {
             throw new IllegalArgumentException("Unsupported column migration: " + migrationKey);
         }
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
+        // 表结构读取结果在不同 SQLite/JDBC 版本里 key 大小写不稳定，sqliteColumnName 做兼容归一。
         List<Map<String, Object>> columns = databaseSchemaMapper.tableInfo(tableName);
         boolean exists = columns.stream()
                 .map(DatabaseSchemaInitializer::sqliteColumnName)
                 .anyMatch(existingColumn -> existingColumn != null && columnName.equalsIgnoreCase(existingColumn));
         if (!exists) {
-            // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
             databaseSchemaMapper.addColumn(tableName, columnName, definition);
         }
     }
 
     /**
-     * 执行 数据库元数据 中的 sqlite Column Name 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 从 PRAGMA table_info 行里读取列名。
+     *
+     * @param column PRAGMA 返回行
+     * @return 列名；缺失时返回 null
      */
     private static String sqliteColumnName(Map<String, Object> column) {
         for (Map.Entry<String, Object> entry : column.entrySet()) {
@@ -197,16 +166,12 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
     }
 
     /**
-     * 执行 数据库元数据 中的 migrate Legacy Model 配置 If Needed 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 在新模型配置表为空时迁移旧 active_model_config。
      */
     private void migrateLegacyModelConfigIfNeeded() {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         if (databaseSchemaMapper.countModelConfigs() > 0) {
             return;
         }
-
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         List<Map<String, Object>> legacyRows = databaseSchemaMapper.findLegacyActiveModelConfig();
         Map<String, Object> legacy = legacyRows.isEmpty() ? Map.of() : legacyRows.getFirst();
         long now = System.currentTimeMillis();
@@ -235,10 +200,6 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
                 createdAt,
                 updatedAt
         );
-        /**
-         * 创建 insert Initial Model 配置 对应的数据。
-         * <p>创建流程集中处理默认值、校验和持久化边界。</p>
-         */
         insertInitialModelConfig(
                 "active-embedding",
                 "EMBEDDING",
@@ -257,8 +218,21 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
     }
 
     /**
-     * 创建 insert Initial Model 配置 对应的数据。
-     * <p>创建流程集中处理默认值、校验和持久化边界。</p>
+     * 插入启动期初始模型配置。
+     *
+     * @param id 配置 ID
+     * @param role 模型角色
+     * @param provider Provider 名称
+     * @param displayName 展示名称
+     * @param baseUrl Base URL
+     * @param apiKey API Key
+     * @param modelName 模型名称
+     * @param embeddingDimensions 向量维度
+     * @param temperature 温度
+     * @param defaultTopK 默认 topK
+     * @param contextWindowTokens 上下文窗口 token
+     * @param createdAt 创建时间
+     * @param updatedAt 更新时间
      */
     private void insertInitialModelConfig(
             String id,
@@ -275,7 +249,6 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
             long createdAt,
             long updatedAt
     ) {
-        // 数据库访问集中经过 Mapper，避免业务层直接拼接 SQL。
         databaseSchemaMapper.insertInitialModelConfig(
                 id == null || id.isBlank() ? UUID.randomUUID().toString() : id,
                 role,
@@ -294,8 +267,11 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
     }
 
     /**
-     * 执行 数据库元数据 中的 text Value 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 读取文本值并提供默认值。
+     *
+     * @param value 原始值
+     * @param defaultValue 默认值
+     * @return 非空文本
      */
     private static String textValue(Object value, String defaultValue) {
         if (value == null) {
@@ -306,24 +282,33 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
     }
 
     /**
-     * 执行 数据库元数据 中的 long Value 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 读取 long 值并提供默认值。
+     *
+     * @param value 原始值
+     * @param defaultValue 默认值
+     * @return long 值
      */
     private static long longValue(Object value, long defaultValue) {
         return value instanceof Number number ? number.longValue() : defaultValue;
     }
 
     /**
-     * 执行 数据库元数据 中的 int Object Value 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 读取 Integer 值并提供默认值。
+     *
+     * @param value 原始值
+     * @param defaultValue 默认值
+     * @return Integer 值
      */
     private static Integer intObjectValue(Object value, int defaultValue) {
         return value instanceof Number number ? number.intValue() : defaultValue;
     }
 
     /**
-     * 执行 数据库元数据 中的 double Object Value 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 读取 Double 值并提供默认值。
+     *
+     * @param value 原始值
+     * @param defaultValue 默认值
+     * @return Double 值
      */
     private static Double doubleObjectValue(Object value, double defaultValue) {
         return value instanceof Number number ? number.doubleValue() : defaultValue;

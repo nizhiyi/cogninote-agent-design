@@ -15,8 +15,10 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.stereotype.Component;
 
 /**
- * SQLite Chat Memory 承担 聊天会话 模块的主要职责。
- * <p>注释说明维护边界，不改变现有运行逻辑。</p>
+ * Spring AI ChatMemory 的 SQLite 实现。
+ *
+ * <p>该适配器只保存 USER/ASSISTANT 消息，系统消息由各 Agent 每次调用时重新注入；
+ * 这样切换 Agent 或配置后不会把旧系统规则永久写进会话历史。</p>
  */
 @Component
 public class SQLiteChatMemory implements ChatMemory {
@@ -25,8 +27,10 @@ public class SQLiteChatMemory implements ChatMemory {
     private final TokenEstimator tokenEstimator;
 
     /**
-     * 注入 SQLiteChatMemory 运行所需的协作者。
-     * <p>依赖由 Spring 或测试环境统一提供，构造器本身不做业务副作用。</p>
+     * 注入会话仓储和 token 估算器。
+     *
+     * @param chatSessionRepository 会话仓储
+     * @param tokenEstimator token 估算器
      */
     public SQLiteChatMemory(ChatSessionRepository chatSessionRepository, TokenEstimator tokenEstimator) {
         this.chatSessionRepository = chatSessionRepository;
@@ -34,8 +38,12 @@ public class SQLiteChatMemory implements ChatMemory {
     }
 
     /**
-     * 执行 聊天会话 中的 add 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 批量写入 Spring AI 记忆消息。
+     *
+     * <p>Spring AI 可能先写 memory 再进入应用会话流程，因此这里会按同一 conversationId 补齐会话。</p>
+     *
+     * @param conversationId 会话 ID
+     * @param messages Spring AI 消息列表
      */
     @Override
     public void add(String conversationId, List<Message> messages) {
@@ -43,24 +51,23 @@ public class SQLiteChatMemory implements ChatMemory {
             return;
         }
         long now = System.currentTimeMillis();
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
+        // Spring AI 可能先写 memory 再经过应用会话创建流程，这里用同一个 conversationId 补齐 SQLite 会话。
         chatSessionRepository.ensureSession(conversationId, "新对话", true, SearchMode.HYBRID, 8, now);
         for (Message message : messages) {
-            /**
-             * 执行 聊天会话 中的 add 步骤。
-             * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-             */
             add(conversationId, message);
         }
     }
 
     /**
-     * 读取 get 对应的数据。
-     * <p>缺失、空值和兼容兜底由该方法统一处理。</p>
+     * 读取 Spring AI 可消费的聊天历史。
+     *
+     * <p>只返回 USER/ASSISTANT，系统消息由 Agent 本轮重新注入。</p>
+     *
+     * @param conversationId 会话 ID
+     * @return Spring AI 消息列表
      */
     @Override
     public List<Message> get(String conversationId) {
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         return chatSessionRepository.findMessages(conversationId).stream()
                 .filter(message -> message.role() == ChatMessageRole.USER || message.role() == ChatMessageRole.ASSISTANT)
                 .map(SQLiteChatMemory::toSpringMessage)
@@ -68,18 +75,20 @@ public class SQLiteChatMemory implements ChatMemory {
     }
 
     /**
-     * 清理 clear 对应的数据。
-     * <p>清理只移除目标内容，保留会话或模块继续运行所需的外壳状态。</p>
+     * 清空会话记忆。
+     *
+     * @param conversationId 会话 ID
      */
     @Override
     public void clear(String conversationId) {
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         chatSessionRepository.clearMessages(conversationId, System.currentTimeMillis());
     }
 
     /**
-     * 执行 聊天会话 中的 add 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 写入单条 Spring AI 消息。
+     *
+     * @param conversationId 会话 ID
+     * @param message Spring AI 消息
      */
     @Override
     public void add(String conversationId, Message message) {
@@ -89,7 +98,6 @@ public class SQLiteChatMemory implements ChatMemory {
         ChatMessageRole role = message.getMessageType() == MessageType.ASSISTANT
                 ? ChatMessageRole.ASSISTANT
                 : ChatMessageRole.USER;
-        // 写入会影响本地 SQLite 状态，调用顺序需要和会话状态机保持一致。
         chatSessionRepository.appendMessage(
                 conversationId,
                 role,
@@ -105,8 +113,10 @@ public class SQLiteChatMemory implements ChatMemory {
     }
 
     /**
-     * 执行 聊天会话 中的 to Spring Message 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 将本地消息转换为 Spring AI 消息。
+     *
+     * @param message 本地聊天消息
+     * @return Spring AI 消息
      */
     private static Message toSpringMessage(ChatMessage message) {
         if (message.role() == ChatMessageRole.ASSISTANT) {

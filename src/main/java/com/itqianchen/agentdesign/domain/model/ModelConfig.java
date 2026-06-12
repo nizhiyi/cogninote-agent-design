@@ -1,8 +1,9 @@
 package com.itqianchen.agentdesign.domain.model;
 
 /**
- * Model 配置 集中维护 模型配置 相关的 Spring 配置。
- * <p>这里的 Bean 或扫描配置会影响应用启动阶段的基础设施装配。</p>
+ * 用户保存的模型配置快照。
+ *
+ * <p>配置会同时影响聊天、向量索引和连接测试；默认值与边界归一化集中在该领域对象中维护。</p>
  */
 public record ModelConfig(
         String id,
@@ -21,16 +22,18 @@ public record ModelConfig(
         long updatedAt
 ) {
     /**
-     * 判断 has Api Key 条件是否成立。
-     * <p>业务判定集中在这里，避免调用方重复实现同一规则。</p>
+     * 判断该配置是否包含可用于 provider 调用的 API Key。
+     *
+     * @return API Key 非空且非空白时为 true
      */
     public boolean hasApiKey() {
         return apiKey != null && !apiKey.isBlank();
     }
 
     /**
-     * 解析 resolved Embedding Dimensions 的最终取值。
-     * <p>默认值、兼容规则和异常输入兜底集中在这里。</p>
+     * 返回 Embedding 维度的有效取值。
+     *
+     * <p>旧数据可能没有保存维度，统一回落到默认值可以避免索引和模型客户端使用不同向量形状。</p>
      */
     public int resolvedEmbeddingDimensions() {
         return embeddingDimensions == null
@@ -39,24 +42,27 @@ public record ModelConfig(
     }
 
     /**
-     * 解析 resolved Temperature 的最终取值。
-     * <p>默认值、兼容规则和异常输入兜底集中在这里。</p>
+     * 返回生成温度的有效取值。
+     *
+     * <p>缺省值在领域层兜底，保证不同 provider 工厂读取到一致的生成参数。</p>
      */
     public double resolvedTemperature() {
         return temperature == null ? ModelConfigDefaults.TEMPERATURE : temperature;
     }
 
     /**
-     * 解析 resolved Default Top K 的最终取值。
-     * <p>默认值、兼容规则和异常输入兜底集中在这里。</p>
+     * 返回默认检索 topK 的有效取值。
+     *
+     * <p>该值会作为新会话检索参数的种子，缺省时沿用应用默认值。</p>
      */
     public int resolvedDefaultTopK() {
         return defaultTopK == null ? ModelConfigDefaults.TOP_K : defaultTopK;
     }
 
     /**
-     * 解析 resolved Context Window Tokens 的最终取值。
-     * <p>默认值、兼容规则和异常输入兜底集中在这里。</p>
+     * 返回聊天上下文窗口的有效 token 上限。
+     *
+     * <p>非 Chat 配置没有上下文窗口语义；Chat 配置会夹紧到应用支持范围，避免异常输入撑爆上下文预算。</p>
      */
     public int resolvedContextWindowTokens() {
         if (role != ModelConfigRole.CHAT) {

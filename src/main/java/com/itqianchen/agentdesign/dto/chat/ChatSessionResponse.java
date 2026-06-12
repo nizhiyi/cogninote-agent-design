@@ -23,16 +23,23 @@ public record ChatSessionResponse(
 ) {
 
     /**
-     * 执行 聊天会话 中的 summary 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 构造不携带消息体的会话摘要。
+     *
+     * @param session 会话领域对象
+     * @return 适合侧栏列表展示的响应
      */
     public static ChatSessionResponse summary(ChatSession session) {
         return summary(session, 0);
     }
 
     /**
-     * 执行 聊天会话 中的 summary 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
+     * 构造带消息数量的会话摘要。
+     *
+     * <p>摘要响应固定返回空 messages，避免列表接口传输完整历史消息。</p>
+     *
+     * @param session 会话领域对象
+     * @param messageCount 会话消息数量
+     * @return 适合侧栏列表展示的响应
      */
     public static ChatSessionResponse summary(ChatSession session, int messageCount) {
         return new ChatSessionResponse(
@@ -51,8 +58,9 @@ public record ChatSessionResponse(
     }
 
     /**
-     * 将领域对象转换为 ChatSessionResponse。
-     * <p>字段映射集中在这里，减少控制器和服务层的重复拼装。</p>
+     * 构造会话详情响应。
+     *
+     * <p>摘要列表接口使用 summary() 返回空 messages，详情接口才携带完整消息，避免侧栏传输大文本。</p>
      */
     public static ChatSessionResponse from(ChatSession session, List<ChatMessageResponse> messages) {
         return new ChatSessionResponse(
@@ -71,8 +79,12 @@ public record ChatSessionResponse(
     }
 
     /**
-     * 返回应用 with Context Usage 后的新对象。
-     * <p>不可变数据通过复制表达变更，避免调用方误改原对象。</p>
+     * 返回附带上下文预算的会话响应副本。
+     *
+     * <p>record 保持不可变，追加流式上下文统计时通过副本传递，避免修改既有响应对象。</p>
+     *
+     * @param contextUsage 上下文预算统计
+     * @return 包含上下文预算的响应副本
      */
     public ChatSessionResponse withContextUsage(ChatContextUsageResponse contextUsage) {
         return new ChatSessionResponse(

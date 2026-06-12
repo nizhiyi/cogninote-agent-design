@@ -3,8 +3,9 @@ package com.itqianchen.agentdesign.domain.search;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Embedding 配置属性 映射 检索索引 的 YAML 配置。
- * <p>通过类型化配置隔离环境变量、默认值和业务代码。</p>
+ * Embedding 索引配置属性。
+ *
+ * <p>批量大小会影响 provider 限流和本地内存占用，读取后必须通过归一化方法获得安全范围。</p>
  */
 @ConfigurationProperties(prefix = "app.embedding")
 public record EmbeddingProperties(
@@ -12,8 +13,9 @@ public record EmbeddingProperties(
         int batchSize
 ) {
     /**
-     * 规范化 normalized Batch Size 输入。
-     * <p>后续逻辑只处理受控取值，减少重复分支和边界判断。</p>
+     * 返回安全范围内的 embedding 批量大小。
+     *
+     * @return 夹紧到 1 到 128 之间的批量大小
      */
     public int normalizedBatchSize() {
         return Math.clamp(batchSize, 1, 128);

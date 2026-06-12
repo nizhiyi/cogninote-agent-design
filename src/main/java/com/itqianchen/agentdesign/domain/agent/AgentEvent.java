@@ -11,10 +11,6 @@ import java.util.List;
  */
 public sealed interface AgentEvent permits AgentEvent.Meta, AgentEvent.Delta, AgentEvent.Done, AgentEvent.Error {
 
-    /**
-     * Meta 是 智能体编排 的不可变数据快照。
-     * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
-     */
     record Meta(
             String requestId,
             String conversationId,
@@ -24,24 +20,12 @@ public sealed interface AgentEvent permits AgentEvent.Meta, AgentEvent.Delta, Ag
     ) implements AgentEvent {
     }
 
-    /**
-     * Delta 是 智能体编排 的不可变数据快照。
-     * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
-     */
     record Delta(String text) implements AgentEvent {
     }
 
-    /**
-     * Done 是 智能体编排 的不可变数据快照。
-     * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
-     */
     record Done(Object usage, ChatContextUsageResponse contextUsage) implements AgentEvent {
     }
 
-    /**
-     * Error 是 智能体编排 的不可变数据快照。
-     * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
-     */
     record Error(String message) implements AgentEvent {
     }
 }

@@ -3,8 +3,9 @@ package com.itqianchen.agentdesign.domain.chat;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Chat Prompt 配置属性 映射 聊天会话 的 YAML 配置。
- * <p>通过类型化配置隔离环境变量、默认值和业务代码。</p>
+ * 聊天 Prompt 的类型化配置。
+ *
+ * <p>所有模板在启动期完成必填项和占位符校验，避免会话运行到模型调用阶段才暴露配置错误。</p>
  */
 @ConfigurationProperties(prefix = "app.chat.prompts")
 public record ChatPromptProperties(
@@ -14,6 +15,11 @@ public record ChatPromptProperties(
         ConnectionTest connectionTest
 ) {
 
+    /**
+     * 校验聊天 Prompt 的四组模板必须全部存在。
+     *
+     * <p>配置缺失属于启动期错误，直接失败比在某个聊天分支里降级更容易定位。</p>
+     */
     public ChatPromptProperties {
         if (general == null) {
             throw new IllegalArgumentException("app.chat.prompts.general must be configured");
@@ -30,24 +36,20 @@ public record ChatPromptProperties(
     }
 
     /**
-     * Prompt Template 是 聊天会话 的不可变数据快照。
-     * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+     * 普通聊天 Prompt 模板。
+     *
+     * <p>user 模板必须包含 {question}，否则无法把当前用户输入绑定到模型请求。</p>
      */
     public record PromptTemplate(
             String system,
             String user
     ) {
 
+        /**
+         * 校验普通聊天模板的必填文本和用户问题占位符。
+         */
         public PromptTemplate {
-            /**
-             * 读取必需的 require Text 配置或数据。
-             * <p>缺失时立即失败，避免外部模型或数据库调用才暴露问题。</p>
-             */
             requireText(system, "app.chat.prompts.*.system");
-            /**
-             * 读取必需的 require Text 配置或数据。
-             * <p>缺失时立即失败，避免外部模型或数据库调用才暴露问题。</p>
-             */
             requireText(user, "app.chat.prompts.*.user");
             if (!user.contains("{question}")) {
                 throw new IllegalArgumentException("app.chat.prompts.*.user must contain {question}");
@@ -56,8 +58,9 @@ public record ChatPromptProperties(
     }
 
     /**
-     * Rag 是 聊天会话 的不可变数据快照。
-     * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+     * RAG 聊天 Prompt 模板。
+     *
+     * <p>知识库上下文由 Spring AI Advisor 注入，模板不能再声明 {context}，否则会形成两套上下文入口。</p>
      */
     public record Rag(
             String system,
@@ -65,21 +68,12 @@ public record ChatPromptProperties(
             String emptyContext
     ) {
 
+        /**
+         * 校验 RAG 模板和 Advisor 注入约束。
+         */
         public Rag {
-            /**
-             * 读取必需的 require Text 配置或数据。
-             * <p>缺失时立即失败，避免外部模型或数据库调用才暴露问题。</p>
-             */
             requireText(system, "app.chat.prompts.rag.system");
-            /**
-             * 读取必需的 require Text 配置或数据。
-             * <p>缺失时立即失败，避免外部模型或数据库调用才暴露问题。</p>
-             */
             requireText(user, "app.chat.prompts.rag.user");
-            /**
-             * 读取必需的 require Text 配置或数据。
-             * <p>缺失时立即失败，避免外部模型或数据库调用才暴露问题。</p>
-             */
             requireText(emptyContext, "app.chat.prompts.rag.empty-context");
             /*
              * 第十三阶段后知识库上下文由 Spring AI RAG Advisor 注入，
@@ -97,24 +91,20 @@ public record ChatPromptProperties(
     }
 
     /**
-     * Query Contextualizer 是 聊天会话 的不可变数据快照。
-     * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+     * 查询改写 Prompt 模板。
+     *
+     * <p>模板必须同时接收当前问题和历史上下文，改写后的检索查询才不会丢失多轮会话指代。</p>
      */
     public record QueryContextualizer(
             String system,
             String user
     ) {
 
+        /**
+         * 校验查询改写模板所需的上下文占位符。
+         */
         public QueryContextualizer {
-            /**
-             * 读取必需的 require Text 配置或数据。
-             * <p>缺失时立即失败，避免外部模型或数据库调用才暴露问题。</p>
-             */
             requireText(system, "app.chat.prompts.query-contextualizer.system");
-            /**
-             * 读取必需的 require Text 配置或数据。
-             * <p>缺失时立即失败，避免外部模型或数据库调用才暴露问题。</p>
-             */
             requireText(user, "app.chat.prompts.query-contextualizer.user");
             if (!user.contains("{question}")) {
                 throw new IllegalArgumentException(
@@ -128,23 +118,25 @@ public record ChatPromptProperties(
     }
 
     /**
-     * Connection 测试 是 聊天会话 的不可变数据快照。
-     * <p>record 用于跨层传递数据，不承载可变业务状态。</p>
+     * 模型连通性测试 Prompt。
+     *
+     * <p>该模板应保持轻量，避免设置页测试连接时消耗过多上下文或触发业务型回复。</p>
      */
     public record ConnectionTest(String user) {
 
+        /**
+         * 校验连通性测试用户模板。
+         */
         public ConnectionTest {
-            /**
-             * 读取必需的 require Text 配置或数据。
-             * <p>缺失时立即失败，避免外部模型或数据库调用才暴露问题。</p>
-             */
             requireText(user, "app.chat.prompts.connection-test.user");
         }
     }
 
     /**
-     * 读取必需的 require Text 配置或数据。
-     * <p>缺失时立即失败，避免外部模型或数据库调用才暴露问题。</p>
+     * 校验配置文本不能为空。
+     *
+     * @param value 配置值
+     * @param propertyName 配置项名称，用于错误消息定位
      */
     private static void requireText(String value, String propertyName) {
         if (value == null || value.isBlank()) {

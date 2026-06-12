@@ -23,7 +23,8 @@ public class ChatSettingsController {
 
     /**
      * 注入聊天设置服务。
-     * <p>依赖由 Spring 统一提供，构造器本身不产生业务副作用。</p>
+     *
+     * @param chatSettingsService 负责持久化和读取聊天设置
      */
     public ChatSettingsController(ChatSettingsService chatSettingsService) {
         this.chatSettingsService = chatSettingsService;

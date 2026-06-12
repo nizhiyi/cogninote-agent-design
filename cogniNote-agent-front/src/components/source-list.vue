@@ -1,8 +1,12 @@
 <script setup>
-// source-list 负责 业务 页面或组件的状态组织、用户交互和后端同步。
 import { ref } from 'vue'
 import { formatScore } from '../utils/formatters'
 
+/**
+ * 聊天回答的引用来源列表。
+ *
+ * <p>source.index 与回答正文中的 [n] 引用编号对应，不能在前端重新排序。</p>
+ */
 defineProps({
   sources: {
     type: Array,

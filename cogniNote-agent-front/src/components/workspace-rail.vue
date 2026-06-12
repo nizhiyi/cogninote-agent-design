@@ -7,6 +7,11 @@ import { useSystemStore } from '../stores/system'
 const layoutStore = useLayoutStore()
 const systemStore = useSystemStore()
 
+/**
+ * 全局工作区导航栏。
+ *
+ * <p>状态灯只反映后端 API 连接情况，不代表模型或知识库索引健康。</p>
+ */
 const navItems = [
   { name: 'chat', label: '对话', icon: MessageSquareText },
   { name: 'knowledge', label: '知识库', icon: Library },

@@ -8,8 +8,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
 /**
- * System Status 控制器 测试 承担 系统状态 模块的主要职责。
- * <p>注释说明维护边界，不改变现有运行逻辑。</p>
+ * 覆盖系统状态响应的对外契约。
+ *
+ * <p>状态页依赖固定 appName、version、dataDir 和 desktopMode 字段，测试防止启动配置变更破坏前端展示。</p>
  */
 @SpringBootTest
 @TestPropertySource(properties = {
@@ -22,38 +23,14 @@ class SystemStatusControllerTests {
     @Autowired
     private com.itqianchen.agentdesign.service.system.SystemStatusService systemStatusService;
 
-    /**
-     * 执行 系统状态 中的 status Returns Application Health And Storage Path 步骤。
-     * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-     */
     @Test
     void statusReturnsApplicationHealthAndStoragePath() {
         com.itqianchen.agentdesign.dto.system.SystemStatusResponse response = systemStatusService.status();
 
-        /**
-         * 执行 系统状态 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(response.appName()).isEqualTo("CogniNote Agent");
-        /**
-         * 执行 系统状态 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(response.version()).isEqualTo("test-backend-version");
-        /**
-         * 执行 系统状态 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(response.status()).isEqualTo("UP");
-        /**
-         * 执行 系统状态 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(response.dataDir()).contains("target");
-        /**
-         * 执行 系统状态 中的 assert That 步骤。
-         * <p>该方法是当前类型内部复用或对外暴露的明确业务边界。</p>
-         */
         assertThat(response.desktopMode()).isFalse();
     }
 }

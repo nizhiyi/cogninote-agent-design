@@ -1,6 +1,11 @@
 <script setup>
 import { computed } from 'vue'
 
+/**
+ * 关系图的表格视图。
+ *
+ * <p>表格复用 GRAPH payload，只把 edge 展示成邻接关系；点击行时仍通过 edge id 打开同一套证据抽屉。</p>
+ */
 const props = defineProps({
   payload: {
     type: Object,
