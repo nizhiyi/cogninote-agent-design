@@ -2,8 +2,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import cytoscape from 'cytoscape'
 import fcose from 'cytoscape-fcose'
-import { LocateFixed, RotateCcw, Search, SlidersHorizontal } from 'lucide-vue-next'
-import { formatScore } from '../utils/formatters'
+import { LocateFixed, Maximize2, Minimize2, RotateCcw, Search, SlidersHorizontal } from 'lucide-vue-next'
+import { formatRelationType, formatScore } from '../utils/formatters'
 
 let isFcoseRegistered = false
 
@@ -13,8 +13,12 @@ function ensureFcoseRegistered() {
   }
   try {
     cytoscape.use(fcose)
-  } catch {
+  } catch (error) {
     // Vite HMR 可能保留 cytoscape 全局扩展；重复注册失败时继续复用已有扩展。
+    const message = error instanceof Error ? error.message : String(error)
+    if (!/already|registered|extension/i.test(message)) {
+      throw new Error(`fcose 布局注册失败：${message}`)
+    }
   }
   isFcoseRegistered = true
 }
@@ -36,18 +40,26 @@ const props = defineProps({
 
 const emit = defineEmits(['open-evidence'])
 
+const stageRef = ref(null)
 const canvasRef = ref(null)
 const searchQuery = ref('')
 const selectedNodeTypes = ref([])
 const selectedRelationTypes = ref([])
 const minWeight = ref(0)
 const selectedItem = ref(null)
+const renderError = ref('')
+const isStageFullscreen = ref(false)
 let cy = null
 
 const isGraphMode = computed(() => props.mode === 'GRAPH')
+const fullscreenButtonLabel = computed(() => isStageFullscreen.value ? '退出画布全屏' : '画布全屏')
 const rawElements = computed(() => isGraphMode.value ? graphElements() : mindmapElements())
 const typeOptions = computed(() => countOptions(rawElements.value.nodes.map((node) => node.data.nodeType)))
-const relationOptions = computed(() => countOptions(rawElements.value.edges.map((edge) => edge.data.relationType)))
+const relationOptions = computed(() =>
+  countOptions(rawElements.value.edges.map((edge) => edge.data.relationType))
+    .map((option) => ({ ...option, label: formatRelationType(option.value) }))
+    .sort((left, right) => left.label.localeCompare(right.label, 'zh-CN') || left.value.localeCompare(right.value))
+)
 const filteredElements = computed(() => isGraphMode.value ? filteredGraphElements() : filteredMindmapElements())
 const hasCanvasData = computed(() => filteredElements.value.nodes.length > 0)
 const summaryText = computed(() =>
@@ -65,7 +77,7 @@ watch(relationOptions, (options) => {
 watch(
   () => [filteredElements.value, props.fullscreen],
   () => {
-    void renderGraph()
+    renderGraphSafely()
   },
   { deep: true }
 )
@@ -82,11 +94,15 @@ watch(filteredElements, () => {
 })
 
 onMounted(() => {
-  ensureFcoseRegistered()
-  void renderGraph()
+  document.addEventListener('fullscreenchange', handleFullscreenChange)
+  renderGraphSafely()
 })
 
 onBeforeUnmount(() => {
+  document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  if (document.fullscreenElement === stageRef.value) {
+    void document.exitFullscreen?.().catch(() => {})
+  }
   destroyGraph()
 })
 
@@ -108,21 +124,25 @@ function graphElements() {
       shape: 'ellipse'
     }
   }))
-  const edges = (props.payload?.edges || []).map((edge) => ({
-    data: {
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-      label: edge.label || 'RELATED_TO',
-      relationType: edge.label || 'RELATED_TO',
-      sourceLabel: edge.sourceLabel || nodeLabelById.get(edge.source) || edge.source,
-      targetLabel: edge.targetLabel || nodeLabelById.get(edge.target) || edge.target,
-      weight: edge.weight || 1,
-      confidence: edge.confidence || 0,
-      width: Math.min(7, 1.5 + Number(edge.weight || 1)),
-      color: edgeColor(edge.label)
+  const edges = (props.payload?.edges || []).map((edge) => {
+    const relation = edge.label || 'RELATED_TO'
+    return {
+      data: {
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        label: formatRelationType(relation),
+        relationType: relation,
+        relationLabel: formatRelationType(relation),
+        sourceLabel: edge.sourceLabel || nodeLabelById.get(edge.source) || edge.source,
+        targetLabel: edge.targetLabel || nodeLabelById.get(edge.target) || edge.target,
+        weight: edge.weight || 1,
+        confidence: edge.confidence || 0,
+        width: Math.min(7, 1.5 + Number(edge.weight || 1)),
+        color: edgeColor(relation)
+      }
     }
-  }))
+  })
   return { nodes, edges }
 }
 
@@ -326,6 +346,7 @@ async function renderGraph() {
     return
   }
   destroyGraph()
+  renderError.value = ''
   if (!hasCanvasData.value) {
     return
   }
@@ -360,12 +381,15 @@ function runLayout() {
   if (!cy) {
     return
   }
+  if (isGraphMode.value) {
+    ensureFcoseRegistered()
+  }
   const layout = isGraphMode.value
     ? {
         name: 'fcose',
         animate: false,
         fit: true,
-        padding: props.fullscreen ? 72 : 40,
+        padding: graphPadding(),
         nodeRepulsion: 6500,
         idealEdgeLength: 110,
         quality: 'default'
@@ -375,14 +399,52 @@ function runLayout() {
         directed: true,
         animate: false,
         fit: true,
-        padding: props.fullscreen ? 72 : 40,
+        padding: graphPadding(),
         spacingFactor: 1.35
       }
   cy.layout(layout).run()
 }
 
 function fitGraph() {
-  cy?.fit(undefined, props.fullscreen ? 72 : 40)
+  cy?.fit(undefined, graphPadding())
+}
+
+function graphPadding() {
+  return props.fullscreen || isStageFullscreen.value ? 72 : 40
+}
+
+async function toggleStageFullscreen() {
+  const stage = stageRef.value
+  if (!stage || !document.fullscreenEnabled || !stage.requestFullscreen) {
+    renderError.value = '当前浏览器不支持画布全屏。'
+    return
+  }
+  try {
+    renderError.value = ''
+    if (document.fullscreenElement === stage) {
+      await document.exitFullscreen()
+      return
+    }
+    await stage.requestFullscreen()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    renderError.value = `画布全屏失败：${message}`
+  }
+}
+
+function handleFullscreenChange() {
+  isStageFullscreen.value = document.fullscreenElement === stageRef.value
+  resizeGraphAfterContainerChange()
+}
+
+function resizeGraphAfterContainerChange() {
+  // Fullscreen API 会异步改变容器尺寸，等浏览器完成布局后再同步 Cytoscape 视口。
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      cy?.resize()
+      fitGraph()
+    })
+  })
 }
 
 function resetExplorer() {
@@ -391,7 +453,15 @@ function resetExplorer() {
   selectedRelationTypes.value = relationOptions.value.map((option) => option.value)
   minWeight.value = 0
   selectedItem.value = null
-  void renderGraph()
+  renderGraphSafely()
+}
+
+function renderGraphSafely() {
+  renderGraph().catch((error) => {
+    destroyGraph()
+    const message = error instanceof Error ? error.message : String(error)
+    renderError.value = `图谱渲染失败：${message}`
+  })
 }
 
 function selectElement(element) {
@@ -428,7 +498,7 @@ function openSelectedEvidence() {
       type: 'edge',
       id: selectedItem.value.id,
       label: selectedItem.value.label,
-      meta: `${selectedItem.value.sourceLabel || selectedItem.value.source} -> ${selectedItem.value.targetLabel || selectedItem.value.target}`
+      meta: `${selectedItem.value.sourceLabel || selectedItem.value.source} -> ${selectedItem.value.label} -> ${selectedItem.value.targetLabel || selectedItem.value.target}`
     })
     return
   }
@@ -588,7 +658,7 @@ function countOptions(values) {
         <strong>关系类型</strong>
         <label v-for="option in relationOptions" :key="option.value">
           <input v-model="selectedRelationTypes" type="checkbox" :value="option.value" />
-          <span>{{ option.value }}</span>
+          <span>{{ option.label }}</span>
           <em>{{ option.count }}</em>
         </label>
       </section>
@@ -604,7 +674,7 @@ function countOptions(values) {
       </button>
     </aside>
 
-    <div class="graph-explorer__stage">
+    <div ref="stageRef" class="graph-explorer__stage">
       <div class="graph-explorer__stage-toolbar">
         <div>
           <strong>{{ isGraphMode ? '关系图' : '思维导图' }}</strong>
@@ -612,6 +682,10 @@ function countOptions(values) {
           <span v-if="isGraphMode && payload?.hiddenNodeCount">隐藏 {{ payload.hiddenNodeCount }} 节点</span>
         </div>
         <div>
+          <button type="button" class="icon-button" :aria-label="fullscreenButtonLabel" :title="fullscreenButtonLabel" @click="toggleStageFullscreen">
+            <Minimize2 v-if="isStageFullscreen" aria-hidden="true" />
+            <Maximize2 v-else aria-hidden="true" />
+          </button>
           <button type="button" class="icon-button" aria-label="适配图谱视图" title="适配图谱视图" @click="fitGraph">
             <LocateFixed aria-hidden="true" />
           </button>
@@ -633,7 +707,8 @@ function countOptions(values) {
       </div>
 
       <div class="graph-explorer__canvas-wrap">
-        <p v-if="!hasCanvasData" class="panel-message">当前筛选下没有可展示的图谱节点。</p>
+        <p v-if="renderError" class="panel-message graph-explorer__error">{{ renderError }}</p>
+        <p v-else-if="!hasCanvasData" class="panel-message">当前筛选下没有可展示的图谱节点。</p>
         <div ref="canvasRef" class="graph-explorer__canvas" role="img" :aria-label="isGraphMode ? '知识图谱关系图' : '知识图谱思维导图'"></div>
       </div>
     </div>
@@ -644,7 +719,7 @@ function countOptions(values) {
         <h4>{{ selectedItem.label }}</h4>
         <div class="graph-inspector__meta">
           <span v-if="selectedItem.group === 'node'">{{ selectedItem.nodeType }}</span>
-          <span v-else>{{ selectedItem.relationType }}</span>
+          <span v-else>{{ selectedItem.relationLabel || formatRelationType(selectedItem.relationType) }}</span>
           <span v-if="selectedItem.mentionCount">提及 {{ selectedItem.mentionCount }}</span>
           <span v-if="selectedItem.degree">连接 {{ selectedItem.degree }}</span>
           <span v-if="selectedItem.weight">证据 {{ selectedItem.weight }}</span>

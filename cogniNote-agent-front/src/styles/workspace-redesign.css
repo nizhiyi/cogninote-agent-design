@@ -1150,6 +1150,20 @@
   overflow: hidden;
 }
 
+.graph-explorer__stage:fullscreen,
+.graph-explorer__stage:-webkit-full-screen {
+  width: 100vw;
+  height: 100vh;
+  border: 0;
+  border-radius: 0;
+  background: var(--color-surface);
+}
+
+.graph-explorer__stage:fullscreen .graph-explorer__canvas,
+.graph-explorer__stage:-webkit-full-screen .graph-explorer__canvas {
+  min-height: 0;
+}
+
 .graph-explorer__stage-toolbar,
 .graph-explorer__legend {
   display: flex;
@@ -1239,6 +1253,11 @@
   place-items: center;
   margin: 0;
   background: color-mix(in srgb, var(--color-surface) 78%, transparent);
+}
+
+.graph-explorer__error {
+  color: var(--color-danger);
+  font-weight: 750;
 }
 
 .graph-explorer__inspector h4 {

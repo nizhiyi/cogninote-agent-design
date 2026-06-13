@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { Search } from 'lucide-vue-next'
+import { formatRelationType } from '../utils/formatters'
 
 const props = defineProps({
   payload: {
@@ -21,22 +22,29 @@ const sortDirection = ref('desc')
 const nodeById = computed(() => new Map((props.payload?.nodes || []).map((node) => [node.id, node])))
 const relationOptions = computed(() => {
   const values = new Set((props.payload?.edges || []).map((edge) => edge.label || 'RELATED_TO'))
-  return [...values].sort((left, right) => left.localeCompare(right))
+  return [...values]
+    .map((value) => ({ value, label: formatRelationType(value) }))
+    .sort((left, right) => left.label.localeCompare(right.label, 'zh-CN') || left.value.localeCompare(right.value))
 })
 const rows = computed(() =>
-  (props.payload?.edges || []).map((edge) => ({
-    ...edge,
-    sourceNode: nodeById.value.get(edge.source),
-    targetNode: nodeById.value.get(edge.target),
-    sourceLabel: edge.sourceLabel || nodeById.value.get(edge.source)?.label || edge.source,
-    targetLabel: edge.targetLabel || nodeById.value.get(edge.target)?.label || edge.target
-  }))
+  (props.payload?.edges || []).map((edge) => {
+    const relation = edge.label || 'RELATED_TO'
+    return {
+      ...edge,
+      label: relation,
+      relationLabel: formatRelationType(relation),
+      sourceNode: nodeById.value.get(edge.source),
+      targetNode: nodeById.value.get(edge.target),
+      sourceLabel: edge.sourceLabel || nodeById.value.get(edge.source)?.label || edge.source,
+      targetLabel: edge.targetLabel || nodeById.value.get(edge.target)?.label || edge.target
+    }
+  })
 )
 const filteredRows = computed(() => {
   const query = keyword.value.trim().toLowerCase()
   const rowsToRender = rows.value.filter((row) => {
     const matchesRelation = !relationType.value || row.label === relationType.value
-    const haystack = `${row.sourceLabel} ${row.label} ${row.targetLabel}`.toLowerCase()
+    const haystack = `${row.sourceLabel} ${row.label} ${row.relationLabel} ${row.targetLabel}`.toLowerCase()
     return matchesRelation && (!query || haystack.includes(query))
   })
   return [...rowsToRender].sort((left, right) => {
@@ -49,8 +57,8 @@ function openEdge(row) {
   emit('open-evidence', {
     type: 'edge',
     id: row.id,
-    label: row.label,
-    meta: `${row.sourceLabel} -> ${row.targetLabel}`
+    label: row.relationLabel,
+    meta: `${row.sourceLabel} -> ${row.relationLabel} -> ${row.targetLabel}`
   })
 }
 </script>
@@ -66,7 +74,7 @@ function openEdge(row) {
         <span>关系</span>
         <select v-model="relationType">
           <option value="">全部关系</option>
-          <option v-for="option in relationOptions" :key="option" :value="option">{{ option }}</option>
+          <option v-for="option in relationOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
         </select>
       </label>
       <label>
@@ -99,7 +107,7 @@ function openEdge(row) {
           @keyup.space.prevent="openEdge(row)"
         >
           <td>{{ row.sourceLabel }}</td>
-          <td><span class="relation-chip">{{ row.label }}</span></td>
+          <td><span class="relation-chip">{{ row.relationLabel }}</span></td>
           <td>{{ row.targetLabel }}</td>
           <td>{{ row.weight }}</td>
         </tr>

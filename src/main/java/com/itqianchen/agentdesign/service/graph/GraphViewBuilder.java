@@ -15,11 +15,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -261,7 +259,6 @@ public class GraphViewBuilder {
                         .thenComparing(KnowledgeGraphNode::displayName, String.CASE_INSENSITIVE_ORDER))
                 .limit(GRAPH_NODE_LIMIT)
                 .toList();
-        Set<String> selectedNodeIds = new HashSet<>(selectedNodes.stream().map(KnowledgeGraphNode::id).toList());
         Map<String, KnowledgeGraphNode> selectedNodeById = selectedNodes.stream()
                 .collect(Collectors.toMap(KnowledgeGraphNode::id, Function.identity()));
         List<Map<String, Object>> nodes = selectedNodes.stream()
@@ -275,17 +272,22 @@ public class GraphViewBuilder {
                 ))
                 .toList();
         List<Map<String, Object>> edges = allEdges.stream()
-                .filter(edge -> selectedNodeIds.contains(edge.sourceNodeId()) && selectedNodeIds.contains(edge.targetNodeId()))
-                .map(edge -> Map.<String, Object>of(
-                        "id", edge.id(),
-                        "source", edge.sourceNodeId(),
-                        "target", edge.targetNodeId(),
-                        "sourceLabel", selectedNodeById.get(edge.sourceNodeId()).displayName(),
-                        "targetLabel", selectedNodeById.get(edge.targetNodeId()).displayName(),
-                        "label", edge.relationType(),
-                        "weight", edge.mentionCount(),
-                        "confidence", edge.confidence()
-                ))
+                .filter(edge -> selectedNodeById.containsKey(edge.sourceNodeId())
+                        && selectedNodeById.containsKey(edge.targetNodeId()))
+                .map(edge -> {
+                    KnowledgeGraphNode sourceNode = selectedNodeById.get(edge.sourceNodeId());
+                    KnowledgeGraphNode targetNode = selectedNodeById.get(edge.targetNodeId());
+                    return Map.<String, Object>of(
+                            "id", edge.id(),
+                            "source", edge.sourceNodeId(),
+                            "target", edge.targetNodeId(),
+                            "sourceLabel", sourceNode.displayName(),
+                            "targetLabel", targetNode.displayName(),
+                            "label", edge.relationType(),
+                            "weight", edge.mentionCount(),
+                            "confidence", edge.confidence()
+                    );
+                })
                 .toList();
 
         return Map.of(
