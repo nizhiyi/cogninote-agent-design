@@ -1,7 +1,8 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Database, Pencil, Plus, Settings2, Trash2 } from 'lucide-vue-next'
+import { Database, FolderOpen, Network, Pencil, Plus, Search, Settings2, Trash2 } from 'lucide-vue-next'
+import { KNOWLEDGE_PANEL_OPTIONS, normalizeKnowledgePanel } from '../config/knowledge-navigation'
 import { DEFAULT_SETTINGS_ITEM, SETTINGS_NAV_GROUPS, normalizeSettingsItem } from '../config/settings-navigation'
 import { useChatStore } from '../stores/chat'
 import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
@@ -26,6 +27,7 @@ const canEditSessions = computed(() =>
 const activeSettingsItem = computed(() =>
   normalizeSettingsItem(String(route.query.item || DEFAULT_SETTINGS_ITEM))
 )
+const activeKnowledgePanel = computed(() => normalizeKnowledgePanel(route.query.panel))
 const contextMode = computed(() => {
   if (route.name === 'knowledge') {
     return 'knowledge'
@@ -47,6 +49,11 @@ const indexHealthLabel = computed(() => {
 const knowledgeSummary = computed(() =>
   `${knowledgeStore.stats.folderCount} 目录 · ${knowledgeStore.stats.documentCount} 文档 · ${knowledgeStore.stats.chunks} chunks`
 )
+const knowledgePanelIcons = {
+  folders: FolderOpen,
+  search: Search,
+  graph: Network
+}
 
 async function createSession() {
   if (!canEditSessions.value) {
@@ -92,6 +99,16 @@ function selectSettingsItem(itemId) {
     query: {
       ...route.query,
       item: normalizeSettingsItem(itemId)
+    }
+  })
+}
+
+function selectKnowledgePanel(panelId) {
+  router.replace({
+    name: 'knowledge',
+    query: {
+      ...route.query,
+      panel: normalizeKnowledgePanel(panelId)
     }
   })
 }
@@ -179,6 +196,23 @@ function selectSettingsItem(itemId) {
         <strong>{{ knowledgeSummary }}</strong>
         <span>索引：{{ indexHealthLabel }}</span>
       </section>
+
+      <nav class="context-knowledge-nav" aria-label="知识库工作区导航">
+        <button
+          v-for="panel in KNOWLEDGE_PANEL_OPTIONS"
+          :key="panel.id"
+          class="context-knowledge-nav__item"
+          type="button"
+          :class="{ active: activeKnowledgePanel === panel.id }"
+          :aria-current="activeKnowledgePanel === panel.id ? 'page' : null"
+          @click="selectKnowledgePanel(panel.id)"
+        >
+          <span class="context-knowledge-nav__icon">
+            <component :is="knowledgePanelIcons[panel.id]" aria-hidden="true" />
+          </span>
+          <span>{{ panel.label }}</span>
+        </button>
+      </nav>
     </template>
 
     <template v-else>

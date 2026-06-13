@@ -37,9 +37,9 @@ async function rebuildAll() {
         <el-button :loading="searchStore.isLoadingIndexStatus" @click="searchStore.fetchIndexStatus">
           刷新索引
         </el-button>
-        <el-button type="primary" :loading="searchStore.isRebuildingIndex" @click="rebuildAll">
-          全量重建
-        </el-button>
+<!--        <el-button type="primary" :loading="searchStore.isRebuildingIndex" @click="rebuildAll">-->
+<!--          全量重建-->
+<!--        </el-button>-->
       </div>
     </header>
 

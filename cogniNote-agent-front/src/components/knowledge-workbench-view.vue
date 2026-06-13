@@ -1,29 +1,26 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { FolderOpen, Network, RefreshCw, Search, Settings2 } from 'lucide-vue-next'
+import { computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
+import { RefreshCw, Settings2 } from 'lucide-vue-next'
 import KnowledgeFolderPanel from './knowledge-folder-panel.vue'
 import KnowledgeGraphPanel from './knowledge-graph-panel.vue'
 import KnowledgeSearchPanel from './knowledge-search-panel.vue'
+import { normalizeKnowledgePanel } from '../config/knowledge-navigation'
 import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
 import { useModelConfigStore } from '../stores/model-config'
 import { useSearchStore } from '../stores/search'
 
+const route = useRoute()
 const knowledgeStore = useKnowledgeFoldersStore()
 const searchStore = useSearchStore()
 const modelConfigStore = useModelConfigStore()
-const activePanel = ref('folders')
 
 /**
  * 知识库工作区的面板编排组件。
  *
  * <p>这里聚合目录、索引和模型配置三个 store 的启动快照，避免每个子面板重复触发初始化请求。</p>
  */
-const panelOptions = [
-  { id: 'folders', label: '资料管理', icon: FolderOpen },
-  { id: 'search', label: '检索测试', icon: Search },
-  { id: 'graph', label: '知识图谱', icon: Network }
-]
-
+const activePanel = computed(() => normalizeKnowledgePanel(route.query.panel))
 const embeddingReady = computed(() => {
   const config = modelConfigStore.activeEmbeddingConfig
   return Boolean(config?.apiKeyConfigured && config?.modelName)
@@ -62,9 +59,15 @@ async function refreshWorkbench() {
       </div>
 
       <div class="knowledge-workbench__actions">
-        <button class="secondary-button" type="button" :disabled="isRefreshing" @click="refreshWorkbench">
+        <button
+          class="secondary-button knowledge-workbench__refresh-button"
+          type="button"
+          :disabled="isRefreshing"
+          aria-label="刷新知识库"
+          title="刷新知识库"
+          @click="refreshWorkbench"
+        >
           <RefreshCw aria-hidden="true" />
-          <span>刷新</span>
         </button>
         <RouterLink class="secondary-button" :to="{ name: 'settings', query: { item: 'model-embedding' } }">
           <Settings2 aria-hidden="true" />
@@ -72,19 +75,6 @@ async function refreshWorkbench() {
         </RouterLink>
       </div>
     </header>
-
-    <nav class="knowledge-workbench-tabs" aria-label="知识库工作区视图">
-      <button
-        v-for="option in panelOptions"
-        :key="option.id"
-        type="button"
-        :class="{ active: activePanel === option.id }"
-        @click="activePanel = option.id"
-      >
-        <component :is="option.icon" aria-hidden="true" />
-        <span>{{ option.label }}</span>
-      </button>
-    </nav>
 
     <el-alert
       v-if="activePanel === 'search' && !embeddingReady"
