@@ -28,7 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 知识库目录的导入、重建、启停和删除编排服务。
+ * 知识库目录的导入、同步、重建、启停和删除编排服务。
  *
  * <p>该服务会同时触碰 SQLite、Lucene 和知识图谱缓存；任何目录级状态变化都必须让三者最终收敛。</p>
  */
@@ -146,6 +146,46 @@ public class KnowledgeFolderService {
              */
             knowledgeFolderRepository.markIndexed(folderId, indexedAt);
         }
+    }
+
+    /**
+     * 同步目录文件变更。
+     *
+     * <p>同步只处理新增、修改、缺失索引和已删除的文件，不做整目录 Lucene 重建；需要修复 Analyzer、
+     * Embedding 维度或索引损坏时仍应使用 rebuildFolder。</p>
+     *
+     * @param id 知识库目录 ID
+     * @return 同步扫描统计
+     */
+    @Transactional
+    public IngestDocumentsResponse syncFolder(String id) {
+        KnowledgeFolder folder = requireFolder(id);
+        if (!folder.enabled()) {
+            throw new DocumentParseException("Knowledge folder is disabled: " + folder.displayName());
+        }
+
+        Set<String> currentDocumentIds = ingestionService.scanDocumentIds(
+                folder.folderPath(),
+                folder.recursive()
+        );
+        IngestDocumentsResponse response = ingestionService.syncKnowledgeFolder(
+                folder.id(),
+                folder.folderPath(),
+                folder.recursive()
+        );
+        deleteMissingLocalDocuments(folder.id(), currentDocumentIds);
+        long now = System.currentTimeMillis();
+        knowledgeFolderRepository.markIngested(folder.id(), now);
+        markFolderIndexedIfAllParsedDocumentsIndexed(folder.id(), now);
+        log.info("knowledge_folder_synced folderId={} folderPath={} scanned={} parsed={} skipped={} failed={}",
+                folder.id(),
+                folder.folderPath(),
+                response.scannedCount(),
+                response.parsedCount(),
+                response.skippedCount(),
+                response.failedCount()
+        );
+        return response;
     }
 
     /**

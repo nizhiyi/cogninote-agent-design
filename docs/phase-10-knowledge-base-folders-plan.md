@@ -14,6 +14,7 @@
   - 历史无归属文档不强行猜测目录，统一显示在“未归属文档”区域，用户可后续重新导入目录完成归属。
 - 知识库目录行为：
   - 导入目录：创建或更新目录记录，扫描文件，写入/更新 `documents` 和 `chunks`，同步写入 Lucene。
+  - 同步目录：扫描已导入目录，只解析新增或修改文件、补写缺失索引，并清理本地已删除文件对应的应用内记录，不做整目录索引重建。
   - 删除目录：删除目录记录及其关联文档/chunks，并清理 Lucene 索引；不删除用户本机原始文件。
   - 启用/停用：停用后该目录文档不参与搜索/RAG；实现上清理该目录 Lucene 条目但保留 SQLite 数据。重新启用后触发该目录重建索引。
   - 重建目录索引：只重新扫描对应本地目录并重建该目录下文档索引，不影响其他目录。
@@ -35,6 +36,7 @@
 ```text
 GET    /api/knowledge-folders
 POST   /api/knowledge-folders/import
+POST   /api/knowledge-folders/{id}/sync
 POST   /api/knowledge-folders/{id}/rebuild
 PATCH  /api/knowledge-folders/{id}/enabled
 DELETE /api/knowledge-folders/{id}

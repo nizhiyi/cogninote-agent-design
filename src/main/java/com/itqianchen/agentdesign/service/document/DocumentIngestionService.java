@@ -103,6 +103,24 @@ public class DocumentIngestionService {
     }
 
     /**
+     * 同步知识库目录的文件差异。
+     *
+     * <p>同步会跳过未变化文件，只解析新增或修改文件，并为索引缺失的旧文档补写 Lucene；
+     * 单个文件临时不可读时保留旧解析结果，避免例行同步破坏已有知识。</p>
+     *
+     * @param knowledgeFolderId 知识库目录 ID
+     * @param folderPath 本地目录路径
+     * @param recursive 是否递归扫描
+     * @return 同步扫描统计
+     */
+    public IngestDocumentsResponse syncKnowledgeFolder(String knowledgeFolderId, String folderPath, boolean recursive) {
+        if (knowledgeFolderId == null || knowledgeFolderId.isBlank()) {
+            throw new DocumentParseException("Knowledge folder id is required");
+        }
+        return ingestFolder(folderPath, recursive, knowledgeFolderId, FailedDocumentPolicy.PRESERVE_EXISTING_RECORD);
+    }
+
+    /**
      * 重建知识库目录。
      *
      * <p>重建属于维护动作，单个文件临时不可读时保留旧解析结果，避免把可用知识误覆盖成失败状态。</p>

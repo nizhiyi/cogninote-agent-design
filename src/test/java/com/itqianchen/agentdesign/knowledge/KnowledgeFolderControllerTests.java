@@ -115,6 +115,29 @@ class KnowledgeFolderControllerTests {
     }
 
     @Test
+    void syncFolderIndexesOnlyNewFiles() throws Exception {
+        // 文件系统访问可能抛出 IO 异常，调用方需要保留失败上下文。
+        Files.writeString(tempDir.resolve("first.txt"), "synckeepone");
+        // 文件系统访问可能抛出 IO 异常，调用方需要保留失败上下文。
+        Files.writeString(tempDir.resolve("second.txt"), "synckeeptwo");
+        String folderId = importFolder(tempDir);
+
+        // 文件系统访问可能抛出 IO 异常，调用方需要保留失败上下文。
+        Files.writeString(tempDir.resolve("third.txt"), "synconlynewtoken");
+        mockMvc.perform(post("/api/knowledge-folders/{id}/sync", folderId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scannedCount").value(3))
+                .andExpect(jsonPath("$.data.parsedCount").value(1))
+                .andExpect(jsonPath("$.data.skippedCount").value(2));
+
+        mockMvc.perform(get("/api/knowledge-folders"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.folders[0].documentCount").value(3));
+        searchKeyword("synconlynewtoken", 1);
+        searchKeyword("synckeepone", 1);
+    }
+
+    @Test
     void rebuildFolderRemovesDocumentsDeletedFromLocalDirectory() throws Exception {
         Path keep = tempDir.resolve("keep.txt");
         Path stale = tempDir.resolve("stale.txt");

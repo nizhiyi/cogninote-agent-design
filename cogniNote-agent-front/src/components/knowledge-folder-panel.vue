@@ -1,7 +1,7 @@
 <script setup>
 // knowledge-folder-panel 负责知识库目录导入、状态管理和目录级操作。
 import { computed, ref } from 'vue'
-import { ChevronDown, ChevronRight, FolderOpen, FolderPlus, RefreshCw, Trash2 } from 'lucide-vue-next'
+import { ChevronDown, ChevronRight, FolderOpen, FolderPlus, FolderSync, RefreshCw, RotateCcw, Trash2 } from 'lucide-vue-next'
 import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
 import { useSearchStore } from '../stores/search'
 import { formatFileSize, formatTime } from '../utils/formatters'
@@ -115,8 +115,11 @@ function toggleImportForm() {
       <span>耗时 {{ searchStore.rebuildResult.durationMs }} ms</span>
     </div>
 
-    <ul v-if="knowledgeStore.rebuildResult?.failures?.length" class="failure-list">
-      <li v-for="failure in knowledgeStore.rebuildResult.failures" :key="failure.sourcePath">
+    <ul v-if="knowledgeStore.ingestResult?.failures?.length || knowledgeStore.rebuildResult?.failures?.length" class="failure-list">
+      <li
+        v-for="failure in (knowledgeStore.ingestResult?.failures || knowledgeStore.rebuildResult?.failures)"
+        :key="failure.sourcePath"
+      >
         <strong>{{ failure.sourcePath }}</strong>
         <span>{{ failure.message }}</span>
       </li>
@@ -146,10 +149,21 @@ function toggleImportForm() {
             </el-button>
             <el-button
               :disabled="knowledgeStore.isFolderBusy(folder.id) || !folder.enabled"
+              title="扫描新增、修改和删除的文件，只处理差异"
+              aria-label="同步目录文件"
+              @click="knowledgeStore.syncFolder(folder.id)"
+            >
+              <FolderSync aria-hidden="true" />
+              <span>同步文件</span>
+            </el-button>
+            <el-button
+              :disabled="knowledgeStore.isFolderBusy(folder.id) || !folder.enabled"
+              title="重新扫描目录并重建该目录索引"
+              aria-label="重建目录索引"
               @click="knowledgeStore.rebuildFolder(folder.id)"
             >
-              <RefreshCw aria-hidden="true" />
-              <span>重建</span>
+              <RotateCcw aria-hidden="true" />
+              <span>重建索引</span>
             </el-button>
             <el-popconfirm
               title="删除该知识库目录记录？本地原始文件不会被删除。"

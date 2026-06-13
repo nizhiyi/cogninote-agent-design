@@ -111,6 +111,26 @@ POST /api/knowledge-folders/import
 
 后端会创建或更新目录记录，扫描支持的文件，写入/更新 `documents` 和 `chunks`，并同步写入 Lucene。重复导入同一路径会复用已有目录记录。
 
+### 同步目录文件
+
+```text
+POST /api/knowledge-folders/{id}/sync
+```
+
+扫描已导入目录中的支持文件，只解析新增或修改的文件，并为缺失索引的旧文档补写 Lucene；未变化文件会跳过，不做整目录索引重建。若本地目录中某个旧文件已被删除，同步会删除应用内对应文档/chunks/索引记录，但不触碰用户文件系统。同步目录必须处于启用状态。
+
+响应体 `data` 为本次扫描统计：
+
+```json
+{
+  "scannedCount": 3,
+  "parsedCount": 1,
+  "skippedCount": 2,
+  "failedCount": 0,
+  "failures": []
+}
+```
+
 ### 重建单个目录索引
 
 ```text

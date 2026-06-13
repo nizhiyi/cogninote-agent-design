@@ -31,7 +31,7 @@ public class KnowledgeFolderController {
     /**
      * 注入知识库目录服务。
      *
-     * @param knowledgeFolderService 目录导入、重建和可见性服务
+     * @param knowledgeFolderService 目录导入、同步、重建和可见性服务
      */
     public KnowledgeFolderController(KnowledgeFolderService knowledgeFolderService) {
         this.knowledgeFolderService = knowledgeFolderService;
@@ -66,9 +66,22 @@ public class KnowledgeFolderController {
     }
 
     /**
+     * 同步指定知识库目录的文件差异。
+     *
+     * <p>同步会扫描目录，但只解析新增或修改文件，并为缺失索引的旧文档补索引，不做整目录 Lucene 重建。</p>
+     *
+     * @param id 知识库目录 ID
+     * @return 同步扫描统计和失败明细
+     */
+    @PostMapping("/{id}/sync")
+    public ApiResponse<IngestDocumentsResponse> syncFolder(@PathVariable String id) {
+        return ApiResponse.ok(knowledgeFolderService.syncFolder(id));
+    }
+
+    /**
      * 重建指定知识库目录的检索索引。
      *
-     * <p>该操作基于已入库文档，不重新扫描磁盘目录。</p>
+     * <p>该操作会重新扫描磁盘目录并重建该目录下的 Lucene 条目，成本高于文件同步。</p>
      *
      * @param id 知识库目录 ID
      * @return 重建结果统计

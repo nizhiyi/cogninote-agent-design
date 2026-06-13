@@ -6,7 +6,8 @@ import {
   importKnowledgeFolder,
   listKnowledgeFolders,
   rebuildKnowledgeFolder,
-  setKnowledgeFolderEnabled
+  setKnowledgeFolderEnabled,
+  syncKnowledgeFolder
 } from '../api/knowledge-folders-api'
 import { useSearchStore } from './search'
 
@@ -125,6 +126,27 @@ export const useKnowledgeFoldersStore = defineStore('knowledgeFolders', () => {
     }
   }
 
+  async function syncFolder(id) {
+    const searchStore = useSearchStore()
+    setFolderBusy(id, true)
+    ingestResult.value = null
+    rebuildResult.value = null
+    error.value = ''
+
+    try {
+      ingestResult.value = await syncKnowledgeFolder(id)
+      await refreshKnowledgeState(searchStore)
+      // 同步可能新增或更新命中当前查询的 chunk，已有查询应重跑以展示最新语料。
+      if (searchStore.query.trim()) {
+        await searchStore.searchKnowledge()
+      }
+    } catch (err) {
+      error.value = `同步目录文件失败：${err.message}`
+    } finally {
+      setFolderBusy(id, false)
+    }
+  }
+
   async function toggleFolderEnabled(folder) {
     const searchStore = useSearchStore()
     setFolderBusy(folder.id, true)
@@ -213,6 +235,7 @@ export const useKnowledgeFoldersStore = defineStore('knowledgeFolders', () => {
     chooseFolder,
     importFolder,
     rebuildFolder,
+    syncFolder,
     toggleFolderEnabled,
     deleteFolder,
     toggleExpanded,
