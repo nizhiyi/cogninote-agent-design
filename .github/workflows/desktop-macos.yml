@@ -380,13 +380,14 @@ jobs:
 
           asset_name="CogniNote-${version}-macos-arm64-${suffix}.app.tar.gz"
           asset_path="artifacts/macos-release/${asset_name}"
-          if [[ ! -f "$asset_path" ]]; then
-            echo "macOS updater asset not found: $asset_path" >&2
+          asset_abs_path="${GITHUB_WORKSPACE}/${asset_path}"
+          if [[ ! -f "$asset_abs_path" ]]; then
+            echo "macOS updater asset not found: $asset_abs_path" >&2
             exit 1
           fi
 
-          npm --silent --prefix cogniNote-agent-front run tauri -- signer sign --password="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" "$asset_path"
-          signature_path="${asset_path}.sig"
+          npm --silent --prefix cogniNote-agent-front run tauri -- signer sign --password="${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" "$asset_abs_path"
+          signature_path="${asset_abs_path}.sig"
           if [[ ! -f "$signature_path" ]]; then
             echo "Tauri updater signature was not generated: $signature_path" >&2
             exit 1

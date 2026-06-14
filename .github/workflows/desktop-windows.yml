@@ -281,12 +281,13 @@ jobs:
           $updaterTag = if ($channel -eq 'stable') { 'desktop-updater-stable' } else { 'desktop-updater-preview' }
           $assetName = "CogniNote-${version}-windows-x64-${suffix}-installer.exe"
           $assetPath = "artifacts/windows-release/$assetName"
-          if (-not (Test-Path -LiteralPath $assetPath)) {
-            throw "Windows updater asset not found: $assetPath"
+          $assetFullPath = Join-Path $env:GITHUB_WORKSPACE $assetPath
+          if (-not (Test-Path -LiteralPath $assetFullPath)) {
+            throw "Windows updater asset not found: $assetFullPath"
           }
 
-          npm --silent --prefix cogniNote-agent-front run tauri -- signer sign --password="$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD" $assetPath
-          $signaturePath = "$assetPath.sig"
+          npm --silent --prefix cogniNote-agent-front run tauri -- signer sign --password="$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD" $assetFullPath
+          $signaturePath = "$assetFullPath.sig"
           if (-not (Test-Path -LiteralPath $signaturePath)) {
             throw "Tauri updater signature was not generated: $signaturePath"
           }
