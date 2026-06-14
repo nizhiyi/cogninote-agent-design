@@ -26,7 +26,7 @@
 - Prompt 配置：聊天、RAG、追问补全、连接测试和知识图谱抽取 Prompt 统一放在 `src/main/resources/cogninote-prompts.yaml`；`application.yaml` 只导入该专用配置文件并保留运行配置。
 - 对话式桌面界面：左侧持久化会话列表，主区域流式对话，答案按 AI 流式 Markdown 渲染并支持 Mermaid 流程图代码块，引用来源可折叠，对话设置可切换知识库、检索模式和 Top K；发送区显示当前会话上下文占用和压缩状态。
 - 主题设置：支持深色/夜间和日间主题，本机保存偏好。
-- 桌面交付：支持构建 Windows 桌面程序和 NSIS 安装包，以及 macOS Apple Silicon `.app` / `.dmg` 独立打包链路；桌面模式下所有 `/api/**` 请求都需要 Tauri 启动时生成的本机会话令牌；设置页支持稳定版/测试版更新通道切换，并通过 GitHub Release 静态 manifest 检查 Tauri 自动更新。`0.1.33` 定位为可安装测试分发版，CI 未配置证书时产出 unsigned 测试包，配置证书后产出签名、公证、staple 后的分发包。macOS signed 流程会同时签名外层 Tauri app 和嵌套的 `CogniNoteBackend.app`，再用已 staple 的 app 重新生成发布用 DMG。
+- 桌面交付：支持构建 Windows 桌面程序和 NSIS 安装包，以及 macOS Apple Silicon `.app` / `.dmg` 独立打包链路；桌面模式下所有 `/api/**` 请求都需要 Tauri 启动时生成的本机会话令牌；设置页支持稳定版/测试版更新通道切换，并通过 GitHub Release 静态 manifest 检查 Tauri 自动更新。`0.1.34` 定位为可安装测试分发版，CI 未配置证书时产出 unsigned 测试包，配置证书后产出签名、公证、staple 后的分发包。macOS signed 流程会同时签名外层 Tauri app 和嵌套的 `CogniNoteBackend.app`，再用已 staple 的 app 重新生成发布用 DMG。
 
 ## 技术栈
 
@@ -99,7 +99,7 @@ java -jar target/cogninote-agent-design.jar
 发布前更新版本号请使用白名单脚本，避免全局替换误改第三方锁文件：
 
 ```powershell
-.\scripts\update-release-version.ps1 0.1.33
+.\scripts\update-release-version.ps1 0.1.34
 ```
 
 ### 构建 Windows 桌面应用
@@ -112,14 +112,14 @@ java -jar target/cogninote-agent-design.jar
 
 ```text
 cogniNote-agent-front/src-tauri/target/release/cogninote-agent.exe
-cogniNote-agent-front/src-tauri/target/release/bundle/nsis/CogniNote_0.1.33_x64-setup.exe
+cogniNote-agent-front/src-tauri/target/release/bundle/nsis/CogniNote_0.1.34_x64-setup.exe
 ```
 
 注意：`target/desktop/backend/CogniNoteBackend/CogniNoteBackend.exe` 只是后端 app-image 的启动器，不是最终桌面应用入口。
 
-也可以在 GitHub Actions 手动触发 `Desktop Windows` workflow 构建。workflow 会在 Windows runner 上安装 JDK 25、Node 和 Rust；未配置证书时上传 `CogniNote-0.1.33-windows-x64-unsigned-*` 测试 artifacts，配置 `WINDOWS_CERTIFICATE_PFX_BASE64` 和 `WINDOWS_CERTIFICATE_PASSWORD` 后上传 `signed` artifacts。
+也可以在 GitHub Actions 手动触发 `Desktop Windows` workflow 构建。workflow 会在 Windows runner 上安装 JDK 25、Node 和 Rust；未配置证书时上传 `CogniNote-0.1.34-windows-x64-unsigned-*` 测试 artifacts，配置 `WINDOWS_CERTIFICATE_PFX_BASE64` 和 `WINDOWS_CERTIFICATE_PASSWORD` 后上传 `signed` artifacts。
 
-手动触发 workflow 时可设置 `publish_release=true`，把真实安装包 `.exe` 和便携包 `.zip` 发布到 GitHub Release；`release_tag` 留空时，unsigned 构建默认发布到 `v0.1.33-test.1`，signed 构建默认发布到 `v0.1.33`。
+手动触发 workflow 时可设置 `publish_release=true`，把真实安装包 `.exe` 和便携包 `.zip` 发布到 GitHub Release；`release_tag` 留空时，unsigned 构建默认发布到 `v0.1.34-test.1`，signed 构建默认发布到 `v0.1.34`。
 
 Windows 安装器会在升级、降级重装或卸载前尝试关闭旧主程序和 `CogniNoteBackend.exe`，并清理旧安装目录里的主程序、backend 资源和 WebView2 HTTP/字节码缓存；旧资源清理失败时安装会中止，避免新旧版本混装或安装完成后仍显示旧前端。卸载默认保留 `%APPDATA%\CogniNote` 用户数据。
 
@@ -135,14 +135,14 @@ bash ./scripts/build-desktop-app-macos.sh --skip-tests
 
 ```text
 cogniNote-agent-front/src-tauri/target/release/bundle/macos/CogniNote.app
-cogniNote-agent-front/src-tauri/target/release/bundle/dmg/CogniNote_0.1.33_aarch64.dmg
+cogniNote-agent-front/src-tauri/target/release/bundle/dmg/CogniNote_0.1.34_aarch64.dmg
 ```
 
 注意：`target/desktop-macos/backend/CogniNoteBackend.app` 只是 macOS 后端 app-image，不是最终桌面应用入口。
 
-macOS 可以在 GitHub Actions `Desktop macOS` workflow 构建。未配置 Apple Developer 证书时会上传 `CogniNote-0.1.33-macos-arm64-unsigned-*` 技术测试 artifacts；普通用户分发必须使用配置 Developer ID 和公证 Secrets 后生成的 signed artifacts，避免微信、浏览器或 GitHub 下载后被 Gatekeeper 判定“已损坏，无法打开”。signed workflow 会先签名嵌套后端 `CogniNoteBackend.app`，再签名、公证并 staple 外层 `CogniNote.app`，最后用已 staple 的 app 重新生成并公证发布用 DMG。
+macOS 可以在 GitHub Actions `Desktop macOS` workflow 构建。未配置 Apple Developer 证书时会上传 `CogniNote-0.1.34-macos-arm64-unsigned-*` 技术测试 artifacts；普通用户分发必须使用配置 Developer ID 和公证 Secrets 后生成的 signed artifacts，避免微信、浏览器或 GitHub 下载后被 Gatekeeper 判定“已损坏，无法打开”。signed workflow 会先签名嵌套后端 `CogniNoteBackend.app`，再签名、公证并 staple 外层 `CogniNote.app`，最后用已 staple 的 app 重新生成并公证发布用 DMG。
 
-手动触发 workflow 时可设置 `publish_release=true`，把真实 `.dmg` 和 `.app.zip` 发布到 GitHub Release；`release_tag` 留空时，unsigned 构建默认发布到 `v0.1.33-test.1`，signed 构建默认发布到 `v0.1.33`。macOS 升级或降级时应先完全退出旧版，再把 `CogniNote.app` 拖入 `/Applications` 并选择替换；不要直接从 DMG 挂载目录运行，也不要用 `cp -R` 合并覆盖旧 `.app`。DMG 拖拽安装没有安装前 hook，桌面壳会在启动时按版本处理 WKWebView 缓存。
+手动触发 workflow 时可设置 `publish_release=true`，把真实 `.dmg` 和 `.app.zip` 发布到 GitHub Release；`release_tag` 留空时，unsigned 构建默认发布到 `v0.1.34-test.1`，signed 构建默认发布到 `v0.1.34`。macOS 升级或降级时应先完全退出旧版，再把 `CogniNote.app` 拖入 `/Applications` 并选择替换；不要直接从 DMG 挂载目录运行，也不要用 `cp -R` 合并覆盖旧 `.app`。DMG 拖拽安装没有安装前 hook，桌面壳会在启动时按版本处理 WKWebView 缓存。
 
 ## 使用流程
 
@@ -182,7 +182,7 @@ SQLite 是业务事实来源，Lucene 是可重建索引。应用不会复制用
 
 日志分为三档：默认发布配置为 `INFO`，不落盘 Spring AI prompt/completion；本地开发使用 `dev` profile 保持详细日志；用户问题排查可临时启用 `diagnostic` profile。桌面安装包会自动带 `desktop` profile，Spring Boot 业务日志只写滚动 `app.log`，避免控制台日志重复撑大 `desktop-backend.log`。
 
-当前 `0.1.33` 仍把 API Key 明文保存到本机 SQLite，适合内部测试和小范围安装验证，不建议作为大范围公开生产发布。桌面本机 API 已通过启动期会话令牌保护，公开发布前仍应改为 Windows 本地加密或系统凭据管理保存 API Key。
+当前 `0.1.34` 仍把 API Key 明文保存到本机 SQLite，适合内部测试和小范围安装验证，不建议作为大范围公开生产发布。桌面本机 API 已通过启动期会话令牌保护，公开发布前仍应改为 Windows 本地加密或系统凭据管理保存 API Key。
 
 ## 架构概览
 
@@ -264,7 +264,7 @@ bash ./scripts/build-desktop-app-macos.sh --skip-tests
 
 ## 开发状态
 
-当前项目已完成文档摄入、代码友好的 Lucene 混合检索、模型驱动追问补全 Agent、追问补全自动触发与知识库设置页配置、知识图谱与思维导图、知识图谱探索器重设计、Prompt 专用配置文件、模型配置、对话上下文窗口配置与 Token 估算优化、RAG 对话、路由式多智能体对话、模式隔离聊天记忆、智能体模型运行时重构、AI 流式 Markdown 与 Mermaid 渲染、SQLite 聊天记忆、纯模型对话、空白保真的 SSE 流式输出、流式截断识别与错误状态同步、MyBatis 统一数据访问层、Windows 桌面打包、macOS Apple Silicon 独立打包链路、`0.1.33` 双平台 unsigned/signed CI 打包链路、桌面安装/卸载/升级可靠性修复、桌面会话令牌保护，以及 stable/preview 通道自动更新的主要闭环。仍需重点补齐：
+当前项目已完成文档摄入、代码友好的 Lucene 混合检索、模型驱动追问补全 Agent、追问补全自动触发与知识库设置页配置、知识图谱与思维导图、知识图谱探索器重设计、Prompt 专用配置文件、模型配置、对话上下文窗口配置与 Token 估算优化、RAG 对话、路由式多智能体对话、模式隔离聊天记忆、智能体模型运行时重构、AI 流式 Markdown 与 Mermaid 渲染、SQLite 聊天记忆、纯模型对话、空白保真的 SSE 流式输出、流式截断识别与错误状态同步、MyBatis 统一数据访问层、Windows 桌面打包、macOS Apple Silicon 独立打包链路、`0.1.34` 双平台 unsigned/signed CI 打包链路、桌面安装/卸载/升级可靠性修复、桌面会话令牌保护，以及 stable/preview 通道自动更新的主要闭环。仍需重点补齐：
 
 - API Key 本地加密或凭据管理。
 - 更完整的发布验收和安装包测试。
