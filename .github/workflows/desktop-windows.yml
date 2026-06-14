@@ -213,7 +213,7 @@ jobs:
           $signingNote = if ($suffix -eq 'signed') {
             '这是已签名安装包，适合普通用户分发。'
           } else {
-            '这是未签名测试包。安装时如果提示“未知发布者”或 SmartScreen，请选择“更多信息” -> “仍要运行”。'
+            '这是未签名包。安装时如果提示“未知发布者”或 SmartScreen，请选择“更多信息” -> “仍要运行”。'
           }
           node scripts/render-desktop-release-notes.mjs `
             --existing $existingNotesPath `

@@ -309,7 +309,24 @@ jobs:
           if [[ "$suffix" == "signed" ]]; then
             signing_note="这是已签名、公证并 stapled 的 DMG，适合普通用户分发。"
           else
-            signing_note="这是未签名测试包。如果提示“已损坏，无法打开”，请先把 CogniNote.app 拖入 /Applications，然后执行：\`sudo xattr -dr com.apple.quarantine /Applications/CogniNote.app\`。"
+            signing_note="$(cat <<'NOTE'
+          这是未签名测试版。如果提示“已损坏，无法打开”，请先把 `CogniNote.app` 拖入 `/Applications`，然后执行：
+
+          ```bash
+          sudo xattr -dr com.apple.quarantine /Applications/CogniNote.app
+          open /Applications/CogniNote.app
+          ```
+
+          如果 DMG 本身无法打开，再执行：
+
+          ```bash
+          cd ~/Downloads
+          xattr -dr com.apple.quarantine ./__MACOS_DMG__
+          open ./__MACOS_DMG__
+          ```
+          NOTE
+          )"
+            signing_note="${signing_note//__MACOS_DMG__/$dmg_name}"
           fi
           node scripts/render-desktop-release-notes.mjs \
             --existing "$existing_notes_path" \

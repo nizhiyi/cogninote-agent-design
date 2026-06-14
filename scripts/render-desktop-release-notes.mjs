@@ -26,7 +26,7 @@ const sections = {
 }
 sections[args.platform] = renderTemplate(args.template, args)
 
-const parts = [`# 知记空间 ${args.version} 桌面端 ${args.releaseKind}`]
+const parts = []
 for (const platform of platformOrder) {
   if (sections[platform]?.trim()) {
     parts.push(wrapSection(platform, sections[platform].trim()))
