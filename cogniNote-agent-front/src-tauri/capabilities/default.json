@@ -3,5 +3,8 @@
   "identifier": "default",
   "description": "Default desktop capability for CogniNote.",
   "windows": ["main"],
+  "remote": {
+    "urls": ["http://127.0.0.1:*", "http://localhost:*"]
+  },
   "permissions": ["dialog:default", "core:default"]
 }

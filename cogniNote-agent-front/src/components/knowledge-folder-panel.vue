@@ -2,6 +2,7 @@
 // knowledge-folder-panel 负责知识库目录导入、状态管理和目录级操作。
 import { computed, ref } from 'vue'
 import { ChevronDown, ChevronRight, FolderOpen, FolderPlus, FolderSync, RefreshCw, RotateCcw, Trash2 } from 'lucide-vue-next'
+import { isTauriRuntime } from '../api/desktop-api'
 import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
 import { useSearchStore } from '../stores/search'
 import { formatFileSize, formatTime } from '../utils/formatters'
@@ -14,6 +15,7 @@ const hasKnowledgeEntries = computed(() =>
   knowledgeStore.folders.length > 0 || knowledgeStore.unassignedDocuments.length > 0
 )
 const showImportForm = computed(() => !hasKnowledgeEntries.value || !isImportFormCollapsed.value)
+const canPickKnowledgeFolder = computed(() => isTauriRuntime())
 
 /**
  * 全量重建是高成本操作，保留在资料管理页显式触发，避免刷新时产生副作用。
@@ -65,7 +67,11 @@ function toggleImportForm() {
       </label>
 
       <div class="knowledge-folder-import__actions">
-        <el-button @click="knowledgeStore.chooseFolder">
+        <el-button
+          :disabled="!canPickKnowledgeFolder"
+          title="系统文件夹选择器仅在桌面版可用，浏览器开发模式请手动输入路径"
+          @click="knowledgeStore.chooseFolder"
+        >
           <FolderPlus aria-hidden="true" />
           <span>选择文件夹</span>
         </el-button>

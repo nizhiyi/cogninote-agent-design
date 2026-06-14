@@ -4,12 +4,15 @@ let desktopSessionTokenPromise = null
 /**
  * 调用 Tauri 桌面端文件夹选择器。
  *
- * <p>Web 开发模式没有 @tauri-apps/api，返回 null 让调用方回退到手动输入路径。</p>
+ * <p>浏览器开发模式没有 Tauri runtime，返回 null 让调用方回退到手动输入路径。</p>
  */
 export async function pickKnowledgeFolder() {
+  if (!isTauriRuntime()) {
+    return null
+  }
   try {
     const { invoke } = await import('@tauri-apps/api/core')
-    return invoke('pick_knowledge_folder')
+    return await invoke('pick_knowledge_folder')
   } catch {
     return null
   }
