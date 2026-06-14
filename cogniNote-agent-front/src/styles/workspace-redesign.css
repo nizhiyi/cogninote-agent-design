@@ -42,10 +42,14 @@
 }
 
 .workspace-rail__brand {
-  color: #ffffff;
-  background: var(--color-accent);
   text-decoration: none;
-  font-weight: 850;
+}
+
+.workspace-rail__brand-logo {
+  display: block;
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
 }
 
 .workspace-rail__nav,

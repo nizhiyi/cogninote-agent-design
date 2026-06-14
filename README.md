@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/brand/zhiji-readme-banner.svg" alt="知记空间 CogniNote" width="820">
+</p>
+
 # 知记空间（CogniNote）
 
 知记空间（CogniNote）是一个本地优先的个人知识库问答应用。它可以导入本机 Markdown、TXT、DOCX 和文本型 PDF，使用 SQLite 保存知识片段，使用 Lucene 建立关键词/向量混合检索索引，并通过可配置的大模型提供带引用来源的 RAG 问答。

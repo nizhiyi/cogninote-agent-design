@@ -1,7 +1,8 @@
 <script setup>
 import { computed } from 'vue'
 import { Activity, Library, MessageSquareText, PanelLeftClose, PanelLeftOpen, Settings2 } from 'lucide-vue-next'
-import { APP_BRAND_MARK, APP_DISPLAY_NAME } from '../config/brand'
+import brandLogoUrl from '../assets/brand/zhiji-logo.svg'
+import { APP_DISPLAY_NAME } from '../config/brand'
 import { useLayoutStore } from '../stores/layout'
 import { useSystemStore } from '../stores/system'
 
@@ -31,7 +32,7 @@ const statusTitle = computed(() => `后端${systemStore.connectionLabel}`)
 <template>
   <aside class="workspace-rail" aria-label="全局导航">
     <RouterLink class="workspace-rail__brand" :to="{ name: 'chat' }" :aria-label="`打开${APP_DISPLAY_NAME}对话`">
-      <span>{{ APP_BRAND_MARK }}</span>
+      <img class="workspace-rail__brand-logo" :src="brandLogoUrl" alt="" aria-hidden="true">
     </RouterLink>
 
     <nav class="workspace-rail__nav" aria-label="主要模块">
