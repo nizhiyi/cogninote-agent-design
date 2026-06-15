@@ -19,6 +19,7 @@ const DEFAULT_UPDATE_CHANNEL = 'stable'
  */
 export const useDesktopUpdateStore = defineStore('desktop-update', () => {
   const channel = ref(readInitialChannel())
+  const currentVersion = ref('-')
   const updateInfo = ref(null)
   const isChecking = ref(false)
   const isInstalling = ref(false)
@@ -32,6 +33,7 @@ export const useDesktopUpdateStore = defineStore('desktop-update', () => {
   const channelLabel = computed(() =>
     UPDATE_CHANNELS.find((item) => item.value === channel.value)?.label || '正式版'
   )
+  const availableVersionPublishedAt = computed(() => formatUpdateDate(updateInfo.value?.date))
   const progressPercent = computed(() => {
     const downloaded = progress.value?.downloaded
     const contentLength = progress.value?.contentLength
@@ -74,6 +76,21 @@ export const useDesktopUpdateStore = defineStore('desktop-update', () => {
     }
   }
 
+  async function loadCurrentVersion() {
+    if (!isDesktopRuntime.value) {
+      currentVersion.value = '-'
+      return currentVersion.value
+    }
+    try {
+      const { getVersion } = await import('@tauri-apps/api/app')
+      currentVersion.value = await getVersion()
+    } catch (err) {
+      console.warn('[DesktopUpdate] 获取当前版本失败:', err)
+      currentVersion.value = '-'
+    }
+    return currentVersion.value
+  }
+
   async function checkForUpdates(options = {}) {
     if (!isDesktopRuntime.value) {
       updateInfo.value = null
@@ -91,6 +108,9 @@ export const useDesktopUpdateStore = defineStore('desktop-update', () => {
     try {
       const update = await checkDesktopUpdate(channel.value)
       updateInfo.value = update
+      if (update?.currentVersion) {
+        currentVersion.value = update.currentVersion
+      }
       if (!options.silent) {
         message.value = update ? `发现新版本 ${update.version}` : '当前已是最新版本'
       }
@@ -142,6 +162,8 @@ export const useDesktopUpdateStore = defineStore('desktop-update', () => {
     channels: UPDATE_CHANNELS,
     channel,
     channelLabel,
+    currentVersion,
+    availableVersionPublishedAt,
     isDesktopRuntime,
     updateInfo,
     isChecking,
@@ -152,6 +174,7 @@ export const useDesktopUpdateStore = defineStore('desktop-update', () => {
     progressPercent,
     setChannel,
     initializeUpdateListener,
+    loadCurrentVersion,
     checkForUpdates,
     installUpdate,
     cleanupUpdateListener
@@ -172,4 +195,22 @@ function readInitialChannel() {
 function normalizeUpdateError(error) {
   const message = error?.message || String(error || '自动更新不可用')
   return message.includes("reading 'invoke'") ? DESKTOP_UPDATE_UNAVAILABLE_MESSAGE : message
+}
+
+function formatUpdateDate(value) {
+  if (!value) {
+    return '-'
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  })
 }

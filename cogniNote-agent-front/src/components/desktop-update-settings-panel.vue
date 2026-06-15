@@ -21,6 +21,7 @@ const updateStatus = computed(() => {
 })
 
 onMounted(() => {
+  desktopUpdateStore.loadCurrentVersion()
   desktopUpdateStore.initializeUpdateListener()
 })
 
@@ -87,13 +88,13 @@ async function installUpdate() {
             <el-tag :type="updateStatus.type">{{ updateStatus.text }}</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="当前版本">
-            {{ desktopUpdateStore.updateInfo?.currentVersion || '-' }}
+            {{ desktopUpdateStore.currentVersion }}
           </el-descriptions-item>
           <el-descriptions-item label="可用版本">
             {{ desktopUpdateStore.updateInfo?.version || '-' }}
           </el-descriptions-item>
-          <el-descriptions-item label="发布日期">
-            {{ desktopUpdateStore.updateInfo?.date || '-' }}
+          <el-descriptions-item label="可用版本发布时间">
+            {{ desktopUpdateStore.availableVersionPublishedAt }}
           </el-descriptions-item>
           <el-descriptions-item label="下载进度">
             <span v-if="desktopUpdateStore.isInstalling">{{ desktopUpdateStore.progress?.message || '下载中' }}</span>

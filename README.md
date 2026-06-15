@@ -189,7 +189,7 @@ SQLite 是业务事实来源，Lucene 是可重建索引。应用不会复制用
 ```text
 Tauri Desktop Shell
   ├─ generates desktop session token
-  ├─ checks GitHub Release updater manifests
+  ├─ checks GitHub Pages updater manifests
   └─ loads http://127.0.0.1:{port}/
 
 Spring Boot Backend

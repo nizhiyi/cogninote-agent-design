@@ -33,6 +33,7 @@
     "updater": {
       "pubkey": "",
       "endpoints": [
+        "https://itqianchen.github.io/cogninote-agent-design/updater/stable/latest.json",
         "https://github.com/ItQianChen/cogninote-agent-design/releases/download/desktop-updater-stable/latest.json"
       ]
     }

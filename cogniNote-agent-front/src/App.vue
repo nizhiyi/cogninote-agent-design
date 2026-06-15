@@ -35,7 +35,10 @@ onMounted(() => {
 })
 
 async function initializeDesktopUpdateCheck() {
-  await desktopUpdateStore.initializeUpdateListener()
+  await Promise.all([
+    desktopUpdateStore.loadCurrentVersion(),
+    desktopUpdateStore.initializeUpdateListener()
+  ])
   const update = await desktopUpdateStore.checkForUpdates({ silent: true })
   if (!update) {
     return

@@ -13,7 +13,7 @@
 - 前端普通 JSON API 和聊天 SSE 请求统一带 `X-CogniNote-Desktop-Session`；普通浏览器开发模式不强制令牌。
 - Rust 侧使用 `tauri-plugin-updater = 2.10.1`，通过自定义 Tauri commands 支持运行时选择 stable/preview endpoint。
 - Windows updater 使用最终 NSIS installer；macOS updater 使用 `.app.tar.gz`，DMG 保留给手动下载。
-- GitHub Actions 发布真实版本资产后，更新 `desktop-updater-stable` 或 `desktop-updater-preview` Release 中的 `latest.json`。
+- GitHub Actions 发布真实版本资产后，更新 `gh-pages` 分支中的 `updater/stable/latest.json` 或 `updater/preview/latest.json`。
 
 ## Non-goals
 
@@ -73,9 +73,11 @@ install_desktop_update(channel: "stable" | "preview") -> InstallResult
 运行时 endpoint：
 
 ```text
-stable  -> https://github.com/ItQianChen/cogninote-agent-design/releases/download/desktop-updater-stable/latest.json
-preview -> https://github.com/ItQianChen/cogninote-agent-design/releases/download/desktop-updater-preview/latest.json
+stable  -> https://itqianchen.github.io/cogninote-agent-design/updater/stable/latest.json
+preview -> https://itqianchen.github.io/cogninote-agent-design/updater/preview/latest.json
 ```
+
+迁移期仍保留旧 GitHub Release manifest URL 作为 fallback；Pages 地址返回非 2xx 时，Tauri updater 会继续尝试旧地址。
 
 Tauri updater public key 通过编译期环境变量注入：
 
@@ -89,22 +91,22 @@ COGNINOTE_TAURI_UPDATER_PUBLIC_KEY
 
 设置中心新增“系统 / 应用更新”：
 
-- 显示当前通道、当前版本、可用版本、发布日期和 release notes。
+- 显示当前通道、当前版本、可用版本、可用版本发布时间和 release notes。
 - 通道偏好保存在 `localStorage`，默认 `stable`。
 - `preview` 是显式 opt-in，用于测试/预发布资产。
 - 手动检查更新时展示状态；启动自动检查默认静默，只有发现新版本才弹窗。
 - 用户确认后调用安装命令，下载完成后安装并重启应用。
 
-## GitHub Release Manifests
+## GitHub Pages Manifests
 
-固定 manifest release/tag：
+固定 manifest 路径：
 
 ```text
-desktop-updater-stable
-desktop-updater-preview
+updater/stable/latest.json
+updater/preview/latest.json
 ```
 
-manifest 资产固定为 `latest.json`，格式遵循 Tauri v2 静态 JSON：
+manifest 文件格式遵循 Tauri v2 静态 JSON：
 
 ```json
 {
@@ -124,7 +126,7 @@ manifest 资产固定为 `latest.json`，格式遵循 Tauri v2 静态 JSON：
 }
 ```
 
-CI 使用 `scripts/build-updater-manifest.mjs` 合并平台条目。同一版本下，Windows 和 macOS workflow 可以分开运行，后运行的平台会保留先前平台条目；版本变化时重新开始新的 `platforms` 集合。
+CI 使用 `scripts/build-updater-manifest.mjs` 合并平台条目。同一版本下，Windows 和 macOS workflow 可以分开运行；发布步骤会拉取 `gh-pages`、更新当前通道的 `latest.json` 并重试 push，后运行的平台会保留先前平台条目；版本变化时重新开始新的 `platforms` 集合。
 
 ## Signing Policy
 

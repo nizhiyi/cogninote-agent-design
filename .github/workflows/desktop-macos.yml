@@ -405,10 +405,8 @@ jobs:
           fi
           if [[ "$is_preview" == "false" ]]; then
             channel="stable"
-            updater_tag="desktop-updater-stable"
           else
             channel="preview"
-            updater_tag="desktop-updater-preview"
           fi
 
           asset_name="CogniNote-${version}-macos-arm64-${suffix}.app.tar.gz"
@@ -426,24 +424,55 @@ jobs:
             exit 1
           fi
 
-          mkdir -p artifacts/updater
-          gh release download "$updater_tag" --pattern latest.json --dir artifacts/updater --clobber >/dev/null 2>&1 || true
           asset_url="https://github.com/ItQianChen/cogninote-agent-design/releases/download/${tag}/${asset_name}"
-          node scripts/build-updater-manifest.mjs \
-            --manifest artifacts/updater/latest.json \
-            --version "$version" \
-            --platform darwin-aarch64 \
-            --url "$asset_url" \
-            --signatureFile "$signature_path" \
-            --notes "CogniNote ${version} ${suffix}"
 
-          updater_title="内部：知记空间桌面端更新清单 ${channel}"
-          updater_notes="此 Release 只托管 Tauri updater 的 latest.json，不是用户安装包发行版。"
-          if ! gh release view "$updater_tag" >/dev/null 2>&1; then
-            gh release create "$updater_tag" --title "$updater_title" --notes "$updater_notes" --prerelease
-          else
-            gh release edit "$updater_tag" --title "$updater_title" --notes "$updater_notes"
-          fi
-          updater_release_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${updater_tag}" --jq .id)"
-          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${updater_release_id}" -F prerelease=true -f make_latest=false >/dev/null
-          gh release upload "$updater_tag" artifacts/updater/latest.json --clobber
+          init_pages_worktree() {
+            local target_dir="$1"
+            rm -rf "$target_dir"
+
+            local remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+            local branch_ref
+            branch_ref="$(git ls-remote --heads "$remote" gh-pages)"
+            if [[ -n "$branch_ref" ]]; then
+              git clone --depth 1 --branch gh-pages "$remote" "$target_dir"
+            else
+              mkdir -p "$target_dir"
+              git -C "$target_dir" init
+              git -C "$target_dir" checkout -b gh-pages
+              git -C "$target_dir" remote add origin "$remote"
+            fi
+
+            git -C "$target_dir" config user.name 'github-actions[bot]'
+            git -C "$target_dir" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          }
+
+          pages_dir="artifacts/updater-pages"
+          for attempt in 1 2 3; do
+            init_pages_worktree "$pages_dir"
+            manifest_path="${pages_dir}/updater/${channel}/latest.json"
+            node scripts/build-updater-manifest.mjs \
+              --manifest "$manifest_path" \
+              --version "$version" \
+              --platform darwin-aarch64 \
+              --url "$asset_url" \
+              --signatureFile "$signature_path" \
+              --notes "CogniNote ${version} ${suffix}"
+
+            touch "${pages_dir}/.nojekyll"
+            git -C "$pages_dir" add .nojekyll "updater/${channel}/latest.json"
+            if [[ -z "$(git -C "$pages_dir" status --porcelain)" ]]; then
+              echo "No updater manifest changes for ${channel}."
+              exit 0
+            fi
+
+            git -C "$pages_dir" commit -m "Publish ${channel} updater manifest for ${version} (${suffix})"
+            if git -C "$pages_dir" push origin gh-pages; then
+              echo "Published ${channel} updater manifest to gh-pages."
+              exit 0
+            fi
+
+            echo "Push to gh-pages failed on attempt ${attempt}; retrying with a fresh copy." >&2
+            sleep "$(( attempt * 2 ))"
+          done
+          echo "Failed to publish ${channel} updater manifest to gh-pages." >&2
+          exit 1

@@ -48,9 +48,13 @@ const DESKTOP_BACKEND_LOG_MAX_BYTES: u64 = 2 * 1024 * 1024;
 const DESKTOP_BACKEND_LOG_MAX_HISTORY: u32 = 5;
 const DESKTOP_SESSION_HEADER: &str = "X-CogniNote-Desktop-Session";
 const DESKTOP_SESSION_TOKEN_GLOBAL: &str = "__COGNINOTE_DESKTOP_SESSION_TOKEN__";
-const STABLE_UPDATER_ENDPOINT: &str =
+const STABLE_PAGES_UPDATER_ENDPOINT: &str =
+    "https://itqianchen.github.io/cogninote-agent-design/updater/stable/latest.json";
+const PREVIEW_PAGES_UPDATER_ENDPOINT: &str =
+    "https://itqianchen.github.io/cogninote-agent-design/updater/preview/latest.json";
+const STABLE_RELEASE_UPDATER_ENDPOINT: &str =
     "https://github.com/ItQianChen/cogninote-agent-design/releases/download/desktop-updater-stable/latest.json";
-const PREVIEW_UPDATER_ENDPOINT: &str =
+const PREVIEW_RELEASE_UPDATER_ENDPOINT: &str =
     "https://github.com/ItQianChen/cogninote-agent-design/releases/download/desktop-updater-preview/latest.json";
 const UPDATER_PUBLIC_KEY: &str = match option_env!("COGNINOTE_TAURI_UPDATER_PUBLIC_KEY") {
     Some(value) => value,
@@ -298,15 +302,20 @@ fn normalize_update_channel(channel: &str) -> Result<String, String> {
     }
 }
 
-fn updater_endpoint(channel: &str) -> Result<tauri::Url, String> {
-    let endpoint = match channel {
-        "stable" => STABLE_UPDATER_ENDPOINT,
-        "preview" => PREVIEW_UPDATER_ENDPOINT,
+fn updater_endpoints(channel: &str) -> Result<Vec<tauri::Url>, String> {
+    let endpoints = match channel {
+        "stable" => [STABLE_PAGES_UPDATER_ENDPOINT, STABLE_RELEASE_UPDATER_ENDPOINT],
+        "preview" => [PREVIEW_PAGES_UPDATER_ENDPOINT, PREVIEW_RELEASE_UPDATER_ENDPOINT],
         other => return Err(format!("未知更新通道：{other}")),
     };
-    endpoint
-        .parse()
-        .map_err(|error| format!("无法解析更新地址：{error}"))
+    endpoints
+        .into_iter()
+        .map(|endpoint| {
+            endpoint
+                .parse()
+                .map_err(|error| format!("无法解析更新地址 {endpoint}：{error}"))
+        })
+        .collect()
 }
 
 fn updater_public_key() -> Result<&'static str, String> {
@@ -321,12 +330,12 @@ fn build_channel_updater(
     app: &AppHandle,
     channel: &str,
 ) -> Result<tauri_plugin_updater::Updater, String> {
-    let endpoint = updater_endpoint(channel)?;
+    let endpoints = updater_endpoints(channel)?;
     let public_key = updater_public_key()?;
     let before_exit_app = app.clone();
     app.updater_builder()
         .pubkey(public_key)
-        .endpoints(vec![endpoint])
+        .endpoints(endpoints)
         .map_err(|error| format!("更新通道配置无效：{error}"))?
         .timeout(Duration::from_secs(30))
         .on_before_exit(move || {

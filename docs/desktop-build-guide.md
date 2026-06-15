@@ -329,14 +329,16 @@ TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 
 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 可选。`tauri signer sign` 会从 `TAURI_SIGNING_PRIVATE_KEY` 读取私钥内容；如果改用文件路径，应使用 Tauri CLI 支持的 `TAURI_SIGNING_PRIVATE_KEY_PATH`，但当前 workflow 默认按私钥内容读取。私钥绝不能写入仓库。`TAURI_UPDATER_PUBLIC_KEY` 会在构建时注入为 `COGNINOTE_TAURI_UPDATER_PUBLIC_KEY` 并编译进桌面壳。未配置 public key 的本地构建仍能正常运行，只是设置页检查更新会提示自动更新未配置。
 
-发布通道由两个固定 GitHub Release 承载：
+发布通道由 GitHub Pages 承载，`latest.json` 作为 `gh-pages` 分支中的普通静态文件维护：
 
 ```text
-desktop-updater-stable
-desktop-updater-preview
+https://itqianchen.github.io/cogninote-agent-design/updater/stable/latest.json
+https://itqianchen.github.io/cogninote-agent-design/updater/preview/latest.json
 ```
 
-每个 Release 中固定上传 `latest.json`。运行时稳定通道读取 `desktop-updater-stable/latest.json`，测试通道读取 `desktop-updater-preview/latest.json`。设置页默认使用 `stable`，用户可显式切到 `preview`。
+运行时会优先读取 Pages 地址，旧的 `desktop-updater-stable/latest.json` 和 `desktop-updater-preview/latest.json` Release 资产只作为迁移期 fallback。设置页默认使用 `stable`，用户可显式切到 `preview`。
+
+首次启用前，需要在 GitHub 仓库 Settings → Pages 中把发布来源设为 `gh-pages` 分支根目录。workflow 会在首次发布 updater manifest 时自动创建 `gh-pages` 分支并写入 `.nojekyll`、`updater/stable/latest.json` 或 `updater/preview/latest.json`。
 
 Windows updater 指向最终 NSIS installer：
 
@@ -354,7 +356,7 @@ CogniNote-0.1.34-macos-arm64-unsigned.app.tar.gz
 
 DMG 只作为手动下载安装资产，不给 updater 使用。所有 updater `.sig` 都必须在最终文件稳定后生成：Windows 应在 Authenticode 签名后签 updater；macOS 应在 `.app` 签名、公证、staple 后重新打 `.app.tar.gz`，再签 updater。后处理会改变文件内容，先签 updater 再改文件会导致安装校验失败。
 
-`scripts/build-updater-manifest.mjs` 负责合并 manifest 平台条目。Windows 和 macOS workflow 可以分别发布同一版本；同一版本下会保留已有平台条目，版本变化时重新开始新的平台集合。脚本测试：
+`scripts/build-updater-manifest.mjs` 负责合并 manifest 平台条目。Windows 和 macOS workflow 可以分别发布同一版本；发布步骤会把 `updater/{stable|preview}/latest.json` commit 到 `gh-pages`，同一版本下会保留已有平台条目，版本变化时重新开始新的平台集合。脚本测试：
 
 ```powershell
 node scripts/build-updater-manifest.test.mjs

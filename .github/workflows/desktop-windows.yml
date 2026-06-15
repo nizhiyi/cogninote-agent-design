@@ -290,7 +290,6 @@ jobs:
             $tag = $tag.Replace('{{VERSION}}', $version).Replace('{version}', $version)
           }
           $channel = if ($isPreviewRelease) { 'preview' } else { 'stable' }
-          $updaterTag = if ($channel -eq 'stable') { 'desktop-updater-stable' } else { 'desktop-updater-preview' }
           $assetName = "CogniNote-${version}-windows-x64-${suffix}-installer.exe"
           $assetPath = "artifacts/windows-release/$assetName"
           $assetFullPath = Join-Path $env:GITHUB_WORKSPACE $assetPath
@@ -304,45 +303,72 @@ jobs:
             throw "Tauri updater signature was not generated: $signaturePath"
           }
 
-          $updaterDir = 'artifacts/updater'
-          New-Item -ItemType Directory -Force -Path $updaterDir | Out-Null
-          $previousNativeErrorPreference = $PSNativeCommandUseErrorActionPreference
-          $PSNativeCommandUseErrorActionPreference = $false
-          gh release download $updaterTag --pattern latest.json --dir $updaterDir --clobber *> $null
-          $downloadExitCode = $LASTEXITCODE
-          $PSNativeCommandUseErrorActionPreference = $previousNativeErrorPreference
-          if ($downloadExitCode -ne 0) {
-            Write-Host "No existing updater manifest found for $updaterTag; creating a new latest.json."
-          }
           $assetUrl = "https://github.com/ItQianChen/cogninote-agent-design/releases/download/$tag/$assetName"
-          node scripts/build-updater-manifest.mjs `
-            --manifest "$updaterDir/latest.json" `
-            --version $version `
-            --platform windows-x86_64 `
-            --url $assetUrl `
-            --signatureFile $signaturePath `
-            --notes "CogniNote $version $suffix"
 
-          gh release view $updaterTag *> $null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create $updaterTag --title "内部：知记空间桌面端更新清单 $channel" --notes "此 Release 只托管 Tauri updater 的 latest.json，不是用户安装包发行版。" --prerelease
-            if ($LASTEXITCODE -ne 0) {
-              throw "Failed to create updater release $updaterTag."
+          function Initialize-PagesWorktree {
+            param([Parameter(Mandatory = $true)][string]$TargetDir)
+
+            if (Test-Path -LiteralPath $TargetDir) {
+              Remove-Item -LiteralPath $TargetDir -Recurse -Force
             }
-          } else {
-            gh release edit $updaterTag --title "内部：知记空间桌面端更新清单 $channel" --notes "此 Release 只托管 Tauri updater 的 latest.json，不是用户安装包发行版。"
+
+            $remote = "https://x-access-token:$env:GH_TOKEN@github.com/$env:GITHUB_REPOSITORY.git"
+            $branchRef = git ls-remote --heads $remote gh-pages
             if ($LASTEXITCODE -ne 0) {
-              throw "Failed to update updater release $updaterTag."
+              throw 'Failed to inspect gh-pages branch.'
             }
+
+            if ($branchRef) {
+              git clone --depth 1 --branch gh-pages $remote $TargetDir
+            } else {
+              New-Item -ItemType Directory -Force -Path $TargetDir | Out-Null
+              git -C $TargetDir init
+              git -C $TargetDir checkout -b gh-pages
+              git -C $TargetDir remote add origin $remote
+            }
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Failed to prepare gh-pages worktree.'
+            }
+
+            git -C $TargetDir config user.name 'github-actions[bot]'
+            git -C $TargetDir config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           }
 
-          $updaterRelease = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$updaterTag" | ConvertFrom-Json
-          gh api -X PATCH "repos/$env:GITHUB_REPOSITORY/releases/$($updaterRelease.id)" -F 'prerelease=true' -f 'make_latest=false' *> $null
-          if ($LASTEXITCODE -ne 0) {
-            throw "Failed to mark updater release $updaterTag as internal prerelease."
-          }
+          $pagesDir = 'artifacts/updater-pages'
+          for ($attempt = 1; $attempt -le 3; $attempt += 1) {
+            Initialize-PagesWorktree -TargetDir $pagesDir
+            $manifestPath = Join-Path $pagesDir "updater/$channel/latest.json"
+            node scripts/build-updater-manifest.mjs `
+              --manifest $manifestPath `
+              --version $version `
+              --platform windows-x86_64 `
+              --url $assetUrl `
+              --signatureFile $signaturePath `
+              --notes "CogniNote $version $suffix"
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Failed to build updater manifest.'
+            }
 
-          gh release upload $updaterTag "$updaterDir/latest.json" --clobber
-          if ($LASTEXITCODE -ne 0) {
-            throw "Failed to upload updater manifest to $updaterTag."
+            New-Item -ItemType File -Force -Path (Join-Path $pagesDir '.nojekyll') | Out-Null
+            git -C $pagesDir add .nojekyll "updater/$channel/latest.json"
+            $changes = git -C $pagesDir status --porcelain
+            if (-not $changes) {
+              Write-Host "No updater manifest changes for $channel."
+              exit 0
+            }
+
+            git -C $pagesDir commit -m "Publish $channel updater manifest for $version ($suffix)"
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Failed to commit updater manifest.'
+            }
+
+            git -C $pagesDir push origin gh-pages
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "Published $channel updater manifest to gh-pages."
+              exit 0
+            }
+
+            Write-Warning "Push to gh-pages failed on attempt $attempt; retrying with a fresh copy."
+            Start-Sleep -Seconds ([Math]::Min(10, 2 * $attempt))
           }
+          throw "Failed to publish $channel updater manifest to gh-pages."
