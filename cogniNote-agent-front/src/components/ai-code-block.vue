@@ -253,7 +253,7 @@ function trimFenceBoundaryBlankLines(value) {
 }
 
 function normalizeMermaidForRendering(value) {
-  const source = trimFenceBoundaryBlankLines(value)
+  const source = normalizeMermaidHtmlBreaks(trimFenceBoundaryBlankLines(value))
   if (!isMermaidFlowchart(source)) {
     return source
   }
@@ -269,11 +269,21 @@ function isMermaidFlowchart(value) {
 }
 
 /**
- * 清理 flowchart 节点标签。
+ * 清理模型常见的 flowchart 坏格式。
  *
- * 模型常输出未转义的括号和中文标点；只修节点标签，避免改坏 Mermaid 语法本身。
+ * 弱模型容易把 HTML 换行、长箭头或自然语言边说明直接塞进 Mermaid。
+ * 这里只修高置信错误，避免重写整张图导致原本合法的语法被改坏。
  */
 function sanitizeMermaidFlowchartLine(line) {
+  const normalizedLine = normalizeMermaidEdgeOperators(normalizeMermaidHtmlBreaks(line))
+  const labelSafeLine = quoteMermaidFlowchartLabels(normalizedLine)
+  const edgeSafeLine = normalizeBrokenMermaidEdgeLabel(labelSafeLine)
+  return isDanglingMermaidEdge(edgeSafeLine) || isBrokenSingleEndedMermaidEdge(edgeSafeLine)
+    ? toMermaidComment(edgeSafeLine)
+    : edgeSafeLine
+}
+
+function quoteMermaidFlowchartLabels(line) {
   let result = ''
   let index = 0
 
@@ -309,6 +319,60 @@ function sanitizeMermaidFlowchartLine(line) {
   return result
 }
 
+function normalizeMermaidHtmlBreaks(value) {
+  return String(value)
+    .replace(/&lt;br\s*\/?&gt;/gi, ' / ')
+    .replace(/<br\s*\/?>/gi, ' / ')
+}
+
+function normalizeMermaidEdgeOperators(line) {
+  return String(line)
+    .replace(/(^|\s)-{3,}>(?=\s|$)/g, '$1-->')
+    .replace(/(^|\s)={3,}>(?=\s|$)/g, '$1==>')
+    .replace(/(^|\s)-{2,}\^+(?=\s|$)/g, '$1-->')
+    .replace(/(^|\s)-{4,}(?=\s|$)/g, '$1---')
+}
+
+function normalizeBrokenMermaidEdgeLabel(line) {
+  return String(line).replace(
+    /^(\s*[A-Za-z_][\w.-]*(?:\[[^\]]*]|\([^)]*\)|\{[^}]*})?\s+)-->(?!\|)(\s+)(.+?)\s+([A-Za-z_][\w.-]*(?:\[[^\]]*]|\([^)]*\)|\{[^}]*})?\s*;?\s*)$/,
+    (match, source, _space, label, target) => {
+      const normalizedLabel = label.trim()
+      if (!normalizedLabel || isLikelyMermaidNodeReference(normalizedLabel) || isQuotedMermaidLabel(normalizedLabel)) {
+        return match
+      }
+      return `${source}-- ${normalizeMermaidEdgeLabel(normalizedLabel)} --> ${target.trim()}`
+    }
+  )
+}
+
+function isDanglingMermaidEdge(line) {
+  return /^\s*[A-Za-z_][\w.-]*(?:\[[^\]]*]|\([^)]*\)|\{[^}]*})?\s+(?:-->|---|==>|-.->)\s*(?:[-=._\s]+)?;?\s*$/.test(line)
+}
+
+function isBrokenSingleEndedMermaidEdge(line) {
+  const match = String(line).match(/^\s*[A-Za-z_][\w.-]*(?:\[[^\]]*]|\([^)]*\)|\{[^}]*})?\s+(?:-->|---|==>|-.->)\s+(.+?)\s*;?\s*$/)
+  if (!match) {
+    return false
+  }
+  const target = match[1].trim()
+  if (!target || /^[-=._\s]+$/.test(target)) {
+    return true
+  }
+  if (/^\|[\s\S]*\|\s*[A-Za-z_]/.test(target) || /^[A-Za-z_][\w.-]*(?:\s*&\s*[A-Za-z_][\w.-]*)+$/.test(target)) {
+    return false
+  }
+  if (isLikelyMermaidNodeReference(target) || isLikelyMermaidEdgeChain(target)) {
+    return false
+  }
+  return /[\s<>"'()[\]{}，。；：、≥≤≈φ^+\u4e00-\u9fff]/.test(target)
+}
+
+function toMermaidComment(line) {
+  const text = String(line).trim()
+  return text ? `%% 已忽略无法自动修复的 Mermaid 行：${text}` : line
+}
+
 function findSimpleSquareLabelEnd(line, startIndex) {
   let quote = ''
   for (let index = startIndex; index < line.length; index += 1) {
@@ -341,8 +405,64 @@ function normalizeMermaidSquareLabel(label) {
   return `"${escapeMermaidQuotedLabel(label)}"`
 }
 
+function normalizeMermaidEdgeLabel(label) {
+  return `"${escapeMermaidQuotedLabel(label)}"`
+}
+
 function isQuotedMermaidLabel(label) {
   return (label.startsWith('"') && label.endsWith('"')) || (label.startsWith('`') && label.endsWith('`'))
+}
+
+function isLikelyMermaidNodeReference(value) {
+  return /^[A-Za-z_][\w.-]*(?:\[[^\]]*]|\([^)]*\)|\{[^}]*})?(?:::+[A-Za-z_][\w.-]*)?$/.test(value)
+}
+
+function isLikelyMermaidEdgeChain(value) {
+  const nodeRef = '[A-Za-z_][\\w.-]*(?:\\[[^\\]]*]|\\([^)]*\\)|\\{[^}]*})?(?:::+[A-Za-z_][\\w.-]*)?'
+  return new RegExp(`^${nodeRef}(?:\\s+(?:-->|---|==>|-.->)\\s+${nodeRef})+$`).test(value)
+}
+
+function handleMermaidRenderError(error, failedCode, container) {
+  if (typeof document === 'undefined' || !container) {
+    return false
+  }
+
+  // onRenderError 返回 true 才能接管 markstream-vue 默认错误 UI，保留源码比暴露解析栈更可操作。
+  const fallback = document.createElement('div')
+  fallback.className = 'cogninote-mermaid-fallback'
+
+  const title = document.createElement('div')
+  title.className = 'cogninote-mermaid-fallback-title'
+  title.textContent = 'Mermaid 图表语法无法渲染，已保留源码'
+
+  const message = document.createElement('div')
+  message.className = 'cogninote-mermaid-fallback-message'
+  message.textContent = formatMermaidRenderError(error)
+
+  const pre = document.createElement('pre')
+  pre.className = 'cogninote-mermaid-fallback-source'
+  const codeElement = document.createElement('code')
+  codeElement.textContent = String(failedCode || mermaidRenderCode.value || '')
+  pre.appendChild(codeElement)
+
+  fallback.append(title, message, pre)
+  try {
+    container.replaceChildren(fallback)
+  } catch {
+    container.innerHTML = ''
+    container.appendChild(fallback)
+  }
+  return true
+}
+
+function formatMermaidRenderError(error) {
+  const rawMessage = error instanceof Error
+    ? error.message
+    : typeof error === 'string'
+      ? error
+      : '模型输出的 Mermaid 语法不完整或包含不支持的连接符。'
+  const message = String(rawMessage).replace(/\s+/g, ' ').trim()
+  return message.length > 280 ? `${message.slice(0, 280)}...` : message
 }
 
 /**
@@ -384,6 +504,7 @@ function escapeHtml(value) {
     :enable-wheel-zoom="true"
     :is-strict="true"
     :enable-mermaid-interactions="false"
+    :on-render-error="handleMermaidRenderError"
   />
   <div
     v-else
@@ -676,5 +797,48 @@ function escapeHtml(value) {
 
 .cogninote-code-dialog-body {
   min-height: 0;
+}
+
+:deep(.cogninote-mermaid-fallback) {
+  display: grid;
+  width: min(100%, 860px);
+  max-width: calc(100vw - 56px);
+  gap: 10px;
+  margin: 22px auto;
+  padding: 14px;
+  border: 1px solid var(--diagram-border, var(--code-border));
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  background: var(--color-surface);
+  text-align: left;
+  box-shadow: 0 8px 24px rgba(15, 42, 58, 0.08);
+}
+
+:deep(.cogninote-mermaid-fallback-title) {
+  color: var(--color-text-strong);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+:deep(.cogninote-mermaid-fallback-message) {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+:deep(.cogninote-mermaid-fallback-source) {
+  max-height: 280px;
+  overflow: auto;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--code-border);
+  border-radius: var(--radius-sm);
+  color: var(--code-fg);
+  background: var(--code-bg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre;
 }
 </style>
