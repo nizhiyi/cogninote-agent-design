@@ -26,11 +26,11 @@
     <insert id="insertChatMessage">
         INSERT INTO chat_messages (
             id, conversation_id, message_sequence, role, content, status,
-            request_id, agent_type, retrieval_mode, sources_json, token_estimate, created_at
+            request_id, agent_type, retrieval_mode, sources_json, references_json, token_estimate, created_at
         )
         VALUES (
             #{id}, #{conversationId}, #{sequence}, 'USER', #{content}, 'DONE',
-            NULL, NULL, NULL, NULL, 1, #{createdAt}
+            NULL, NULL, NULL, NULL, NULL, 1, #{createdAt}
         )
     </insert>
 

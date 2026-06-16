@@ -85,8 +85,10 @@ public abstract class AbstractChatAgent implements ChatAgent {
                 type(),
                 useKnowledgeBase,
                 requestedMode,
-                topK
+                topK,
+                request.references()
         );
+        String modelQuestion = chatSessionService.modelContent(userMessage);
         AgentInvocation invocation = prepareInvocation(new AgentInvocationRequest(
                 requestId,
                 conversationId,
@@ -109,7 +111,7 @@ public abstract class AbstractChatAgent implements ChatAgent {
         Flux<String> answer = Flux.defer(() -> aiRuntimeFactory.chatRuntime(chatConfig)
                 .stream(
                         promptAssembler.systemPrompt(type()),
-                        promptAssembler.userPrompt(type(), question),
+                        promptAssembler.userPrompt(type(), modelQuestion),
                         invocation.advisors(),
                         advisorParams
                 )

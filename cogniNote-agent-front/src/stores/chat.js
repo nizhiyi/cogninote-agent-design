@@ -14,6 +14,9 @@ import {
 const DEFAULT_RETRIEVAL_MODE = 'HYBRID'
 const DEFAULT_TOP_K = 8
 const POST_ERROR_REFRESH_DELAYS = [600, 1800, 4200, 9000, 18000, 36000]
+const MAX_PENDING_REFERENCES = 5
+const MAX_REFERENCE_SNIPPET_CHARS = 1200
+const MAX_REFERENCE_TOTAL_CHARS = 4000
 
 let localIdSeed = 0
 
@@ -67,11 +70,56 @@ function normalizeMessage(message, fallbackRole = 'assistant') {
     content: message?.content || '',
     status: normalizeStatus(message?.status, role),
     sources: message?.sources || [],
+    references: normalizeReferences(message?.references),
     retrievalMode: message?.retrievalMode || '',
     conversationId: message?.conversationId || '',
     requestId: message?.requestId || '',
     createdAt: message?.createdAt || Date.now()
   }
+}
+
+function normalizeReferences(references) {
+  if (!Array.isArray(references)) {
+    return []
+  }
+  const seen = new Set()
+  const normalized = []
+  let totalChars = 0
+  for (const reference of references) {
+    if (!reference || normalized.length >= MAX_PENDING_REFERENCES) {
+      continue
+    }
+    const messageId = normalizeText(reference.messageId)
+    let snippet = truncateText(normalizeText(reference.snippet), MAX_REFERENCE_SNIPPET_CHARS)
+    if (!messageId || !snippet) {
+      continue
+    }
+    const remaining = MAX_REFERENCE_TOTAL_CHARS - totalChars
+    if (remaining <= 0) {
+      break
+    }
+    snippet = truncateText(snippet, remaining)
+    const dedupeKey = `${messageId}\n${snippet}`
+    if (seen.has(dedupeKey)) {
+      continue
+    }
+    seen.add(dedupeKey)
+    normalized.push({
+      id: normalizeText(reference.id) || nextId('reference'),
+      messageId,
+      snippet
+    })
+    totalChars += snippet.length
+  }
+  return normalized
+}
+
+function normalizeText(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim()
+}
+
+function truncateText(value, maxLength) {
+  return value.length <= maxLength ? value : value.slice(0, maxLength)
 }
 
 function normalizeContextUsage(usage) {
@@ -161,6 +209,7 @@ export const useChatStore = defineStore('chat', () => {
   const error = ref('')
   const abortController = ref(null)
   const streamingContext = ref(null)
+  const pendingReferences = ref([])
   const sessionScrollPositions = ref({})
   const pendingSessionOptionPayloads = new Map()
   const savingSessionOptionIds = new Set()
@@ -171,6 +220,7 @@ export const useChatStore = defineStore('chat', () => {
   const activeMessages = computed(() => activeSession.value?.messages || [])
   const activeContextUsage = computed(() => activeSession.value?.contextUsage || null)
   const hasMessages = computed(() => activeMessages.value.length > 0)
+  const hasPendingReferences = computed(() => pendingReferences.value.length > 0)
   const canSend = computed(() => draft.value.trim().length > 0 && !isStreaming.value && !isSubmittingChat.value)
   const useKnowledgeBase = computed({
     get: () => normalizeKnowledgeBaseFlag(useKnowledgeBaseValue.value),
@@ -222,6 +272,7 @@ export const useChatStore = defineStore('chat', () => {
     activeSessionId.value = ''
     isLoadingActiveSession.value = false
     draft.value = ''
+    clearPendingReferences()
   }
 
   async function selectSession(sessionId, options = {}) {
@@ -234,6 +285,7 @@ export const useChatStore = defineStore('chat', () => {
     activeSessionId.value = sessionId
     isLoadingActiveSession.value = true
     error.value = ''
+    clearPendingReferences()
     try {
       const detail = normalizeSession(await getChatSession(sessionId))
       upsertSession(detail)
@@ -280,6 +332,7 @@ export const useChatStore = defineStore('chat', () => {
         activeSessionId.value = ''
         isLoadingActiveSession.value = false
         draft.value = ''
+        clearPendingReferences()
       }
     } catch (err) {
       error.value = `删除会话失败：${err.message}`
@@ -299,6 +352,7 @@ export const useChatStore = defineStore('chat', () => {
       const updated = normalizeSession(await clearChatSessionMessages(activeSession.value.id))
       upsertSession(updated)
       applySessionOptions(updated)
+      clearPendingReferences()
     } catch (err) {
       error.value = `清空会话失败：${err.message}`
     }
@@ -321,8 +375,11 @@ export const useChatStore = defineStore('chat', () => {
       return
     }
     syncSessionOptions(session)
+    const referencesForMessage = normalizeReferences(pendingReferences.value)
     const userMessage = createLocalMessage('user', trimmedQuestion)
+    userMessage.references = referencesForMessage
     appendMessage(session, userMessage)
+    clearPendingReferences()
     const assistantMessage = createLocalMessage('assistant')
     const requestId = nextId('request')
     assistantMessage.requestId = requestId
@@ -352,7 +409,8 @@ export const useChatStore = defineStore('chat', () => {
           mode: mode.value,
           topK: Number(topK.value),
           useKnowledgeBase: useKnowledgeBase.value,
-          requestId
+          requestId,
+          references: referencesForMessage
         },
         {
           signal: abortController.value.signal,
@@ -460,6 +518,14 @@ export const useChatStore = defineStore('chat', () => {
 
   function askAboutSource(source) {
     draft.value = `请解释 ${source.fileName} 中和这段内容相关的要点。`
+  }
+
+  function addPendingReference(reference) {
+    pendingReferences.value = normalizeReferences([...pendingReferences.value, reference])
+  }
+
+  function clearPendingReferences() {
+    pendingReferences.value = []
   }
 
   /**
@@ -779,7 +845,9 @@ export const useChatStore = defineStore('chat', () => {
     activeMessages,
     activeContextUsage,
     hasMessages,
+    hasPendingReferences,
     draft,
+    pendingReferences,
     useKnowledgeBase,
     mode,
     topK,
@@ -804,6 +872,8 @@ export const useChatStore = defineStore('chat', () => {
     clearActiveMessages,
     streamChat,
     stopChat,
-    askAboutSource
+    askAboutSource,
+    addPendingReference,
+    clearPendingReferences
   }
 })

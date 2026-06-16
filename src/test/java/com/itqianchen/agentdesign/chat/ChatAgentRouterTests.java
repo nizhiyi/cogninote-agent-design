@@ -51,7 +51,10 @@ import com.itqianchen.agentdesign.service.chat.ChatSettingsService;
 import com.itqianchen.agentdesign.service.chat.ChatSessionService;
 import com.itqianchen.agentdesign.service.chat.CogninoteMemoryAdvisor;
 import com.itqianchen.agentdesign.service.chat.ConversationMemorySnapshotService;
+import com.itqianchen.agentdesign.dto.chat.ChatReferenceRequest;
 import com.itqianchen.agentdesign.dto.chat.ChatSettingsRequest;
+import com.itqianchen.agentdesign.service.chat.ChatReferenceSanitizer;
+import com.itqianchen.agentdesign.service.chat.ChatReferencesJsonCodec;
 import com.itqianchen.agentdesign.service.chat.RagSourcesJsonCodec;
 import com.itqianchen.agentdesign.service.chat.TokenEstimator;
 import com.itqianchen.agentdesign.service.model.ModelConfigService;
@@ -136,6 +139,42 @@ class ChatAgentRouterTests {
         assertThat(messages.get(1).content()).isEqualTo("纯对话答案");
         assertThat(messages.get(0).agentType()).isEqualTo(AgentType.GENERAL_CHAT);
         assertThat(messages.get(1).agentType()).isEqualTo(AgentType.GENERAL_CHAT);
+    }
+
+    @Test
+    void selectedAssistantReferencesArePersistedAndInjectedIntoModelPrompt() {
+        AgentFixture fixture = new AgentFixture(new FakeKnowledgeStore(false), Flux.just("引用回答"));
+
+        AgentChatStream stream = fixture.agent.stream(new AgentRequest(
+                "request-reference",
+                "基于引用总结一下",
+                5,
+                SearchMode.HYBRID,
+                "conversation-reference",
+                false,
+                List.of(new ChatReferenceRequest(
+                        "ref-1",
+                        "assistant-message-1",
+                        "这是一段被用户选中的助手回复。"
+                ))
+        ));
+
+        assertThat(stream.answer().collectList().block()).containsExactly("引用回答");
+        assertThat(fixture.runtime.lastUserMessage)
+                .contains("用户本轮引用了以下助手回复片段")
+                .contains("[引用 1]")
+                .contains("这是一段被用户选中的助手回复。")
+                .contains("用户问题：\n基于引用总结一下");
+        ChatMessage userMessage = fixture.chatSessionRepository.findMessages("conversation-reference").getFirst();
+        assertThat(userMessage.content()).isEqualTo("基于引用总结一下");
+        assertThat(userMessage.referencesJson()).contains("assistant-message-1");
+        assertThat(fixture.chatSessionService.getSession("conversation-reference").messages().getFirst().references())
+                .singleElement()
+                .satisfies(reference -> {
+                    assertThat(reference.id()).isEqualTo("ref-1");
+                    assertThat(reference.messageId()).isEqualTo("assistant-message-1");
+                    assertThat(reference.snippet()).isEqualTo("这是一段被用户选中的助手回复。");
+                });
     }
 
     @Test
@@ -565,10 +604,16 @@ class ChatAgentRouterTests {
             this.chatSessionRepository = new ChatSessionRepository(sqlSession.getMapper(ChatSessionMapper.class));
             ChatMemoryProperties memoryProperties = new ChatMemoryProperties(6000, 8, 200);
             TokenEstimator tokenEstimator = new TokenEstimator();
+            ChatReferenceSanitizer referenceSanitizer = new ChatReferenceSanitizer();
+            ChatReferencesJsonCodec referencesJsonCodec = new ChatReferencesJsonCodec(
+                    new ObjectMapper(),
+                    referenceSanitizer
+            );
             ConversationMemorySnapshotService memorySnapshotService = new ConversationMemorySnapshotService(
                     chatSessionRepository,
                     memoryProperties,
                     tokenEstimator,
+                    referencesJsonCodec,
                     modelConfigService
             );
             ChatContextUsageService contextUsageService = new ChatContextUsageService(
@@ -580,6 +625,8 @@ class ChatAgentRouterTests {
             this.chatSessionService = new ChatSessionService(
                     chatSessionRepository,
                     new RagSourcesJsonCodec(new ObjectMapper()),
+                    referencesJsonCodec,
+                    referenceSanitizer,
                     tokenEstimator,
                     memoryProperties,
                     contextUsageService,

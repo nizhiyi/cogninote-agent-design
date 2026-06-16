@@ -99,6 +99,7 @@ class ChatSessionRepositoryTests {
                 AgentType.GENERAL_CHAT,
                 null,
                 null,
+                null,
                 1,
                 now + 1
         );

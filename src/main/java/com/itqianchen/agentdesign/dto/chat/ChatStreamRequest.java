@@ -2,7 +2,9 @@ package com.itqianchen.agentdesign.dto.chat;
 
 import com.itqianchen.agentdesign.domain.search.SearchMode;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
+import java.util.List;
 
 /**
  * Chat Stream 请求 定义 聊天会话 接口允许接收的请求字段。
@@ -14,7 +16,8 @@ public record ChatStreamRequest(
         SearchMode mode,
         @Size(max = 80) String requestId,
         @Size(max = 80) String conversationId,
-        Boolean useKnowledgeBase
+        Boolean useKnowledgeBase,
+        @Size(max = 5) List<@Valid ChatReferenceRequest> references
 ) {
 }
 

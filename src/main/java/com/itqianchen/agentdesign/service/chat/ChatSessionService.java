@@ -11,6 +11,8 @@ import com.itqianchen.agentdesign.domain.model.ModelConfig;
 import com.itqianchen.agentdesign.domain.search.SearchMode;
 import com.itqianchen.agentdesign.dto.chat.ChatMessageResponse;
 import com.itqianchen.agentdesign.dto.chat.ChatContextUsageResponse;
+import com.itqianchen.agentdesign.dto.chat.ChatReferenceRequest;
+import com.itqianchen.agentdesign.dto.chat.ChatReferenceResponse;
 import com.itqianchen.agentdesign.dto.chat.ChatSessionCreateRequest;
 import com.itqianchen.agentdesign.dto.chat.ChatSessionResponse;
 import com.itqianchen.agentdesign.dto.chat.ChatSessionUpdateRequest;
@@ -34,6 +36,8 @@ public class ChatSessionService {
 
     private final ChatSessionRepository chatSessionRepository;
     private final RagSourcesJsonCodec ragSourcesJsonCodec;
+    private final ChatReferencesJsonCodec chatReferencesJsonCodec;
+    private final ChatReferenceSanitizer chatReferenceSanitizer;
     private final TokenEstimator tokenEstimator;
     private final ChatMemoryProperties memoryProperties;
     private final ChatContextUsageService contextUsageService;
@@ -44,6 +48,8 @@ public class ChatSessionService {
      *
      * @param chatSessionRepository 会话仓储
      * @param ragSourcesJsonCodec RAG 来源快照编解码器
+     * @param chatReferencesJsonCodec 引用片段编解码器
+     * @param chatReferenceSanitizer 引用片段清洗器
      * @param tokenEstimator token 估算器
      * @param memoryProperties 记忆窗口配置
      * @param contextUsageService 上下文用量服务
@@ -52,6 +58,8 @@ public class ChatSessionService {
     public ChatSessionService(
             ChatSessionRepository chatSessionRepository,
             RagSourcesJsonCodec ragSourcesJsonCodec,
+            ChatReferencesJsonCodec chatReferencesJsonCodec,
+            ChatReferenceSanitizer chatReferenceSanitizer,
             TokenEstimator tokenEstimator,
             ChatMemoryProperties memoryProperties,
             ChatContextUsageService contextUsageService,
@@ -59,6 +67,8 @@ public class ChatSessionService {
     ) {
         this.chatSessionRepository = chatSessionRepository;
         this.ragSourcesJsonCodec = ragSourcesJsonCodec;
+        this.chatReferencesJsonCodec = chatReferencesJsonCodec;
+        this.chatReferenceSanitizer = chatReferenceSanitizer;
         this.tokenEstimator = tokenEstimator;
         this.memoryProperties = memoryProperties;
         this.contextUsageService = contextUsageService;
@@ -197,6 +207,7 @@ public class ChatSessionService {
      * @param useKnowledgeBase 是否启用知识库
      * @param mode 检索模式
      * @param topK 检索数量
+     * @param references 用户引用的助手片段
      * @return 已落库的用户消息
      */
     @Transactional
@@ -207,9 +218,12 @@ public class ChatSessionService {
             AgentType agentType,
             boolean useKnowledgeBase,
             SearchMode mode,
-            int topK
+            int topK,
+            List<ChatReferenceRequest> references
     ) {
         long now = System.currentTimeMillis();
+        List<ChatReferenceResponse> sanitizedReferences = chatReferenceSanitizer.sanitizeRequests(references);
+        String referencesJson = chatReferencesJsonCodec.encode(sanitizedReferences);
         ChatSession session = chatSessionRepository.ensureSession(
                 conversationId,
                 titleFromQuestion(content),
@@ -238,7 +252,8 @@ public class ChatSessionService {
                 agentType,
                 null,
                 null,
-                estimateChatMessage(content),
+                referencesJson,
+                estimateChatMessage(ChatReferencePromptFormatter.formatUserContent(content, sanitizedReferences)),
                 now
         );
     }
@@ -359,6 +374,7 @@ public class ChatSessionService {
                 agentType,
                 retrievalMode,
                 ragSourcesJsonCodec.encode(sources),
+                null,
                 estimateChatMessage(content),
                 System.currentTimeMillis()
         );
@@ -372,8 +388,31 @@ public class ChatSessionService {
      */
     private List<ChatMessageResponse> messageResponses(String conversationId) {
         return chatSessionRepository.findMessages(conversationId).stream()
-                .map(message -> ChatMessageResponse.from(message, ragSourcesJsonCodec.decode(message.sourcesJson())))
+                .map(message -> ChatMessageResponse.from(
+                        message,
+                        ragSourcesJsonCodec.decode(message.sourcesJson()),
+                        chatReferencesJsonCodec.decode(message.referencesJson())
+                ))
                 .toList();
+    }
+
+    /**
+     * 构造指定消息进入模型上下文时的内容。
+     *
+     * @param message 聊天消息
+     * @return 用户消息会拼接引用块，其他消息返回原内容
+     */
+    public String modelContent(ChatMessage message) {
+        if (message == null) {
+            return "";
+        }
+        if (message.role() != ChatMessageRole.USER) {
+            return message.content();
+        }
+        return ChatReferencePromptFormatter.formatUserContent(
+                message.content(),
+                chatReferencesJsonCodec.decode(message.referencesJson())
+        );
     }
 
     /**
@@ -455,13 +494,13 @@ public class ChatSessionService {
      * @param messages 被摘要覆盖的消息
      * @return 摘要文本
      */
-    private static String buildExtractiveSummary(List<ChatMessage> messages) {
+    private String buildExtractiveSummary(List<ChatMessage> messages) {
         StringBuilder builder = new StringBuilder(
                 "以下是本会话较早内容的滚动摘要，按时间顺序保留关键事实；每条都带有当时的 Agent 模式：\n");
         for (ChatMessage message : messages) {
             String role = message.role() == ChatMessageRole.USER ? "用户" : "助手";
             String agentType = message.agentType() == null ? "UNKNOWN" : message.agentType().name();
-            String line = "- [%s] %s：%s%n".formatted(agentType, role, compact(message.content()));
+            String line = "- [%s] %s：%s%n".formatted(agentType, role, compact(modelContent(message)));
             if (builder.length() + line.length() > SUMMARY_MAX_CHARS) {
                 builder.append("- 更早的细节仍保存在 SQLite 原始消息中，本轮仅注入摘要视图。\n");
                 break;

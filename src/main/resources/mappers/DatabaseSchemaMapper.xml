@@ -113,6 +113,7 @@
             agent_type TEXT,
             retrieval_mode TEXT,
             sources_json TEXT,
+            references_json TEXT,
             token_estimate INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL,
             FOREIGN KEY (conversation_id) REFERENCES chat_sessions(id) ON DELETE CASCADE

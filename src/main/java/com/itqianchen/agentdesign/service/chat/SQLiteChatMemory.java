@@ -25,16 +25,23 @@ public class SQLiteChatMemory implements ChatMemory {
 
     private final ChatSessionRepository chatSessionRepository;
     private final TokenEstimator tokenEstimator;
+    private final ChatReferencesJsonCodec chatReferencesJsonCodec;
 
     /**
      * 注入会话仓储和 token 估算器。
      *
      * @param chatSessionRepository 会话仓储
      * @param tokenEstimator token 估算器
+     * @param chatReferencesJsonCodec 引用片段编解码器
      */
-    public SQLiteChatMemory(ChatSessionRepository chatSessionRepository, TokenEstimator tokenEstimator) {
+    public SQLiteChatMemory(
+            ChatSessionRepository chatSessionRepository,
+            TokenEstimator tokenEstimator,
+            ChatReferencesJsonCodec chatReferencesJsonCodec
+    ) {
         this.chatSessionRepository = chatSessionRepository;
         this.tokenEstimator = tokenEstimator;
+        this.chatReferencesJsonCodec = chatReferencesJsonCodec;
     }
 
     /**
@@ -70,7 +77,7 @@ public class SQLiteChatMemory implements ChatMemory {
     public List<Message> get(String conversationId) {
         return chatSessionRepository.findMessages(conversationId).stream()
                 .filter(message -> message.role() == ChatMessageRole.USER || message.role() == ChatMessageRole.ASSISTANT)
-                .map(SQLiteChatMemory::toSpringMessage)
+                .map(this::toSpringMessage)
                 .toList();
     }
 
@@ -107,6 +114,7 @@ public class SQLiteChatMemory implements ChatMemory {
                 AgentType.GENERAL_CHAT,
                 null,
                 null,
+                null,
                 tokenEstimator.estimate(message.getText()),
                 System.currentTimeMillis()
         );
@@ -118,10 +126,13 @@ public class SQLiteChatMemory implements ChatMemory {
      * @param message 本地聊天消息
      * @return Spring AI 消息
      */
-    private static Message toSpringMessage(ChatMessage message) {
+    private Message toSpringMessage(ChatMessage message) {
         if (message.role() == ChatMessageRole.ASSISTANT) {
             return new AssistantMessage(message.content());
         }
-        return new UserMessage(message.content());
+        return new UserMessage(ChatReferencePromptFormatter.formatUserContent(
+                message.content(),
+                chatReferencesJsonCodec.decode(message.referencesJson())
+        ));
     }
 }

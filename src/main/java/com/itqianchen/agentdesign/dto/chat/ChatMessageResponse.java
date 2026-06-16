@@ -17,6 +17,7 @@ public record ChatMessageResponse(
         String requestId,
         SearchMode retrievalMode,
         List<RagSourceResponse> sources,
+        List<ChatReferenceResponse> references,
         long createdAt
 ) {
 
@@ -25,7 +26,11 @@ public record ChatMessageResponse(
      *
      * <p>status 暴露为小写字符串，匹配 Pinia store 的消息状态约定。</p>
      */
-    public static ChatMessageResponse from(ChatMessage message, List<RagSourceResponse> sources) {
+    public static ChatMessageResponse from(
+            ChatMessage message,
+            List<RagSourceResponse> sources,
+            List<ChatReferenceResponse> references
+    ) {
         return new ChatMessageResponse(
                 message.id(),
                 message.role(),
@@ -34,6 +39,7 @@ public record ChatMessageResponse(
                 message.requestId(),
                 message.retrievalMode(),
                 sources,
+                references,
                 message.createdAt()
         );
     }

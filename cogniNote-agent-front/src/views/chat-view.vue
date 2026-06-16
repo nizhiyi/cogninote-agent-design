@@ -1,7 +1,16 @@
 <script setup>
 // 聊天页保留滚动、输入框尺寸和来源抽屉这类 UI 状态；流式消息和会话持久化由 chat store 管理。
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { ChevronLeft, ChevronRight, LoaderCircle, Send, SlidersHorizontal, Trash2 } from 'lucide-vue-next'
+import {
+  ChevronLeft,
+  ChevronRight,
+  LoaderCircle,
+  MessageSquareQuote,
+  Send,
+  SlidersHorizontal,
+  Trash2,
+  X
+} from 'lucide-vue-next'
 import ChatSettingsPopover from '../components/chat-settings-popover.vue'
 import SourceInspector from '../components/source-inspector.vue'
 import { APP_DISPLAY_NAME } from '../config/brand'
@@ -15,6 +24,8 @@ const layoutStore = useLayoutStore()
 const modelConfigStore = useModelConfigStore()
 const AiMarkdownRenderer = defineAsyncComponent(() => import('../components/ai-markdown-renderer.vue'))
 const isComposerSettingsOpen = ref(false)
+const composerSettingsButtonRef = ref(null)
+const composerSettingsPopoverRef = ref(null)
 const messageStreamRef = ref(null)
 const isRestoringScroll = ref(false)
 const shouldFollowBottom = ref(true)
@@ -27,6 +38,7 @@ let restoreRunId = 0
 let composerResizeState = null
 const composerTextareaHeight = ref(COMPOSER_MIN_HEIGHT)
 const composerActionTitle = computed(() => (chatStore.isStreaming ? '停止对话' : '发送信息'))
+const selectionReferenceAction = ref(null)
 const totalSourceCount = computed(() =>
   chatStore.activeMessages.reduce((total, message) => total + (message.sources?.length || 0), 0)
 )
@@ -38,6 +50,7 @@ const activeModelSummary = computed(() => {
   const embedding = modelConfigStore.activeEmbeddingConfig?.modelName || '未配置向量模型'
   return `${chat} / ${embedding}`
 })
+const activeRetrievalModeLabel = computed(() => formatRetrievalModeLabel(chatStore.mode))
 
 // Header 状态必须先表达业务语义，再由 CSS 映射颜色，避免把未配置等警示态误染成成功绿。
 const conversationMetaItems = computed(() => {
@@ -52,7 +65,7 @@ const conversationMetaItems = computed(() => {
     },
     {
       id: 'mode',
-      label: chatStore.mode,
+      label: activeRetrievalModeLabel.value,
       state: 'info'
     },
     {
@@ -104,6 +117,16 @@ const contextUsageStyle = computed(() => ({
 const composerTextareaStyle = computed(() => ({
   height: `${composerTextareaHeight.value}px`
 }))
+
+function referenceCountLabel(references) {
+  const count = Array.isArray(references) ? references.length : 0
+  return `${count} 个已选文本片段`
+}
+
+function compactReferenceSnippet(snippet) {
+  const text = String(snippet || '').replace(/\s+/g, ' ').trim()
+  return text.length <= 160 ? text : `${text.slice(0, 160)}...`
+}
 
 /**
  * 发送按钮在流式输出期间转为停止按钮。
@@ -214,6 +237,10 @@ function formatCompactNumber(value) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '')
 }
 
+function formatRetrievalModeLabel(mode) {
+  return SEARCH_MODES.find((item) => item.value === mode)?.label || mode || ''
+}
+
 /**
  * Enter 直接发送，Shift+Enter 保留换行。
  *
@@ -252,9 +279,107 @@ function handlePageKeydown(event) {
     isComposerSettingsOpen.value = false
     return
   }
+  if (selectionReferenceAction.value) {
+    window.getSelection()?.removeAllRanges()
+    hideSelectionReferenceAction()
+    return
+  }
   if (layoutStore.isSourceInspectorOpen) {
     layoutStore.closeSourceInspector()
   }
+}
+
+function handleComposerSettingsPointerDown(event) {
+  if (!isComposerSettingsOpen.value) {
+    return
+  }
+  const target = event.target
+  if (
+    isEventTargetInside(composerSettingsButtonRef.value, target)
+    || isEventTargetInside(composerSettingsPopoverRef.value, target)
+  ) {
+    return
+  }
+  isComposerSettingsOpen.value = false
+}
+
+function isEventTargetInside(element, target) {
+  const node = element?.$el || element
+  return Boolean(node && target && typeof node.contains === 'function' && node.contains(target))
+}
+
+function handleDocumentSelectionChange() {
+  window.setTimeout(updateSelectionReferenceAction, 0)
+}
+
+function updateSelectionReferenceAction() {
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    hideSelectionReferenceAction()
+    return
+  }
+  const range = selection.getRangeAt(0)
+  const snippet = selection.toString().replace(/\s+/g, ' ').trim()
+  if (!snippet) {
+    hideSelectionReferenceAction()
+    return
+  }
+  const startBubble = closestMessageBubble(range.startContainer)
+  const endBubble = closestMessageBubble(range.endContainer)
+  if (!startBubble || !endBubble || startBubble !== endBubble) {
+    hideSelectionReferenceAction()
+    return
+  }
+  const message = chatStore.activeMessages.find((item) => item.id === startBubble.dataset.messageId)
+  if (!message || message.role !== 'assistant' || message.status === 'streaming') {
+    hideSelectionReferenceAction()
+    return
+  }
+  const messageContent = startBubble.querySelector('.message-content')
+  if (!messageContent?.contains(range.startContainer) || !messageContent.contains(range.endContainer)) {
+    hideSelectionReferenceAction()
+    return
+  }
+  const rect = firstVisibleRangeRect(range)
+  if (!rect) {
+    hideSelectionReferenceAction()
+    return
+  }
+  selectionReferenceAction.value = {
+    messageId: message.id,
+    snippet,
+    style: {
+      top: `${Math.max(10, rect.top - 46)}px`,
+      left: `${Math.max(10, Math.min(Math.max(10, window.innerWidth - 172), rect.left))}px`
+    }
+  }
+}
+
+function closestMessageBubble(node) {
+  const element = node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement
+  return element?.closest?.('[data-message-id]') || null
+}
+
+function firstVisibleRangeRect(range) {
+  const rects = Array.from(range.getClientRects()).filter((rect) => rect.width > 0 && rect.height > 0)
+  return rects[0] || null
+}
+
+function hideSelectionReferenceAction() {
+  selectionReferenceAction.value = null
+}
+
+function addSelectionReference() {
+  const action = selectionReferenceAction.value
+  if (!action) {
+    return
+  }
+  chatStore.addPendingReference({
+    messageId: action.messageId,
+    snippet: action.snippet
+  })
+  window.getSelection()?.removeAllRanges()
+  hideSelectionReferenceAction()
 }
 
 /**
@@ -528,10 +653,14 @@ watch(
 
 onMounted(() => {
   window.addEventListener('keydown', handlePageKeydown)
+  window.addEventListener('pointerdown', handleComposerSettingsPointerDown)
+  document.addEventListener('selectionchange', handleDocumentSelectionChange)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handlePageKeydown)
+  window.removeEventListener('pointerdown', handleComposerSettingsPointerDown)
+  document.removeEventListener('selectionchange', handleDocumentSelectionChange)
   stopComposerResize()
   saveCurrentSessionScrollPosition()
 })
@@ -584,8 +713,26 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
+    <button
+      v-if="selectionReferenceAction"
+      class="selection-reference-action"
+      type="button"
+      :style="selectionReferenceAction.style"
+      @pointerdown.prevent
+      @click="addSelectionReference"
+    >
+      <MessageSquareQuote aria-hidden="true" />
+      添加到对话
+    </button>
+
     <div class="conversation-body">
-      <section ref="messageStreamRef" class="message-stream" aria-live="polite" @scroll.passive="handleMessageStreamScroll">
+      <section
+        ref="messageStreamRef"
+        class="message-stream"
+        aria-live="polite"
+        @scroll.passive="handleMessageStreamScroll"
+        @pointerup="handleDocumentSelectionChange"
+      >
         <div v-if="!chatStore.hasMessages" class="empty-chat">
           <p class="eyebrow">开始一次对话</p>
           <h3>可以直接问，也可以带知识库问。</h3>
@@ -601,7 +748,7 @@ onBeforeUnmount(() => {
         >
           <div class="message-label">
             <span>{{ message.role === 'user' ? '你' : APP_DISPLAY_NAME }}</span>
-            <em v-if="message.retrievalMode">{{ message.retrievalMode }}</em>
+            <em v-if="message.retrievalMode">{{ formatRetrievalModeLabel(message.retrievalMode) }}</em>
             <em v-else-if="message.status === 'streaming'">生成中</em>
             <em v-else-if="message.status === 'error'">未完成</em>
             <em v-else-if="message.status === 'stopped'">已停止</em>
@@ -613,7 +760,26 @@ onBeforeUnmount(() => {
             empty-text="正在等待模型返回..."
             :final="message.status !== 'streaming'"
           />
-          <p v-else class="message-content">{{ message.content || '正在等待模型返回...' }}</p>
+          <template v-else>
+            <div
+              v-if="message.references?.length"
+              class="reference-chip reference-chip--message"
+              tabindex="0"
+              :aria-label="referenceCountLabel(message.references)"
+            >
+              <MessageSquareQuote aria-hidden="true" />
+              <span>{{ referenceCountLabel(message.references) }}</span>
+              <div class="reference-preview" role="tooltip">
+                <strong>{{ referenceCountLabel(message.references) }}</strong>
+                <ol>
+                  <li v-for="reference in message.references" :key="reference.id">
+                    {{ compactReferenceSnippet(reference.snippet) }}
+                  </li>
+                </ol>
+              </div>
+            </div>
+            <p class="message-content">{{ message.content || '正在等待模型返回...' }}</p>
+          </template>
 
           <div v-if="message.sources?.length" class="message-source-strip" aria-label="回答来源">
             <button class="message-source-summary" type="button" @click="openMessageSources(message)">
@@ -641,6 +807,34 @@ onBeforeUnmount(() => {
     </div>
 
     <form class="composer-bar" @submit.prevent="chatStore.streamChat">
+      <div v-if="chatStore.hasPendingReferences" class="composer-reference-row">
+        <div
+          class="reference-chip reference-chip--composer"
+          tabindex="0"
+          :aria-label="referenceCountLabel(chatStore.pendingReferences)"
+        >
+          <MessageSquareQuote aria-hidden="true" />
+          <span>{{ referenceCountLabel(chatStore.pendingReferences) }}</span>
+          <button
+            class="reference-chip__clear"
+            type="button"
+            title="清空引用"
+            aria-label="清空引用"
+            @click="chatStore.clearPendingReferences"
+          >
+            <X aria-hidden="true" />
+          </button>
+          <div class="reference-preview" role="tooltip">
+            <strong>{{ referenceCountLabel(chatStore.pendingReferences) }}</strong>
+            <ol>
+              <li v-for="reference in chatStore.pendingReferences" :key="reference.id">
+                {{ compactReferenceSnippet(reference.snippet) }}
+              </li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
       <div class="composer-input-row">
         <div
           class="composer-resize-handle"
@@ -679,6 +873,7 @@ onBeforeUnmount(() => {
             </span>
           </span>
           <button
+            ref="composerSettingsButtonRef"
             class="composer-settings-button"
             type="button"
             title="知识库设置"
@@ -703,6 +898,7 @@ onBeforeUnmount(() => {
         </div>
 
         <ChatSettingsPopover
+          ref="composerSettingsPopoverRef"
           v-if="isComposerSettingsOpen"
           :use-knowledge-base="chatStore.useKnowledgeBase"
           :mode="chatStore.mode"

@@ -27,7 +27,8 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
             "model_config.display_name", "TEXT NOT NULL DEFAULT 'DashScope'",
             "model_config.base_url", "TEXT NOT NULL DEFAULT 'https://dashscope.aliyuncs.com/api/v1'",
             "model_configs.context_window_tokens", "INTEGER",
-            "chat_messages.agent_type", "TEXT"
+            "chat_messages.agent_type", "TEXT",
+            "chat_messages.references_json", "TEXT"
     );
 
     private final DatabaseSchemaMapper databaseSchemaMapper;
@@ -92,6 +93,7 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
         databaseSchemaMapper.createKnowledgeGraphEvidenceTable();
         databaseSchemaMapper.createKnowledgeGraphViewsTable();
         addColumnIfMissing("chat_messages", "agent_type", "TEXT");
+        addColumnIfMissing("chat_messages", "references_json", "TEXT");
         databaseSchemaMapper.createKnowledgeFoldersPathIndex();
         databaseSchemaMapper.createKnowledgeFoldersEnabledIndex();
         databaseSchemaMapper.createDocumentsKnowledgeFolderIdIndex();

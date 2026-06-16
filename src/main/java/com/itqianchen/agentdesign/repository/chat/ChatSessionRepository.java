@@ -279,6 +279,7 @@ public class ChatSessionRepository {
      * @param agentType 生成该消息的 Agent 类型
      * @param retrievalMode 本轮检索模式
      * @param sourcesJson RAG 来源快照 JSON
+     * @param referencesJson 用户引用助手片段 JSON
      * @param tokenEstimate 估算 token 数
      * @param createdAt 创建时间戳
      * @return 已落库消息
@@ -292,6 +293,7 @@ public class ChatSessionRepository {
             AgentType agentType,
             SearchMode retrievalMode,
             String sourcesJson,
+            String referencesJson,
             int tokenEstimate,
             long createdAt
     ) {
@@ -307,6 +309,7 @@ public class ChatSessionRepository {
                 agentType,
                 retrievalMode,
                 sourcesJson,
+                referencesJson,
                 tokenEstimate,
                 createdAt
         );

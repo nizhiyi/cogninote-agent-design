@@ -21,6 +21,7 @@ public class ConversationMemorySnapshotService {
     private final ChatSessionRepository chatSessionRepository;
     private final ChatMemoryProperties memoryProperties;
     private final TokenEstimator tokenEstimator;
+    private final ChatReferencesJsonCodec chatReferencesJsonCodec;
     private final ModelConfigService modelConfigService;
 
     /**
@@ -29,17 +30,20 @@ public class ConversationMemorySnapshotService {
      * @param chatSessionRepository 会话仓储
      * @param memoryProperties 记忆窗口配置
      * @param tokenEstimator token 估算器
+     * @param chatReferencesJsonCodec 引用片段编解码器
      * @param modelConfigService 模型配置服务
      */
     public ConversationMemorySnapshotService(
             ChatSessionRepository chatSessionRepository,
             ChatMemoryProperties memoryProperties,
             TokenEstimator tokenEstimator,
+            ChatReferencesJsonCodec chatReferencesJsonCodec,
             ModelConfigService modelConfigService
     ) {
         this.chatSessionRepository = chatSessionRepository;
         this.memoryProperties = memoryProperties;
         this.tokenEstimator = tokenEstimator;
+        this.chatReferencesJsonCodec = chatReferencesJsonCodec;
         this.modelConfigService = modelConfigService;
     }
 
@@ -80,7 +84,7 @@ public class ConversationMemorySnapshotService {
         int recentMessageTokens = estimateMessageTokens(selected, chatConfig);
         return new ConversationMemorySnapshot(
                 session.summary(),
-                selected.stream().map(ConversationMemorySnapshotService::toMemoryEntry).toList(),
+                selected.stream().map(this::toMemoryEntry).toList(),
                 lastSequence,
                 summaryTokens,
                 recentMessageTokens,
@@ -161,7 +165,7 @@ public class ConversationMemorySnapshotService {
      * @return 至少为 1 的估算 token 数
      */
     public int estimateMessageTokens(ChatMessage message, ModelConfig chatConfig) {
-        return Math.max(1, tokenEstimator.estimateChatMessage(message.content(), chatConfig));
+        return Math.max(1, tokenEstimator.estimateChatMessage(modelContent(message), chatConfig));
     }
 
     /**
@@ -209,7 +213,7 @@ public class ConversationMemorySnapshotService {
         }
         for (ChatMessage message : selected) {
             if (message.content() != null && !message.content().isBlank()) {
-                return tokenEstimator.estimateWithMethod(message.content(), chatConfig).method();
+                return tokenEstimator.estimateWithMethod(modelContent(message), chatConfig).method();
             }
         }
         return tokenEstimator.estimateWithMethod("context", chatConfig).method();
@@ -221,12 +225,22 @@ public class ConversationMemorySnapshotService {
      * @param message 聊天消息
      * @return 记忆条目
      */
-    private static ConversationMemoryEntry toMemoryEntry(ChatMessage message) {
+    private ConversationMemoryEntry toMemoryEntry(ChatMessage message) {
         return new ConversationMemoryEntry(
                 message.agentType(),
                 message.role(),
-                message.content(),
+                modelContent(message),
                 message.retrievalMode()
+        );
+    }
+
+    private String modelContent(ChatMessage message) {
+        if (message.role() != com.itqianchen.agentdesign.domain.chat.ChatMessageRole.USER) {
+            return message.content();
+        }
+        return ChatReferencePromptFormatter.formatUserContent(
+                message.content(),
+                chatReferencesJsonCodec.decode(message.referencesJson())
         );
     }
 }

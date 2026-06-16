@@ -1,7 +1,9 @@
 package com.itqianchen.agentdesign.domain.agent;
 
 import com.itqianchen.agentdesign.domain.search.SearchMode;
+import com.itqianchen.agentdesign.dto.chat.ChatReferenceRequest;
 import com.itqianchen.agentdesign.dto.chat.ChatStreamRequest;
+import java.util.List;
 
 /**
  * 智能体 请求 定义 智能体编排 接口允许接收的请求字段。
@@ -13,8 +15,23 @@ public record AgentRequest(
         Integer topK,
         SearchMode mode,
         String conversationId,
-        boolean useKnowledgeBase
+        boolean useKnowledgeBase,
+        List<ChatReferenceRequest> references
 ) {
+
+    /**
+     * 兼容旧测试和内部调用，未显式传引用时按空引用处理。
+     */
+    public AgentRequest(
+            String requestId,
+            String question,
+            Integer topK,
+            SearchMode mode,
+            String conversationId,
+            boolean useKnowledgeBase
+    ) {
+        this(requestId, question, topK, mode, conversationId, useKnowledgeBase, List.of());
+    }
 
     /**
      * 从 SSE 请求构造 agent 入参。
@@ -28,7 +45,8 @@ public record AgentRequest(
                 request.topK(),
                 request.mode(),
                 request.conversationId(),
-                request.useKnowledgeBase() == null || request.useKnowledgeBase()
+                request.useKnowledgeBase() == null || request.useKnowledgeBase(),
+                request.references() == null ? List.of() : request.references()
         );
     }
 }

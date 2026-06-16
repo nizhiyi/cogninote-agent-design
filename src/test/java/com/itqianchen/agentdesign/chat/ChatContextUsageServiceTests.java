@@ -2,6 +2,7 @@ package com.itqianchen.agentdesign.chat;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itqianchen.agentdesign.domain.agent.AgentType;
 import com.itqianchen.agentdesign.domain.chat.ChatMemoryProperties;
 import com.itqianchen.agentdesign.domain.chat.ChatMessage;
@@ -20,6 +21,8 @@ import com.itqianchen.agentdesign.service.system.DatabaseSchemaInitializer;
 import com.itqianchen.agentdesign.repository.chat.ChatSessionRepository;
 import com.itqianchen.agentdesign.repository.model.ModelConfigRepository;
 import com.itqianchen.agentdesign.service.chat.ChatContextUsageService;
+import com.itqianchen.agentdesign.service.chat.ChatReferenceSanitizer;
+import com.itqianchen.agentdesign.service.chat.ChatReferencesJsonCodec;
 import com.itqianchen.agentdesign.service.chat.ConversationMemorySnapshot;
 import com.itqianchen.agentdesign.service.chat.ConversationMemorySnapshotService;
 import com.itqianchen.agentdesign.service.chat.TokenEstimator;
@@ -97,11 +100,13 @@ class ChatContextUsageServiceTests {
             ModelConfigService modelConfigService = new ModelConfigService(modelConfigRepository);
             ChatMemoryProperties memoryProperties = new ChatMemoryProperties(6000, 8, 200);
             TokenEstimator tokenEstimator = new TokenEstimator();
+            ChatReferenceSanitizer referenceSanitizer = new ChatReferenceSanitizer();
             this.repository = new ChatSessionRepository(sqlSession.getMapper(ChatSessionMapper.class));
             this.snapshotService = new ConversationMemorySnapshotService(
                     repository,
                     memoryProperties,
                     tokenEstimator,
+                    new ChatReferencesJsonCodec(new ObjectMapper(), referenceSanitizer),
                     modelConfigService
             );
             this.contextUsageService = new ChatContextUsageService(
@@ -130,6 +135,7 @@ class ChatContextUsageServiceTests {
                     ChatMessageStatus.DONE,
                     "request-" + System.nanoTime(),
                     AgentType.GENERAL_CHAT,
+                    null,
                     null,
                     null,
                     0,

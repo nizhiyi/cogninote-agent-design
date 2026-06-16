@@ -335,6 +335,57 @@ body {
   color: var(--color-text-muted);
 }
 
+.selection-reference-action {
+  border-color: var(--color-action-border);
+  color: var(--color-action-strong);
+  background: color-mix(in srgb, var(--color-surface) 92%, var(--color-action-soft));
+  box-shadow: var(--shadow-panel);
+}
+
+.selection-reference-action:hover,
+.selection-reference-action:focus-visible {
+  border-color: var(--color-action);
+  color: var(--color-text-strong);
+  background: color-mix(in srgb, var(--color-action-soft) 58%, var(--color-surface));
+}
+
+.reference-chip {
+  border-color: var(--color-selected-border);
+  color: var(--color-selected-text);
+  background: color-mix(in srgb, var(--color-selected-bg) 64%, var(--color-surface));
+}
+
+.reference-chip--composer {
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-surface) 88%, var(--color-action-soft));
+  box-shadow: var(--shadow-soft);
+}
+
+.reference-chip__clear {
+  color: var(--color-text-muted);
+}
+
+.reference-chip__clear:hover,
+.reference-chip__clear:focus-visible {
+  color: var(--color-text-strong);
+  background: color-mix(in srgb, var(--color-action-soft) 70%, transparent);
+}
+
+.reference-preview {
+  border-color: var(--color-border);
+  color: var(--color-text);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
+}
+
+.reference-preview strong {
+  color: var(--color-text-strong);
+}
+
+.reference-preview li {
+  color: var(--color-text-muted);
+}
+
 .composer-settings-button:hover,
 .composer-settings-button:focus-visible,
 .composer-settings-button[aria-expanded="true"],
