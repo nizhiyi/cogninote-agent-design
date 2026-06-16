@@ -18,13 +18,13 @@
 
 - 本地文档导入：支持 Markdown、TXT、DOCX、文本型 PDF。
 - 知识库目录管理：支持导入本地目录、文件同步、启用/停用、删除目录、局部重建索引和按目录展开文档。
-- 本地数据存储：SQLite 保存文档元数据、chunk 内容、模型配置、聊天会话和消息。
+- 本地数据存储：SQLite 保存文档元数据、chunk 内容、模型配置、聊天会话、消息和用户引用的助手回复片段。
 - 本地搜索索引：Lucene 提供 BM25 关键词检索、向量检索和混合检索；支持中文正文、代码标识符、路径片段和流程图节点检索，向量检索会使用 active Embedding 模型生成查询向量。
 - RAG 对话：通过 Spring AI ChatClient + Advisor 注入会话记忆和知识库片段；知识库模式可按 `AUTO/ALWAYS/OFF` 策略补全省略、指代、动作型和领域切换追问的检索 query，并保留空白的 SSE 流式输出答案、展示引用来源；模型截断、异常或流提前断开时会标记“未完成”，避免半截回答伪装成完成。
 - 知识图谱：基于已导入 chunks 调用 active Chat 模型抽取实体、关系和证据，写入 SQLite 图谱缓存与派生视图，并在知识库工作台提供思维导图、关系图、邻接列表和证据回链。
 - 模型配置：支持阿里百炼 DashScope 默认通道，也支持 OpenAI-compatible 自定义 Base URL；Chat 模型可配置上下文窗口，默认 `128K`。
 - Prompt 配置：聊天、RAG、追问补全、连接测试和知识图谱抽取 Prompt 统一放在 `src/main/resources/cogninote-prompts.yaml`；`application.yaml` 只导入该专用配置文件并保留运行配置。
-- 对话式桌面界面：左侧持久化会话列表，主区域流式对话，答案按 AI 流式 Markdown 渲染并支持 Mermaid 流程图代码块，引用来源可折叠，对话设置可切换知识库、检索模式和 Top K；发送区显示当前会话上下文占用和压缩状态。
+- 对话式桌面界面：左侧持久化会话列表，主区域流式对话，答案按 AI 流式 Markdown 渲染并支持 Mermaid 流程图代码块，引用来源可折叠；用户可选中已完成助手回复片段添加到下一轮对话，发送后引用标签会随用户消息持久化并支持悬停预览；对话设置可切换知识库、检索模式和 Top K，发送区显示当前会话上下文占用和压缩状态。
 - 主题设置：支持深色/夜间和日间主题，本机保存偏好。
 - 桌面交付：支持构建 Windows 桌面程序和 NSIS 安装包，以及 macOS Apple Silicon `.app` / `.dmg` 独立打包链路；桌面模式下所有 `/api/**` 请求都需要 Tauri 启动时生成的本机会话令牌；设置页支持稳定版/测试版更新通道切换，并通过 GitHub Release 静态 manifest 检查 Tauri 自动更新。`0.1.34` 定位为可安装测试分发版，CI 未配置证书时产出 unsigned 测试包，配置证书后产出签名、公证、staple 后的分发包。macOS signed 流程会同时签名外层 Tauri app 和嵌套的 `CogniNoteBackend.app`，再用已 staple 的 app 重新生成发布用 DMG。
 
@@ -150,7 +150,7 @@ macOS 可以在 GitHub Actions `Desktop macOS` workflow 构建。未配置 Apple
 2. 进入“设置”页，在“模型”区域选择 Provider，填写 API Key，并分别配置 Chat / Embedding 模型；RAG 回答使用 Chat 模型，向量检索和混合检索使用 Embedding 模型。
 3. 在“设置”页的“知识库”区域导入本地文档目录。
 4. 使用搜索面板验证索引命中结果。
-5. 回到“对话”页提问，查看 AI 流式 Markdown 答案和可折叠引用来源；生成中点击停止会显式取消本次模型流。模型异常或网络中断时，已生成的非空片段会以错误状态保存并显示为“未完成”。
+5. 回到“对话”页提问，查看 AI 流式 Markdown 答案和可折叠引用来源；需要追问某段助手回复时，选中文本并点击“添加到对话”，输入框上方会显示引用标签，发送后该标签会随用户消息保留。生成中点击停止会显式取消本次模型流。模型异常或网络中断时，已生成的非空片段会以错误状态保存并显示为“未完成”。
 
 模型配置细节见 [模型配置指南](docs/model-configuration-guide.md)。
 
@@ -260,12 +260,13 @@ bash ./scripts/build-desktop-app-macos.sh --skip-tests
 | [阶段 26：知识图谱探索器重设计](docs/phase-26-knowledge-graph-explorer-redesign-plan.md) | 结构化思维导图、Cytoscape 关系探索器、全屏画布、筛选、Inspector 和证据回链 |
 | [阶段 27：桌面令牌保护与自动更新](docs/phase-27-desktop-security-auto-update-plan.md) | 本机 API 会话令牌、Tauri updater、stable/preview 通道和 GitHub Release manifest |
 | [阶段 28：应用主题设计方案](docs/phase-28-application-theme-design-plan.md) | 中性主题、蓝色动作 token、Element Plus 桥接、图谱色板和浅色/深色可访问性验收 |
+| [阶段 29：聊天回复片段引用](docs/phase-29-chat-references-plan.md) | 助手回复片段选择、引用标签、刷新恢复、模型上下文注入和 `references_json` 持久化 |
 | [可维护性重构计划](docs/maintainability-refactor-plan.md) | 前后端分层、统一响应和注释规范 |
 
 
 ## 开发状态
 
-当前项目已完成文档摄入、代码友好的 Lucene 混合检索、模型驱动追问补全 Agent、追问补全自动触发与知识库设置页配置、知识图谱与思维导图、知识图谱探索器重设计、Prompt 专用配置文件、模型配置、对话上下文窗口配置与 Token 估算优化、RAG 对话、路由式多智能体对话、模式隔离聊天记忆、智能体模型运行时重构、AI 流式 Markdown 与 Mermaid 渲染、SQLite 聊天记忆、纯模型对话、空白保真的 SSE 流式输出、流式截断识别与错误状态同步、MyBatis 统一数据访问层、Windows 桌面打包、macOS Apple Silicon 独立打包链路、`0.1.34` 双平台 unsigned/signed CI 打包链路、桌面安装/卸载/升级可靠性修复、桌面会话令牌保护、stable/preview 通道自动更新，以及中性主题与蓝色动作色的应用主题方案主要闭环。仍需重点补齐：
+当前项目已完成文档摄入、代码友好的 Lucene 混合检索、模型驱动追问补全 Agent、追问补全自动触发与知识库设置页配置、知识图谱与思维导图、知识图谱探索器重设计、Prompt 专用配置文件、模型配置、对话上下文窗口配置与 Token 估算优化、RAG 对话、路由式多智能体对话、模式隔离聊天记忆、聊天回复片段引用、智能体模型运行时重构、AI 流式 Markdown 与 Mermaid 渲染、SQLite 聊天记忆、纯模型对话、空白保真的 SSE 流式输出、流式截断识别与错误状态同步、MyBatis 统一数据访问层、Windows 桌面打包、macOS Apple Silicon 独立打包链路、`0.1.34` 双平台 unsigned/signed CI 打包链路、桌面安装/卸载/升级可靠性修复、桌面会话令牌保护、stable/preview 通道自动更新，以及中性主题与蓝色动作色的应用主题方案主要闭环。仍需重点补齐：
 
 - API Key 本地加密或凭据管理。
 - 更完整的发布验收和安装包测试。

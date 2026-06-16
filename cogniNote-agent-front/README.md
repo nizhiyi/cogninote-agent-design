@@ -19,7 +19,8 @@ src/
 维护约束：
 
 - Assistant 消息通过 `markdown-renderer.vue` 渲染 Markdown，禁用原始 HTML。
-- 引用来源由 `source-list.vue` 自己维护折叠状态，避免消息组件膨胀。
+- RAG 引用来源由 `source-list.vue` 自己维护折叠状态，避免消息组件膨胀。
+- 用户引用助手回复片段由 `chat` store 的 `pendingReferences` 管理；发送区只显示独立引用标签，不把标签嵌入 textarea。发送后 user 消息的 `references` 字段负责刷新恢复和悬停预览。
 - 主题偏好由 `theme` store 写入 `localStorage`，通过 `html.theme-dark` / `html.theme-light` 控制样式。
 - Element Plus 只用于设置中心的标准控件、提示和确认操作；聊天主界面继续保持自定义 UI。
 - 设置中心不显示左侧对话栏，避免非聊天能力继续占用聊天布局。

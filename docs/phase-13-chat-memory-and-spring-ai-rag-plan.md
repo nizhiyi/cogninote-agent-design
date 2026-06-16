@@ -12,7 +12,7 @@
 
 - 聊天数据持久化：
   - 新增 `chat_sessions`，保存会话标题、摘要、摘要覆盖到的消息序号、检索设置和创建/更新时间；`deleted` 字段保留为旧版本兼容字段。
-  - 新增 `chat_messages`，保存消息顺序、role、content、status、requestId、retrievalMode、sources JSON、token 估算和创建时间。
+  - 新增 `chat_messages`，保存消息顺序、role、content、status、requestId、retrievalMode、sources JSON、token 估算和创建时间；第 29 阶段后扩展 `references_json` 保存用户引用的助手回复片段。
   - 用户首次发送消息时创建或更新会话；assistant 流式完成后保存完整回答；用户显式停止时保存部分回答并标记 `STOPPED`。
 
 - 分层聊天记忆：
@@ -106,13 +106,14 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     agent_type TEXT,
     retrieval_mode TEXT,
     sources_json TEXT,
+    references_json TEXT,
     token_estimate INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
     FOREIGN KEY (conversation_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
 );
 ```
 
-`agent_type` 是第十八阶段新增字段。旧 SQLite 文件启动时由 schema 初始化自动补列；旧 assistant 消息读取时会按 `retrieval_mode` 推断 Agent，旧 user 消息按中性历史处理。当前删除会话是物理删除，会同时删除 `chat_sessions` 和对应 `chat_messages`；旧版本已经标记为 `deleted=1` 的会话会在启动初始化时被清理。
+`agent_type` 是第十八阶段新增字段。`references_json` 是第 29 阶段新增字段，用于保存 user 消息引用的助手回复片段；旧 SQLite 文件启动时由 schema 初始化自动补列，旧消息按空引用列表处理。旧 assistant 消息读取时会按 `retrieval_mode` 推断 Agent，旧 user 消息按中性历史处理。当前删除会话是物理删除，会同时删除 `chat_sessions` 和对应 `chat_messages`；旧版本已经标记为 `deleted=1` 的会话会在启动初始化时被清理。
 
 ## Runtime Flow
 

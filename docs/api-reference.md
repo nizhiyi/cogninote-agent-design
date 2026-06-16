@@ -509,7 +509,7 @@ POST /api/model-config/models
 
 ## 聊天会话
 
-第十三阶段开始，左侧会话列表和历史消息都由后端 SQLite 提供。前端刷新后通过会话 API 恢复消息、引用来源、检索模式和 stopped/error 状态。
+第十三阶段开始，左侧会话列表和历史消息都由后端 SQLite 提供。前端刷新后通过会话 API 恢复消息、RAG 引用来源、用户引用的助手回复片段、检索模式和 stopped/error 状态。
 
 ### 查询会话列表
 
@@ -572,7 +572,21 @@ POST /api/chat/sessions
 GET /api/chat/sessions/{conversationId}
 ```
 
-返回会话详情、完整消息列表和 `contextUsage`。assistant 消息会带回 `sources`，用于刷新页面后恢复引用来源；`contextUsage` 会按当前 active Chat 配置重新估算上下文窗口、摘要和最近原文消息占用。
+返回会话详情、完整消息列表和 `contextUsage`。assistant 消息会带回 `sources`，用于刷新页面后恢复 RAG 引用来源；user 消息可能带回 `references`，用于恢复用户发送时引用的助手回复片段；`contextUsage` 会按当前 active Chat 配置重新估算上下文窗口、摘要和最近原文消息占用。
+
+消息中的 `references` 结构：
+
+```json
+[
+  {
+    "id": "ref-1",
+    "messageId": "assistant-message-id",
+    "snippet": "用户选中的助手回复片段"
+  }
+]
+```
+
+`references` 为空或旧数据没有 `references_json` 时返回空数组。`sources` 表示 assistant 回答产生时的知识库来源快照；`references` 表示 user 消息发送时引用的助手回复片段，两者语义不同。
 
 `ChatContextUsageResponse` 字段说明：
 
@@ -965,11 +979,20 @@ POST /api/chat/stream
   "question": "这个项目如何打包？",
   "useKnowledgeBase": true,
   "topK": 8,
-  "mode": "HYBRID"
+  "mode": "HYBRID",
+  "references": [
+    {
+      "id": "ref-1",
+      "messageId": "assistant-message-id",
+      "snippet": "用户选中的助手回复片段"
+    }
+  ]
 }
 ```
 
-`requestId`、`conversationId`、`topK`、`mode` 和 `useKnowledgeBase` 可省略。默认使用后端生成的 `requestId/conversationId`、active Chat 配置中的 `defaultTopK`、`HYBRID` 和 `useKnowledgeBase=true`。前端需要支持停止生成时，应在请求体中传入稳定 `requestId`，然后调用取消接口。
+`requestId`、`conversationId`、`topK`、`mode`、`useKnowledgeBase` 和 `references` 可省略。默认使用后端生成的 `requestId/conversationId`、active Chat 配置中的 `defaultTopK`、`HYBRID`、`useKnowledgeBase=true` 和空引用列表。前端需要支持停止生成时，应在请求体中传入稳定 `requestId`，然后调用取消接口。
+
+`references` 用于携带用户本轮引用的助手回复片段。v1 只支持引用助手消息文本；服务端会再次清洗，最多保留 5 个片段，单个片段最多 1200 字符，总片段最多 4000 字符，并按 `messageId + snippet` 去重。数据库中的 `chat_messages.content` 仍保存用户原始 `question`，引用片段写入 `chat_messages.references_json`，只在模型输入、会话记忆和 token 估算时拼接进上下文。
 
 SSE 事件格式：
 
@@ -998,6 +1021,7 @@ meta -> delta -> done
 重要约束：
 
 - SQLite 会保存全量会话历史。模型输入由“会话摘要 + token 预算内最近原文消息”组成；历史预算优先来自 active Chat 配置的 `contextWindowTokens`，默认 `128000`，并最多使用约 80% 窗口；默认至少保留最近 8 条原文消息，但不会把固定条数作为唯一记忆策略。
+- 用户消息如果携带 `references`，模型实际看到的 user 内容会变成“引用片段块 + 用户问题”；SQLite 中的用户 `content` 不变。刷新会话后，`references_json` 会重新参与会话记忆和 token 估算，保证后续追问仍能继承当轮引用上下文。
 - 同一会话可以在普通对话和知识库模式之间切换。后端会用 `agent_type` 标记消息，并在模型输入里隔离跨 Agent 历史：上一种 Agent 的拒答规则、引用规则和系统规则不能覆盖当前 Agent。
 - 知识库模式下，后端可能按 `AUTO/ALWAYS/OFF` 策略使用 active Chat 模型对省略式追问生成内部 `retrievalQuery`。`AUTO` 本地打分器会综合短句、指代、省略补全、动作型请求、英文领域切换和完整问题反向信号；如果本地判断已触发但补全模型误判不改写，短动作型追问会用最近明确主题的用户问题构造本地兜底 query。这个 query 只用于检索，不写入 `chat_messages.content`，也不会通过 SSE 暴露；补全失败、非法 JSON 或 query 过长时会回退原问题检索。
 - RAG 不再手动把 `{context}` 拼进 user prompt。知识库片段通过 Spring AI `RetrievalAugmentationAdvisor` 和 `CogninoteDocumentRetriever` 注入。
