@@ -54,16 +54,16 @@ body {
 }
 
 .brand-mark {
-  border-color: var(--color-accent-border);
+  border-color: var(--color-action-border);
   color: var(--color-text-strong);
-  background: linear-gradient(135deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 66%, #2b5c87));
+  background: linear-gradient(135deg, var(--color-action), color-mix(in srgb, var(--color-action) 66%, #2b5c87));
 }
 
 .brand-panel .eyebrow,
 .conversation-header .eyebrow,
 .settings-header .eyebrow,
 .model-active-summary .eyebrow {
-  color: var(--color-accent-strong);
+  color: var(--color-action-strong);
 }
 
 .sidebar-section-title,
@@ -97,8 +97,8 @@ body {
 }
 
 .new-chat-button {
-  color: var(--color-accent-strong);
-  background: var(--color-accent-soft);
+  color: var(--color-action-strong);
+  background: var(--color-action-soft);
 }
 
 .new-chat-button:hover:not(:disabled),
@@ -115,9 +115,9 @@ body {
 .collapse-button:focus-visible,
 .sidebar-toggle-button:hover,
 .sidebar-toggle-button:focus-visible {
-  border-color: var(--color-accent-border);
+  border-color: var(--color-action-border);
   color: var(--color-text-strong);
-  background: var(--color-accent-soft);
+  background: var(--color-action-soft);
 }
 
 .settings-link:hover,
@@ -141,13 +141,28 @@ body {
   background: color-mix(in srgb, var(--color-surface-muted) 54%, transparent);
 }
 
-.conversation-meta span,
 .message-label em,
+.conversation-meta__pill--success,
 .composer-settings__summary span,
 .status-pill--ok,
 .status-chip--parsed {
   color: var(--color-success);
   background: var(--color-success-soft);
+}
+
+.conversation-meta__pill--info {
+  color: var(--color-info);
+  background: var(--color-info-soft);
+}
+
+.conversation-meta__pill--warning {
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.conversation-meta__pill--neutral {
+  color: var(--color-text-muted);
+  background: color-mix(in srgb, var(--color-surface-muted) 56%, transparent);
 }
 
 .conversation-meta__model {
@@ -223,7 +238,7 @@ body {
 .primary-button,
 .segmented-control button.active {
   color: #ffffff;
-  background: linear-gradient(135deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 76%, #0e7490));
+  background: linear-gradient(135deg, var(--color-action), color-mix(in srgb, var(--color-action) 76%, #7c3aed));
 }
 
 .message-bubble--error .message-content,
@@ -260,7 +275,7 @@ body {
 
 .composer-resize-handle:hover span,
 .composer-resize-handle:focus-visible span {
-  background: var(--color-accent);
+  background: var(--color-action);
 }
 
 .composer-input-row textarea::placeholder,
@@ -284,7 +299,7 @@ body {
 }
 
 .composer-context-indicator {
-  --context-ring-color: var(--color-accent);
+  --context-ring-color: var(--color-action);
   border-color: var(--color-border);
   background: conic-gradient(
     var(--context-ring-color) var(--context-progress),
@@ -298,7 +313,7 @@ body {
 }
 
 .composer-context-indicator.is-compressed {
-  --context-ring-color: var(--color-accent-strong);
+  --context-ring-color: var(--color-action-strong);
 }
 
 .composer-context-indicator.is-warning {
@@ -325,7 +340,7 @@ body {
 .composer-settings-button[aria-expanded="true"],
 .composer-icon-button:hover:not(:disabled),
 .composer-icon-button:focus-visible {
-  border-color: var(--color-accent-border);
+  border-color: var(--color-action-border);
   color: var(--color-text-strong);
 }
 
@@ -351,9 +366,9 @@ body {
 .knowledge-switch:hover,
 .knowledge-switch:focus-visible,
 .knowledge-switch[aria-checked="true"] {
-  border-color: var(--color-accent-border);
+  border-color: var(--color-action-border);
   color: var(--color-text-strong);
-  background: var(--color-accent-soft);
+  background: var(--color-action-soft);
 }
 
 .knowledge-switch__track {
@@ -361,7 +376,7 @@ body {
 }
 
 .knowledge-switch[aria-checked="true"] .knowledge-switch__track {
-  background: color-mix(in srgb, var(--color-accent-strong) 74%, transparent);
+  background: color-mix(in srgb, var(--color-action-strong) 74%, transparent);
 }
 
 .primary-button,
@@ -372,24 +387,24 @@ body {
 }
 
 .primary-button {
-  border: 1px solid var(--color-accent-border);
+  border: 1px solid var(--color-action-border);
 }
 
 .primary-button:hover:not(:disabled),
 .primary-button:focus-visible {
-  background: linear-gradient(135deg, var(--color-accent-strong), var(--color-accent));
+  background: linear-gradient(135deg, var(--color-action-strong), var(--color-action));
 }
 
 .secondary-button {
   border-color: var(--color-border-strong);
-  color: var(--color-accent-strong);
+  color: var(--color-action-strong);
   background: color-mix(in srgb, var(--color-surface-strong) 90%, transparent);
 }
 
 .secondary-button:hover:not(:disabled),
 .secondary-button:focus-visible {
-  border-color: var(--color-accent-border);
-  background: var(--color-accent-soft);
+  border-color: var(--color-action-border);
+  background: var(--color-action-soft);
 }
 
 .danger-button,
@@ -485,9 +500,9 @@ body {
 .model-config-item:hover,
 .model-config-item:focus-visible,
 .model-config-item.active {
-  border-color: var(--color-accent-border);
+  border-color: var(--color-action-border);
   color: var(--color-text-strong);
-  background: var(--color-accent-soft);
+  background: var(--color-action-soft);
 }
 
 .model-config-item strong {
@@ -544,9 +559,9 @@ body {
 }
 
 .enable-config-button {
-  border-color: var(--color-accent-border);
-  color: var(--color-accent-strong);
-  background: var(--color-accent-soft);
+  border-color: var(--color-action-border);
+  color: var(--color-action-strong);
+  background: var(--color-action-soft);
 }
 
 .context-window-preset {
@@ -558,16 +573,16 @@ body {
 .context-window-preset:hover,
 .context-window-preset:focus-visible,
 .context-window-preset.active {
-  border-color: var(--color-accent-border);
+  border-color: var(--color-action-border);
   color: var(--color-text-strong);
-  background: var(--color-accent-soft);
+  background: var(--color-action-soft);
 }
 
 .enable-config-button:hover:not(:disabled),
 .enable-config-button:focus-visible:not(:disabled) {
-  border-color: var(--color-accent-border);
+  border-color: var(--color-action-border);
   color: var(--color-text-strong);
-  background: color-mix(in srgb, var(--color-accent-soft) 72%, var(--color-surface-strong));
+  background: color-mix(in srgb, var(--color-action-soft) 72%, var(--color-surface-strong));
 }
 
 .enable-config-button:disabled {
@@ -600,7 +615,7 @@ body {
 }
 
 .model-active-summary p {
-  color: var(--color-accent-strong);
+  color: var(--color-action-strong);
   font-size: 14px;
   font-weight: 650;
 }
@@ -621,15 +636,15 @@ body {
 }
 
 .model-option-chip em {
-  color: var(--color-accent-strong);
+  color: var(--color-action-strong);
 }
 
 .source-index,
 .score-chip,
 .search-hit__top span,
 .result-strip span {
-  color: var(--color-accent-strong);
-  background: var(--color-accent-soft);
+  color: var(--color-action-strong);
+  background: var(--color-action-soft);
 }
 
 .document-meta {
@@ -712,22 +727,22 @@ body {
 
 .settings-center-page .el-button:not(.is-disabled):hover,
 .settings-center-page .el-button:not(.is-disabled):focus-visible {
-  border-color: var(--color-accent-border);
+  border-color: var(--color-action-border);
   color: var(--color-text-strong);
-  background: var(--color-accent-soft);
+  background: var(--color-action-soft);
 }
 
 .settings-center-page .el-button--primary {
-  border-color: var(--color-accent);
+  border-color: var(--color-action);
   color: #ffffff;
-  background: var(--color-accent);
+  background: var(--color-action);
 }
 
 .settings-center-page .el-button--primary:not(.is-disabled):hover,
 .settings-center-page .el-button--primary:not(.is-disabled):focus-visible {
-  border-color: var(--color-accent-strong);
+  border-color: var(--color-action-strong);
   color: #ffffff;
-  background: var(--color-accent-strong);
+  background: var(--color-action-strong);
 }
 
 .settings-center-page .el-button.is-disabled,
@@ -758,7 +773,7 @@ body {
 .settings-center-page .el-select__wrapper:hover,
 .settings-center-page .el-select__wrapper.is-focused,
 .settings-center-page .el-input-number:hover {
-  box-shadow: 0 0 0 1px var(--color-accent-border) inset;
+  box-shadow: 0 0 0 1px var(--color-action-border) inset;
 }
 
 .primary-button:focus-visible,

@@ -19,7 +19,7 @@
 - 重建前端主题 token：
   - 明确定义 `color-bg`、`color-surface`、`color-surface-muted`、`color-border`、`color-text`、`color-text-muted`、`color-accent`、`color-danger`。
   - 深色主题不再使用纯黑大背景 + 纯白卡片的强烈撞色。
-  - 日间主题降低大面积青绿色覆盖，避免浅色页发灰、发虚。
+  - 日间主题降低大面积主题色覆盖，避免浅色页发灰、发虚。
 - 调整字体系统：
   - 使用系统 UI 字体栈，优先保证 Windows WebView/Chrome 下中文清晰度。
   - 正文字号以 `15px/16px` 为基准，行高控制在 `1.45-1.6`。
@@ -103,6 +103,8 @@ font-family:
 
 ### 主题 Token 建议
 
+> 第 28 阶段已将早期 `accent` 语义收敛为蓝色动作色。下面保留第 9 阶段的结构建议，但颜色示例按当前主题合同更新，避免后续开发继续沿用绿色主色。
+
 深色/夜间：
 
 ```css
@@ -113,8 +115,8 @@ font-family:
 --color-border: rgba(148, 163, 184, 0.18);
 --color-text: #e7eef5;
 --color-text-muted: #9fb0c1;
---color-accent: #2f9e93;
---color-accent-soft: rgba(47, 158, 147, 0.16);
+--color-action: #60a5fa;
+--color-action-soft: rgba(96, 165, 250, 0.16);
 --shadow-panel: 0 16px 42px rgba(0, 0, 0, 0.24);
 ```
 
@@ -128,12 +130,12 @@ font-family:
 --color-border: #d8e3e8;
 --color-text: #102033;
 --color-text-muted: #617386;
---color-accent: #187c73;
---color-accent-soft: #dff3ef;
+--color-action: #2563eb;
+--color-action-soft: #dbeafe;
 --shadow-panel: 0 14px 36px rgba(15, 23, 42, 0.08);
 ```
 
-以上值是初始方案，落地时可按浏览器截图微调，但不能回到纯黑、纯白、强青色铺底。
+以上值是初始方案，落地时可按浏览器截图微调，但不能回到纯黑、纯白或大面积主题色铺底。
 
 ### 组件级调整
 

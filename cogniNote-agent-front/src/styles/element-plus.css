@@ -4,12 +4,12 @@
  */
 
 :root {
-  --el-color-primary: var(--color-accent);
-  --el-color-primary-light-3: color-mix(in srgb, var(--color-accent) 72%, #ffffff);
-  --el-color-primary-light-5: color-mix(in srgb, var(--color-accent) 48%, #ffffff);
-  --el-color-primary-light-7: color-mix(in srgb, var(--color-accent) 26%, #ffffff);
-  --el-color-primary-light-9: var(--color-accent-soft);
-  --el-color-primary-dark-2: var(--color-accent-strong);
+  --el-color-primary: var(--color-action);
+  --el-color-primary-light-3: color-mix(in srgb, var(--color-action) 72%, #ffffff);
+  --el-color-primary-light-5: color-mix(in srgb, var(--color-action) 48%, #ffffff);
+  --el-color-primary-light-7: color-mix(in srgb, var(--color-action) 26%, #ffffff);
+  --el-color-primary-light-9: var(--color-action-soft);
+  --el-color-primary-dark-2: var(--color-action-strong);
   --el-color-success: var(--color-success);
   --el-color-warning: var(--color-warning);
   --el-color-danger: var(--color-danger);
@@ -23,7 +23,7 @@
   --el-border-color: var(--color-border);
   --el-border-color-light: var(--color-border);
   --el-border-color-lighter: var(--color-border);
-  --el-border-color-hover: var(--color-accent-border);
+  --el-border-color-hover: var(--color-action-border);
   --el-fill-color: color-mix(in srgb, var(--color-surface-muted) 68%, transparent);
   --el-fill-color-light: color-mix(in srgb, var(--color-surface-muted) 48%, transparent);
   --el-fill-color-lighter: color-mix(in srgb, var(--color-surface-muted) 32%, transparent);
@@ -58,9 +58,9 @@
 
 .el-button:not(.is-disabled):hover,
 .el-button:not(.is-disabled):focus-visible {
-  border-color: var(--color-accent-border);
+  border-color: var(--color-action-border);
   color: var(--color-text-strong);
-  background: var(--color-accent-soft);
+  background: var(--color-selected-bg);
 }
 
 .el-button.is-disabled,
@@ -73,16 +73,16 @@
 }
 
 .el-button--primary {
-  border-color: var(--color-accent);
+  border-color: var(--color-action);
   color: #ffffff;
-  background: var(--color-accent);
+  background: var(--color-action);
 }
 
 .el-button--primary:not(.is-disabled):hover,
 .el-button--primary:not(.is-disabled):focus-visible {
-  border-color: var(--color-accent-strong);
+  border-color: var(--color-action-strong);
   color: #ffffff;
-  background: var(--color-accent-strong);
+  background: var(--color-action-strong);
 }
 
 .el-button--danger.is-plain {
@@ -127,7 +127,7 @@
 .el-select__wrapper.is-focused,
 .el-textarea__inner:hover,
 .el-textarea__inner:focus {
-  box-shadow: 0 0 0 1px var(--color-accent-border) inset;
+  box-shadow: 0 0 0 1px var(--color-action-border) inset;
 }
 
 .el-input-number__increase,
@@ -152,10 +152,10 @@
 }
 
 .el-radio-button__original-radio:checked + .el-radio-button__inner {
-  border-color: var(--color-accent);
+  border-color: var(--color-action);
   color: #ffffff;
-  background: var(--color-accent);
-  box-shadow: -1px 0 0 0 var(--color-accent);
+  background: var(--color-action);
+  box-shadow: -1px 0 0 0 var(--color-action);
 }
 
 .el-radio-button__inner:hover,
@@ -191,11 +191,11 @@
 
 .el-select-dropdown__item.is-hovering,
 .el-select-dropdown__item:hover {
-  background: var(--color-accent-soft);
+  background: var(--color-selected-bg);
 }
 
 .el-select-dropdown__item.is-selected {
-  color: var(--color-accent-strong);
+  color: var(--color-selected-text);
 }
 
 .el-alert {

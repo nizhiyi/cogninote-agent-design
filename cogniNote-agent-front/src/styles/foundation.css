@@ -50,7 +50,7 @@ textarea:focus-visible {
 
 .eyebrow {
   margin: 0 0 8px;
-  color: var(--color-accent-strong);
+  color: var(--color-action-strong);
   font-size: 13px;
   font-weight: 700;
 }

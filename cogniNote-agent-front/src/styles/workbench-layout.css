@@ -15,9 +15,9 @@
 
 .connection-panel,
 .workspace {
-  border: 1px solid #d8e2e7;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 .connection-panel {
@@ -54,7 +54,7 @@
 .connection-summary,
 .panel-message,
 .hint-message {
-  color: #526071;
+  color: var(--color-text-muted);
 }
 
 .status-pill {
@@ -67,18 +67,18 @@
 }
 
 .status-pill--loading {
-  color: #715300;
-  background: #fff2bf;
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
 }
 
 .status-pill--ok {
-  color: #0f513f;
-  background: #d7f4e8;
+  color: var(--color-success);
+  background: var(--color-success-soft);
 }
 
 .status-pill--error {
-  color: #842029;
-  background: #f8d7da;
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
 }
 
 .module-nav {
@@ -93,10 +93,10 @@
   min-height: 132px;
   gap: 14px;
   padding: 18px;
-  border: 1px solid #d8e2e7;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  color: #526071;
-  background: #ffffff;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
   text-align: left;
   text-decoration: none;
   cursor: pointer;
@@ -109,9 +109,9 @@
 .module-tab:hover,
 .module-tab:focus-visible,
 .module-tab.router-link-active {
-  border-color: #1f6f68;
-  background: #f1faf7;
-  color: #31514d;
+  border-color: var(--color-action-border);
+  background: var(--color-action-soft);
+  color: var(--color-selected-text);
 }
 
 .module-tab__top {
@@ -122,7 +122,7 @@
 }
 
 .module-tab strong {
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 19px;
 }
 
@@ -130,8 +130,8 @@
   flex: 0 0 auto;
   padding: 4px 8px;
   border-radius: 999px;
-  color: #31514d;
-  background: #dff2ee;
+  color: var(--color-selected-text);
+  background: var(--color-selected-bg);
   font-size: 12px;
   font-style: normal;
   font-weight: 800;
@@ -152,7 +152,7 @@
 
 .workspace-header p:last-child {
   margin: 0;
-  color: #526071;
+  color: var(--color-text-muted);
   line-height: 1.7;
 }
 
@@ -168,9 +168,9 @@
 .search-hit,
 .document-row,
 .source-row {
-  border: 1px solid #e1e8ec;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #fbfcfd;
+  background: var(--color-surface-strong);
 }
 
 .chat-composer,

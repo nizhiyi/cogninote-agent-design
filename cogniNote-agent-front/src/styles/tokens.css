@@ -1,6 +1,7 @@
 /*
  * CogniNote 语义 token。
  * 页面样式只消费这些变量，主题切换只改变变量值，避免组件里散落硬编码颜色。
+ * 颜色职责分层：neutral 管界面骨架，action 管交互，status 管状态，brand 只做小面积识别。
  */
 
 :root,
@@ -45,23 +46,47 @@ html.theme-light {
   --color-text-muted: #667085;
   --color-text-faint: #94a3b8;
 
-  --color-accent: #0f766e;
-  --color-accent-strong: #0d9488;
-  --color-accent-soft: #dff7f2;
-  --color-accent-border: rgba(15, 118, 110, 0.34);
-  --color-info: #2563eb;
-  --color-info-soft: #dbeafe;
-  --color-info-border: rgba(37, 99, 235, 0.32);
+  --color-action: #2563eb;
+  --color-action-strong: #1d4ed8;
+  --color-action-soft: #dbeafe;
+  --color-action-border: rgba(37, 99, 235, 0.32);
+  --color-link: var(--color-action);
+  --color-link-hover: var(--color-action-strong);
+  --color-focus-ring: rgba(37, 99, 235, 0.28);
+  --color-selected-bg: var(--color-action-soft);
+  --color-selected-border: var(--color-action-border);
+  --color-selected-text: var(--color-action-strong);
+  --color-brand: #166534;
+  --color-brand-soft: rgba(22, 101, 52, 0.12);
+  --color-brand-border: rgba(22, 101, 52, 0.28);
+  --color-accent: var(--color-action);
+  --color-accent-strong: var(--color-action-strong);
+  --color-accent-soft: var(--color-action-soft);
+  --color-accent-border: var(--color-action-border);
+  --color-info: #0369a1;
+  --color-info-soft: #e0f2fe;
+  --color-info-border: rgba(3, 105, 161, 0.3);
   --color-success: #15803d;
   --color-success-soft: #dcfce7;
+  --color-success-border: rgba(21, 128, 61, 0.3);
   --color-warning: #a16207;
   --color-warning-soft: #fef3c7;
+  --color-warning-border: rgba(161, 98, 7, 0.32);
   --color-danger: #b91c1c;
   --color-danger-soft: #fee2e2;
+  --color-danger-border: rgba(185, 28, 28, 0.3);
+
+  --chart-color-1: #2563eb;
+  --chart-color-2: #7c3aed;
+  --chart-color-3: #d97706;
+  --chart-color-4: #db2777;
+  --chart-color-5: #0891b2;
+  --chart-color-6: #16a34a;
+  --chart-color-neutral: #64748b;
 
   --shadow-soft: 0 8px 20px rgba(15, 23, 42, 0.06);
   --shadow-panel: 0 18px 42px rgba(15, 23, 42, 0.12);
-  --shadow-focus: 0 0 0 3px rgba(13, 148, 136, 0.24);
+  --shadow-focus: 0 0 0 3px var(--color-focus-ring);
   --page-gradient: var(--color-bg);
 }
 
@@ -84,22 +109,46 @@ html.theme-dark {
   --color-text-muted: #a2b1c2;
   --color-text-faint: #728196;
 
-  --color-accent: #2dd4bf;
-  --color-accent-strong: #5eead4;
-  --color-accent-soft: rgba(45, 212, 191, 0.14);
-  --color-accent-border: rgba(94, 234, 212, 0.34);
+  --color-action: #60a5fa;
+  --color-action-strong: #93c5fd;
+  --color-action-soft: rgba(96, 165, 250, 0.16);
+  --color-action-border: rgba(147, 197, 253, 0.36);
+  --color-link: var(--color-action-strong);
+  --color-link-hover: #bfdbfe;
+  --color-focus-ring: rgba(96, 165, 250, 0.32);
+  --color-selected-bg: var(--color-action-soft);
+  --color-selected-border: var(--color-action-border);
+  --color-selected-text: var(--color-action-strong);
+  --color-brand: #86efac;
+  --color-brand-soft: rgba(134, 239, 172, 0.14);
+  --color-brand-border: rgba(134, 239, 172, 0.28);
+  --color-accent: var(--color-action);
+  --color-accent-strong: var(--color-action-strong);
+  --color-accent-soft: var(--color-action-soft);
+  --color-accent-border: var(--color-action-border);
   --color-info: #60a5fa;
   --color-info-soft: rgba(96, 165, 250, 0.16);
   --color-info-border: rgba(96, 165, 250, 0.36);
   --color-success: #86efac;
   --color-success-soft: rgba(34, 197, 94, 0.16);
+  --color-success-border: rgba(134, 239, 172, 0.34);
   --color-warning: #fbbf24;
   --color-warning-soft: rgba(251, 191, 36, 0.15);
+  --color-warning-border: rgba(251, 191, 36, 0.34);
   --color-danger: #fca5a5;
   --color-danger-soft: rgba(248, 113, 113, 0.14);
+  --color-danger-border: rgba(252, 165, 165, 0.34);
+
+  --chart-color-1: #60a5fa;
+  --chart-color-2: #c084fc;
+  --chart-color-3: #fbbf24;
+  --chart-color-4: #f472b6;
+  --chart-color-5: #22d3ee;
+  --chart-color-6: #86efac;
+  --chart-color-neutral: #94a3b8;
 
   --shadow-soft: 0 10px 24px rgba(0, 0, 0, 0.18);
   --shadow-panel: 0 20px 48px rgba(0, 0, 0, 0.32);
-  --shadow-focus: 0 0 0 3px rgba(94, 234, 212, 0.26);
+  --shadow-focus: 0 0 0 3px var(--color-focus-ring);
   --page-gradient: var(--color-bg);
 }

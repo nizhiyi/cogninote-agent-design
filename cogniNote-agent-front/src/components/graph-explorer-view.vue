@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import cytoscape from 'cytoscape'
 import fcose from 'cytoscape-fcose'
 import { LocateFixed, Maximize2, Minimize2, RotateCcw, Search, SlidersHorizontal } from 'lucide-vue-next'
+import { useThemeStore } from '../stores/theme'
 import { formatRelationType, formatScore } from '../utils/formatters'
 
 let isFcoseRegistered = false
@@ -40,6 +41,7 @@ const props = defineProps({
 
 const emit = defineEmits(['open-evidence'])
 
+const themeStore = useThemeStore()
 const stageRef = ref(null)
 const canvasRef = ref(null)
 const searchQuery = ref('')
@@ -53,7 +55,11 @@ let cy = null
 
 const isGraphMode = computed(() => props.mode === 'GRAPH')
 const fullscreenButtonLabel = computed(() => isStageFullscreen.value ? '退出画布全屏' : '画布全屏')
-const rawElements = computed(() => isGraphMode.value ? graphElements() : mindmapElements())
+const rawElements = computed(() => {
+  // Cytoscape 不能直接消费 CSS 变量；主题切换时必须重新生成节点/边颜色。
+  void themeStore.effectiveTheme
+  return isGraphMode.value ? graphElements() : mindmapElements()
+})
 const typeOptions = computed(() => countOptions(rawElements.value.nodes.map((node) => node.data.nodeType)))
 const relationOptions = computed(() =>
   countOptions(rawElements.value.edges.map((edge) => edge.data.relationType))
@@ -81,6 +87,10 @@ watch(
   },
   { deep: true }
 )
+
+watch(() => themeStore.effectiveTheme, () => {
+  renderGraphSafely()
+})
 
 watch(filteredElements, () => {
   if (!selectedItem.value) {
@@ -166,7 +176,7 @@ function structuredMindmapElements() {
       degree: 0,
       confidence: 0,
       size: 58,
-      color: '#0f766e',
+      color: structuralColor('SCOPE'),
       shape: 'round-rectangle'
     }
   }]
@@ -183,7 +193,7 @@ function structuredMindmapElements() {
         degree: 0,
         confidence: 0,
         size: 44,
-        color: '#2563eb',
+        color: structuralColor('DOCUMENT'),
         shape: 'round-rectangle'
       }
     })
@@ -200,7 +210,7 @@ function structuredMindmapElements() {
           degree: 0,
           confidence: 0,
           size: 36,
-          color: '#e2e8f0',
+          color: structuralColor('HEADING'),
           shape: 'round-rectangle'
         }
       })
@@ -278,7 +288,7 @@ function mindmapEdge(id, source, target) {
       relationType: 'CONTAINS',
       weight: 1,
       width: 1.5,
-      color: '#94a3b8'
+      color: cssColor('--chart-color-neutral', '#64748b')
     }
   }
 }
@@ -513,6 +523,11 @@ function openSelectedEvidence() {
 }
 
 function graphStyle() {
+  const textColor = cssColor('--color-text-strong', '#0f172a')
+  const labelColor = cssColor('--color-text', '#475569')
+  const surfaceColor = cssColor('--color-surface', '#ffffff')
+  const borderColor = cssColor('--color-bg-elevated', '#ffffff')
+  const highlightColor = cssColor('--color-action-strong', '#1d4ed8')
   return [
     {
       selector: 'node',
@@ -522,9 +537,9 @@ function graphStyle() {
         height: 'data(size)',
         shape: 'data(shape)',
         'background-color': 'data(color)',
-        'border-color': '#ffffff',
+        'border-color': borderColor,
         'border-width': 2,
-        color: '#0f172a',
+        color: textColor,
         'font-size': props.fullscreen ? 12 : 11,
         'font-weight': 700,
         'text-wrap': 'wrap',
@@ -546,10 +561,10 @@ function graphStyle() {
         'target-arrow-color': 'data(color)',
         'target-arrow-shape': isGraphMode.value ? 'triangle' : 'none',
         'curve-style': 'bezier',
-        color: '#475569',
+        color: labelColor,
         'font-size': 10,
         'font-weight': 700,
-        'text-background-color': '#ffffff',
+        'text-background-color': surfaceColor,
         'text-background-opacity': 0.88,
         'text-background-padding': 3,
         'text-rotation': 'autorotate',
@@ -566,15 +581,15 @@ function graphStyle() {
       selector: '.is-highlighted',
       style: {
         opacity: 1,
-        'border-color': '#0f766e',
+        'border-color': highlightColor,
         'border-width': 4
       }
     },
     {
       selector: 'edge.is-highlighted',
       style: {
-        'line-color': '#0f766e',
-        'target-arrow-color': '#0f766e',
+        'line-color': highlightColor,
+        'target-arrow-color': highlightColor,
         width: 4
       }
     }
@@ -588,7 +603,15 @@ function nodeSize(node) {
 }
 
 function colorForType(type) {
-  const palette = ['#0f766e', '#2563eb', '#7c3aed', '#b45309', '#15803d', '#be123c', '#475569']
+  const palette = [
+    cssColor('--chart-color-1', '#2563eb'),
+    cssColor('--chart-color-2', '#7c3aed'),
+    cssColor('--chart-color-3', '#d97706'),
+    cssColor('--chart-color-4', '#db2777'),
+    cssColor('--chart-color-5', '#0891b2'),
+    cssColor('--chart-color-6', '#16a34a'),
+    cssColor('--chart-color-neutral', '#64748b')
+  ]
   const text = String(type || 'ENTITY')
   let hash = 0
   for (let index = 0; index < text.length; index += 1) {
@@ -599,22 +622,36 @@ function colorForType(type) {
 
 function structuralColor(type) {
   if (type === 'SCOPE') {
-    return '#0f766e'
+    return cssColor('--color-action-strong', '#1d4ed8')
   }
   if (type === 'DOCUMENT') {
-    return '#2563eb'
+    return cssColor('--color-action', '#2563eb')
   }
-  return '#e2e8f0'
+  return cssColor('--color-border', '#e2e8f0')
 }
 
 function edgeColor(type) {
-  const palette = ['#64748b', '#0f766e', '#2563eb', '#7c3aed', '#b45309']
+  const palette = [
+    cssColor('--chart-color-neutral', '#64748b'),
+    cssColor('--chart-color-1', '#2563eb'),
+    cssColor('--chart-color-2', '#7c3aed'),
+    cssColor('--chart-color-3', '#d97706'),
+    cssColor('--chart-color-5', '#0891b2')
+  ]
   const text = String(type || 'RELATED_TO')
   let hash = 0
   for (let index = 0; index < text.length; index += 1) {
     hash = (hash + text.charCodeAt(index)) % palette.length
   }
   return palette[hash]
+}
+
+function cssColor(token, fallback) {
+  if (typeof window === 'undefined') {
+    return fallback
+  }
+  const value = window.getComputedStyle(document.documentElement).getPropertyValue(token).trim()
+  return value || fallback
 }
 
 function countOptions(values) {

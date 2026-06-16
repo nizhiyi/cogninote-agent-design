@@ -482,7 +482,7 @@ function escapeHtml(value) {
   --code-border: rgba(114, 143, 161, 0.38);
   --code-header-bg: #111a22;
   --code-action-fg: #9fb8c8;
-  --code-action-hover-bg: rgba(69, 185, 173, 0.14);
+  --code-action-hover-bg: color-mix(in srgb, var(--color-action) 22%, transparent);
   --code-action-hover-fg: #eef7fb;
   width: 100%;
   max-width: 100%;
@@ -646,7 +646,7 @@ function escapeHtml(value) {
   --code-border: rgba(114, 143, 161, 0.38);
   --code-header-bg: #111a22;
   --code-action-fg: #9fb8c8;
-  --code-action-hover-bg: rgba(69, 185, 173, 0.14);
+  --code-action-hover-bg: color-mix(in srgb, var(--color-action) 22%, transparent);
   --code-action-hover-fg: #eef7fb;
   position: fixed;
   inset: 0;

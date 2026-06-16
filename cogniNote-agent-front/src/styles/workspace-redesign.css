@@ -76,9 +76,9 @@
 .workspace-rail__button.router-link-active,
 .icon-button:hover:not(:disabled),
 .icon-button:focus-visible:not(:disabled) {
-  border-color: var(--color-accent-border);
+  border-color: var(--color-action-border);
   color: var(--color-text-strong);
-  background: var(--color-accent-soft);
+  background: var(--color-action-soft);
 }
 
 .workspace-rail__button svg,
@@ -143,7 +143,7 @@
 .context-sidebar__header > span,
 .context-sidebar__header > svg {
   flex: 0 0 auto;
-  color: var(--color-accent-strong);
+  color: var(--color-action-strong);
   font-weight: 800;
 }
 
@@ -166,9 +166,9 @@
 
 .context-primary-action {
   width: 100%;
-  border: 1px solid var(--color-accent-border);
+  border: 1px solid var(--color-action-border);
   color: var(--color-text-strong);
-  background: var(--color-accent-soft);
+  background: var(--color-action-soft);
 }
 
 .context-secondary-action {
@@ -181,9 +181,9 @@
 .context-primary-action:focus-visible:not(:disabled),
 .context-secondary-action:hover:not(:disabled),
 .context-secondary-action:focus-visible:not(:disabled) {
-  border-color: var(--color-accent-border);
+  border-color: var(--color-action-border);
   color: var(--color-text-strong);
-  background: color-mix(in srgb, var(--color-accent-soft) 78%, var(--color-surface));
+  background: color-mix(in srgb, var(--color-action-soft) 78%, var(--color-surface));
 }
 
 .context-primary-action:disabled,
@@ -340,7 +340,7 @@
 .context-knowledge-nav__item:hover,
 .context-knowledge-nav__item:focus-visible,
 .context-knowledge-nav__item.active {
-  border-color: var(--color-accent-border);
+  border-color: var(--color-action-border);
   color: var(--color-text-strong);
   background: var(--color-surface);
   box-shadow: var(--shadow-soft);
@@ -353,7 +353,7 @@
 
 .context-knowledge-nav__item.active {
   background:
-    linear-gradient(90deg, var(--color-accent-soft), transparent 82%),
+    linear-gradient(90deg, var(--color-action-soft), transparent 82%),
     var(--color-surface);
 }
 
@@ -363,8 +363,8 @@
   height: 36px;
   place-items: center;
   border-radius: var(--radius-sm);
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
+  color: var(--color-action);
+  background: var(--color-action-soft);
 }
 
 .context-knowledge-nav__icon svg {
@@ -412,7 +412,7 @@
 
 .context-folder-item svg {
   flex: 0 0 auto;
-  color: var(--color-accent-strong);
+  color: var(--color-action-strong);
 }
 
 .context-folder-item div {
@@ -446,9 +446,9 @@
 .context-settings-group button:hover,
 .context-settings-group button:focus-visible,
 .context-settings-group button.active {
-  border-color: var(--color-accent-border);
+  border-color: var(--color-action-border);
   color: var(--color-text-strong);
-  background: var(--color-accent-soft);
+  background: var(--color-action-soft);
 }
 
 .workspace-main {
@@ -977,7 +977,7 @@
 .graph-run-panel svg {
   width: 18px;
   height: 18px;
-  color: var(--color-accent);
+  color: var(--color-action);
 }
 
 .graph-run-panel p {
@@ -999,7 +999,7 @@
 .graph-empty-state svg {
   width: 36px;
   height: 36px;
-  color: var(--color-accent);
+  color: var(--color-action);
 }
 
 .graph-empty-state p {
@@ -1128,7 +1128,7 @@
 .graph-explorer__filter-group input {
   width: 15px;
   height: 15px;
-  accent-color: var(--color-accent);
+  accent-color: var(--color-action);
 }
 
 .graph-explorer__filter-group span {
@@ -1283,10 +1283,10 @@
   align-items: center;
   min-height: 24px;
   padding: 0 8px;
-  border: 1px solid var(--color-accent-border);
+  border: 1px solid var(--color-action-border);
   border-radius: 999px;
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
+  color: var(--color-action);
+  background: var(--color-action-soft);
   font-size: 12px;
   font-weight: 800;
 }
@@ -1362,7 +1362,7 @@
 
 .graph-adjacency-list tbody tr:hover,
 .graph-adjacency-list tbody tr:focus-visible {
-  background: var(--color-accent-soft);
+  background: var(--color-action-soft);
   outline: none;
 }
 
@@ -1396,7 +1396,7 @@
 
 .graph-evidence-item:hover,
 .graph-evidence-item:focus-visible {
-  border-color: var(--color-accent);
+  border-color: var(--color-action);
   outline: none;
   box-shadow: var(--shadow-focus);
 }

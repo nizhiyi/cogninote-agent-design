@@ -154,7 +154,7 @@
 .checkbox-field input {
   width: 18px;
   height: 18px;
-  accent-color: #1f6f68;
+  accent-color: var(--color-action);
 }
 
 .error-message {
@@ -190,8 +190,8 @@
 .result-strip span {
   padding: 10px 12px;
   border-radius: 6px;
-  color: #18413d;
-  background: #e7f5f1;
+  color: var(--color-selected-text);
+  background: var(--color-selected-bg);
   font-weight: 800;
   text-align: center;
 }
@@ -237,7 +237,7 @@
 .index-path-panel > span {
   display: inline-flex;
   margin-bottom: 6px;
-  color: #31514d;
+  color: var(--color-action);
   font-size: 13px;
   font-weight: 800;
 }

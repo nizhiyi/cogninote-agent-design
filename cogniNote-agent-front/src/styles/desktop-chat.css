@@ -83,9 +83,9 @@
 
 .sidebar-toggle-button:hover,
 .sidebar-toggle-button:focus-visible {
-  border-color: rgba(20, 184, 166, 0.58);
-  color: #ecfeff;
-  background: rgba(20, 184, 166, 0.18);
+  border-color: var(--color-action-border);
+  color: #eff6ff;
+  background: var(--color-action-soft);
   transform: translateY(-1px);
 }
 
@@ -111,7 +111,7 @@
 
 .brand-panel .eyebrow {
   margin-bottom: 4px;
-  color: #87d7cc;
+  color: var(--color-action-strong);
 }
 
 .brand-panel h1 {
@@ -135,16 +135,16 @@
 .new-chat-button {
   flex: 0 0 auto;
   min-height: 44px;
-  border: 1px solid rgba(45, 212, 191, 0.42);
-  color: #dcfffb;
-  background: rgba(20, 184, 166, 0.16);
+  border: 1px solid var(--color-action-border);
+  color: #eff6ff;
+  background: var(--color-action-soft);
   font-weight: 800;
 }
 
 .new-chat-button:hover:not(:disabled),
 .new-chat-button:focus-visible {
-  border-color: rgba(94, 234, 212, 0.74);
-  background: rgba(20, 184, 166, 0.24);
+  border-color: var(--color-action);
+  background: color-mix(in srgb, var(--color-action-soft) 70%, rgba(255, 255, 255, 0.08));
 }
 
 .session-list {
@@ -273,9 +273,9 @@
 .session-action-button:focus-visible,
 .conversation-action-button:hover:not(:disabled),
 .conversation-action-button:focus-visible {
-  border-color: rgba(20, 184, 166, 0.48);
-  color: #ecfeff;
-  background: rgba(20, 184, 166, 0.16);
+  border-color: var(--color-action-border);
+  color: #eff6ff;
+  background: var(--color-action-soft);
 }
 
 .sidebar-footer {
@@ -383,7 +383,7 @@
   justify-content: flex-end;
 }
 
-.conversation-meta span,
+.conversation-meta__pill,
 .message-label em,
 .settings-tabs button {
   border-radius: 999px;
@@ -391,11 +391,30 @@
   font-weight: 800;
 }
 
-.conversation-meta span,
+.conversation-meta__pill,
 .message-label em {
   padding: 4px 8px;
-  color: #a7f3d0;
-  background: rgba(16, 185, 129, 0.12);
+}
+
+.conversation-meta__pill--success,
+.message-label em {
+  color: var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.conversation-meta__pill--info {
+  color: var(--color-info);
+  background: var(--color-info-soft);
+}
+
+.conversation-meta__pill--warning {
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.conversation-meta__pill--neutral {
+  color: var(--color-text-muted);
+  background: color-mix(in srgb, var(--color-surface-muted) 56%, transparent);
 }
 
 .conversation-meta__model {
@@ -488,8 +507,8 @@
 }
 
 .message-bubble--user .message-content {
-  color: #ecfeff;
-  background: linear-gradient(135deg, #126f81, #1f5f7f);
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--color-action-strong), var(--color-action));
   border-radius: 16px 16px 5px 16px;
 }
 
@@ -537,8 +556,8 @@
 .composer-settings__summary span {
   padding: 5px 9px;
   border-radius: 999px;
-  color: #bff7ee;
-  background: rgba(20, 184, 166, 0.12);
+  color: var(--color-action-strong);
+  background: var(--color-action-soft);
   font-size: 12px;
   font-weight: 800;
 }
@@ -584,7 +603,7 @@
 .composer-resize-handle:hover span,
 .composer-resize-handle:focus-visible span {
   width: 72px;
-  background: rgba(45, 212, 191, 0.78);
+  background: var(--color-action);
 }
 
 .composer-input-row textarea {
@@ -629,9 +648,9 @@
 .knowledge-switch:hover,
 .knowledge-switch:focus-visible,
 .knowledge-switch[aria-checked="true"] {
-  border-color: rgba(20, 184, 166, 0.48);
-  color: #ecfeff;
-  background: rgba(20, 184, 166, 0.16);
+  border-color: var(--color-action-border);
+  color: #eff6ff;
+  background: var(--color-action-soft);
 }
 
 .knowledge-switch__track {
@@ -656,7 +675,7 @@
 }
 
 .knowledge-switch[aria-checked="true"] .knowledge-switch__track {
-  background: rgba(20, 184, 166, 0.78);
+  background: var(--color-action);
 }
 
 .knowledge-switch[aria-checked="true"] .knowledge-switch__thumb {
@@ -704,7 +723,7 @@
 
 .composer-context-indicator {
   --context-progress: 0%;
-  --context-ring-color: #14b8a6;
+  --context-ring-color: var(--color-action);
   position: relative;
   overflow: visible;
   background: conic-gradient(
@@ -788,23 +807,23 @@
 .composer-settings-button:hover,
 .composer-settings-button:focus-visible,
 .composer-settings-button[aria-expanded="true"] {
-  border-color: rgba(20, 184, 166, 0.48);
-  color: #ecfeff;
-  background: rgba(20, 184, 166, 0.16);
+  border-color: var(--color-action-border);
+  color: #eff6ff;
+  background: var(--color-action-soft);
 }
 
 .composer-icon-button:not(:disabled) {
-  border-color: rgba(45, 212, 191, 0.44);
-  color: #ecfeff;
-  background: linear-gradient(135deg, #0f766e, #0e7490);
-  box-shadow: 0 14px 34px rgba(20, 184, 166, 0.22);
+  border-color: var(--color-action-border);
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--color-action), color-mix(in srgb, var(--color-action) 76%, #7c3aed));
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--color-action) 28%, transparent);
 }
 
 .composer-icon-button:hover:not(:disabled),
 .composer-icon-button:focus-visible {
   transform: translateY(-1px);
-  border-color: rgba(94, 234, 212, 0.76);
-  background: linear-gradient(135deg, #14b8a6, #0891b2);
+  border-color: var(--color-action);
+  background: linear-gradient(135deg, var(--color-action-strong), var(--color-action));
 }
 
 .composer-icon-button:disabled {
@@ -869,9 +888,9 @@
 
 .desktop-shell .collapse-button:hover,
 .desktop-shell .collapse-button:focus-visible {
-  border-color: rgba(20, 184, 166, 0.48);
-  color: #ecfeff;
-  background: rgba(20, 184, 166, 0.16);
+  border-color: var(--color-action-border);
+  color: #eff6ff;
+  background: var(--color-action-soft);
 }
 
 .sources-panel--compact .source-row {
@@ -920,9 +939,9 @@
 
 .back-link:hover,
 .back-link:focus-visible {
-  border-color: rgba(20, 184, 166, 0.48);
-  color: #ecfeff;
-  background: rgba(20, 184, 166, 0.16);
+  border-color: var(--color-action-border);
+  color: #eff6ff;
+  background: var(--color-action-soft);
 }
 
 .settings-tabs {
@@ -942,9 +961,9 @@
 .settings-tabs button.active,
 .settings-tabs button:hover,
 .settings-tabs button:focus-visible {
-  border-color: rgba(20, 184, 166, 0.48);
-  color: #ecfeff;
-  background: rgba(20, 184, 166, 0.16);
+  border-color: var(--color-action-border);
+  color: #eff6ff;
+  background: var(--color-action-soft);
 }
 
 .settings-section {
@@ -970,6 +989,6 @@
 .back-link:focus-visible,
 .desktop-shell input:focus-visible,
 .desktop-shell textarea:focus-visible {
-  outline: 3px solid rgba(94, 234, 212, 0.52);
+  outline: 3px solid var(--color-focus-ring);
   outline-offset: 2px;
 }

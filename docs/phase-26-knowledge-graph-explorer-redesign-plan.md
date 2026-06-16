@@ -118,7 +118,7 @@
 
 ## UI Rules
 
-- 使用现有青绿色主色、surface、border、focus token，保持桌面工具气质。
+- 使用现有中性 surface、border、focus token 和第 28 阶段蓝色动作色；图谱色板使用多色序列，避免绿色优先造成界面主色回潮。
 - 不使用装饰渐变、悬浮大卡片或营销式布局。
 - 图例必须解释节点颜色、边宽、箭头方向和证据数含义。
 - 图标按钮使用 lucide，并提供 `aria-label` 和 `title`。

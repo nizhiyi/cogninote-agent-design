@@ -65,7 +65,7 @@
 
 .markdown-content blockquote {
   padding-left: 14px;
-  border-left: 3px solid rgba(94, 234, 212, 0.46);
+  border-left: 3px solid var(--color-action-border);
   color: #cbd5e1;
 }
 
@@ -125,6 +125,6 @@
 }
 
 .markdown-content th {
-  color: #ecfeff;
-  background: rgba(20, 184, 166, 0.14);
+  color: #eff6ff;
+  background: var(--color-action-soft);
 }

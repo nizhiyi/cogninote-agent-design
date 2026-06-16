@@ -7,7 +7,7 @@
   --code-border: rgba(114, 143, 161, 0.38);
   --code-header-bg: #111a22;
   --code-action-fg: #9fb8c8;
-  --code-action-hover-bg: rgba(69, 185, 173, 0.14);
+  --code-action-hover-bg: color-mix(in srgb, var(--color-action) 22%, transparent);
   --code-action-hover-fg: #eef7fb;
   --code-line-number: #7a8f9f;
   --inline-code-bg: #e6f2f3;
@@ -18,9 +18,9 @@
   --diagram-control-fg: #2f5968;
   --diagram-control-disabled-fg: #4f6f7d;
   --diagram-control-hover-fg: #123f4d;
-  --diagram-control-hover-bg: rgba(14, 116, 144, 0.12);
+  --diagram-control-hover-bg: var(--color-action-soft);
   --diagram-control-active-fg: #0f5363;
-  --diagram-control-active-bg: rgba(14, 116, 144, 0.16);
+  --diagram-control-active-bg: color-mix(in srgb, var(--color-action-soft) 72%, var(--color-surface));
   --modal-bg: var(--color-surface);
   --modal-fg: var(--color-text);
   --modal-overlay: color-mix(in srgb, var(--color-bg) 82%, rgba(0, 0, 0, 0.62));
@@ -49,9 +49,9 @@
   --diagram-control-fg: #b8cad6;
   --diagram-control-disabled-fg: #7893a6;
   --diagram-control-hover-fg: #eef7fb;
-  --diagram-control-hover-bg: rgba(69, 185, 173, 0.16);
+  --diagram-control-hover-bg: var(--color-action-soft);
   --diagram-control-active-fg: #bde9f4;
-  --diagram-control-active-bg: rgba(69, 185, 173, 0.18);
+  --diagram-control-active-bg: color-mix(in srgb, var(--color-action-soft) 72%, var(--color-surface));
   --modal-bg: var(--color-surface);
   --modal-fg: var(--color-text);
   --modal-overlay: color-mix(in srgb, var(--color-bg) 76%, rgba(0, 0, 0, 0.72));
@@ -102,12 +102,12 @@
 
 .ai-markdown-content blockquote {
   padding: 2px 0 2px 14px;
-  border-left: 3px solid var(--color-accent-border);
+  border-left: 3px solid var(--color-action-border);
   color: var(--color-text-muted);
 }
 
 .ai-markdown-content a {
-  color: var(--color-accent-strong);
+  color: var(--color-action-strong);
   text-decoration: none;
 }
 
@@ -293,7 +293,7 @@
 
 .ai-markdown-content th {
   color: var(--color-text-strong);
-  background: var(--color-accent-soft);
+  background: var(--color-action-soft);
 }
 
 .ai-markdown-content :where(input[type='checkbox']) {

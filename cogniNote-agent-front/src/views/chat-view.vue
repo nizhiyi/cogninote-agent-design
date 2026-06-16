@@ -38,6 +38,31 @@ const activeModelSummary = computed(() => {
   const embedding = modelConfigStore.activeEmbeddingConfig?.modelName || '未配置向量模型'
   return `${chat} / ${embedding}`
 })
+
+// Header 状态必须先表达业务语义，再由 CSS 映射颜色，避免把未配置等警示态误染成成功绿。
+const conversationMetaItems = computed(() => {
+  const isChatModelConfigured = Boolean(modelConfigStore.activeChatConfig?.modelName)
+  const isEmbeddingModelConfigured = Boolean(modelConfigStore.activeEmbeddingConfig?.modelName)
+
+  return [
+    {
+      id: 'knowledge',
+      label: chatStore.useKnowledgeBase ? '知识库已启用' : '纯模型对话',
+      state: chatStore.useKnowledgeBase ? 'success' : 'neutral'
+    },
+    {
+      id: 'mode',
+      label: chatStore.mode,
+      state: 'info'
+    },
+    {
+      id: 'model',
+      label: activeModelSummary.value,
+      state: isChatModelConfigured && isEmbeddingModelConfigured ? 'neutral' : 'warning',
+      className: 'conversation-meta__model'
+    }
+  ]
+})
 const activeContextUsage = computed(() => {
   const usage = chatStore.activeContextUsage
   const contextWindowTokens = normalizeTokenCount(
@@ -531,9 +556,13 @@ onBeforeUnmount(() => {
         <h2>{{ chatStore.activeSession?.title || '新对话' }}</h2>
       </div>
       <div class="conversation-meta">
-        <span>{{ chatStore.useKnowledgeBase ? '知识库已启用' : '纯模型对话' }}</span>
-        <span>{{ chatStore.mode }}</span>
-        <span class="conversation-meta__model">{{ activeModelSummary }}</span>
+        <span
+          v-for="item in conversationMetaItems"
+          :key="item.id"
+          :class="['conversation-meta__pill', `conversation-meta__pill--${item.state}`, item.className]"
+        >
+          {{ item.label }}
+        </span>
         <button
           v-if="totalSourceCount"
           class="conversation-source-button"

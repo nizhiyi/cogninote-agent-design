@@ -73,9 +73,9 @@
 .settings-nav-group button:hover,
 .settings-nav-group button:focus-visible,
 .settings-nav-group button.active {
-  border-color: var(--color-accent-border);
+  border-color: var(--color-action-border);
   color: var(--color-text-strong);
-  background: var(--color-accent-soft);
+  background: var(--color-action-soft);
 }
 
 .settings-center-content {
@@ -235,10 +235,10 @@
 .query-contextualizer-mode:hover:not(:disabled),
 .query-contextualizer-mode:focus-visible:not(:disabled),
 .query-contextualizer-mode.active {
-  border-color: var(--color-accent-border);
+  border-color: var(--color-action-border);
   color: var(--color-text-strong);
-  background: var(--color-accent-soft);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent-border) 44%, transparent) inset;
+  background: var(--color-action-soft);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-action-border) 44%, transparent) inset;
 }
 
 .query-contextualizer-mode:focus-visible {
@@ -282,11 +282,11 @@
 }
 
 .query-contextualizer-mode.active .query-contextualizer-mode__indicator {
-  border-color: var(--color-accent);
+  border-color: var(--color-action);
   background:
     radial-gradient(circle, #ffffff 0 34%, transparent 36%),
-    var(--color-accent);
-  box-shadow: 0 0 0 3px var(--color-accent-soft);
+    var(--color-action);
+  box-shadow: 0 0 0 3px var(--color-action-soft);
 }
 
 .query-contextualizer-mode__description {
@@ -339,10 +339,10 @@
   height: 44px;
   margin: 0;
   place-items: center;
-  border: 1px solid var(--color-accent-border);
+  border: 1px solid var(--color-action-border);
   border-radius: 999px;
   color: var(--color-text-strong);
-  background: var(--color-accent-soft);
+  background: var(--color-action-soft);
   box-shadow: var(--shadow-soft);
   cursor: pointer;
   transition:
@@ -353,9 +353,9 @@
 
 .settings-back-to-top:hover,
 .settings-back-to-top:focus-visible {
-  border-color: var(--color-accent-border);
+  border-color: var(--color-action-border);
   color: #ffffff;
-  background: var(--color-accent);
+  background: var(--color-action);
 }
 
 .settings-back-to-top svg {
