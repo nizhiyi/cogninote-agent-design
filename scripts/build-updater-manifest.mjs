@@ -19,7 +19,8 @@ if (!signature) {
 const existing = existsSync(args.manifest)
   ? JSON.parse(readFileSync(args.manifest, 'utf8'))
   : null
-const platforms = existing?.version === args.version && existing?.platforms
+const isSameVersion = existing?.version === args.version
+const platforms = isSameVersion && existing?.platforms
   ? existing.platforms
   : {}
 
@@ -31,7 +32,7 @@ platforms[args.platform] = {
 const manifest = {
   version: args.version,
   notes: readNotes(args),
-  pub_date: args.pubDate || existing?.pub_date || new Date().toISOString(),
+  pub_date: args.pubDate || (isSameVersion ? existing?.pub_date : null) || new Date().toISOString(),
   platforms
 }
 
@@ -42,7 +43,7 @@ function readNotes(values) {
   if (values.notesFile && existsSync(values.notesFile)) {
     return readFileSync(values.notesFile, 'utf8').trim()
   }
-  return values.notes || existing?.notes || ''
+  return values.notes || (isSameVersion ? existing?.notes : '') || ''
 }
 
 function parseArgs(argv) {

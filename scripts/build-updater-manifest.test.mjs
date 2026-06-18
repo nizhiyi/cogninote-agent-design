@@ -17,11 +17,19 @@ try {
   writeFileSync(macosSigPath, 'macos-signature\n', 'utf8')
   writeFileSync(nextSigPath, 'next-signature\n', 'utf8')
 
-  runBuilder(manifestPath, '0.1.34', 'windows-x86_64', 'https://example.com/windows.exe', windowsSigPath)
+  runBuilder(
+    manifestPath,
+    '0.1.34',
+    'windows-x86_64',
+    'https://example.com/windows.exe',
+    windowsSigPath,
+    '2026-06-15T13:42:18.307Z'
+  )
   runBuilder(manifestPath, '0.1.34', 'darwin-aarch64', 'https://example.com/macos.app.tar.gz', macosSigPath)
 
   const merged = readManifest(manifestPath)
   assert.equal(merged.version, '0.1.34')
+  assert.equal(merged.pub_date, '2026-06-15T13:42:18.307Z')
   assert.equal(merged.platforms['windows-x86_64'].signature, 'windows-signature')
   assert.equal(merged.platforms['darwin-aarch64'].signature, 'macos-signature')
   assert.equal(merged.platforms['darwin-aarch64'].url, 'https://example.com/macos.app.tar.gz')
@@ -30,32 +38,33 @@ try {
 
   const nextVersion = readManifest(manifestPath)
   assert.equal(nextVersion.version, '0.1.35')
+  assert.notEqual(nextVersion.pub_date, merged.pub_date)
   assert.deepEqual(Object.keys(nextVersion.platforms), ['windows-x86_64'])
   assert.equal(nextVersion.platforms['windows-x86_64'].signature, 'next-signature')
 } finally {
   rmSync(tempDir, { recursive: true, force: true })
 }
 
-function runBuilder(manifestPath, version, platform, url, signatureFile) {
-  execFileSync(
-    process.execPath,
-    [
-      'scripts/build-updater-manifest.mjs',
-      '--manifest',
-      manifestPath,
-      '--version',
-      version,
-      '--platform',
-      platform,
-      '--url',
-      url,
-      '--signatureFile',
-      signatureFile,
-      '--notes',
-      `CogniNote ${version}`
-    ],
-    { stdio: 'inherit' }
-  )
+function runBuilder(manifestPath, version, platform, url, signatureFile, pubDate) {
+  const args = [
+    'scripts/build-updater-manifest.mjs',
+    '--manifest',
+    manifestPath,
+    '--version',
+    version,
+    '--platform',
+    platform,
+    '--url',
+    url,
+    '--signatureFile',
+    signatureFile,
+    '--notes',
+    `CogniNote ${version}`
+  ]
+  if (pubDate) {
+    args.push('--pubDate', pubDate)
+  }
+  execFileSync(process.execPath, args, { stdio: 'inherit' })
 }
 
 function readManifest(manifestPath) {
