@@ -17,7 +17,7 @@ if [[ -z "$JDK_HOME" ]]; then
   for candidate in \
     "/Library/Java/JavaVirtualMachines/jdk-25.jdk/Contents/Home" \
     "$HOME/Library/Java/JavaVirtualMachines/jdk-25.jdk/Contents/Home"; do
-    if [[ -x "$candidate/bin/java" && -x "$candidate/bin/jpackage" ]]; then
+    if [[ -x "$candidate/bin/java" && -x "$candidate/bin/jlink" && -x "$candidate/bin/jpackage" ]]; then
       JDK_HOME="$candidate"
       break
     fi
@@ -31,6 +31,11 @@ fi
 
 if [[ ! -x "$JDK_HOME/bin/jpackage" ]]; then
   echo "jpackage not found under $JDK_HOME. Use a full JDK, not a JRE." >&2
+  exit 1
+fi
+
+if [[ ! -x "$JDK_HOME/bin/jlink" ]]; then
+  echo "jlink not found under $JDK_HOME. Use a full JDK, not a JRE." >&2
   exit 1
 fi
 
@@ -56,6 +61,7 @@ require_command xcodebuild "Install Xcode Command Line Tools: xcode-select --ins
 echo "macOS desktop toolchain check passed."
 echo "JAVA_HOME = $JAVA_HOME"
 "$JAVA_HOME/bin/java" -version
+echo "jlink = $("$JAVA_HOME/bin/jlink" --version)"
 echo "jpackage = $("$JAVA_HOME/bin/jpackage" --version)"
 echo "node = $(node --version)"
 echo "npm = $(npm --version)"

@@ -77,8 +77,11 @@ function Test-Jdk25Home {
     }
 
     $candidateJava = Join-Path $Path 'bin\java.exe'
+    $candidateJlink = Join-Path $Path 'bin\jlink.exe'
     $candidateJpackage = Join-Path $Path 'bin\jpackage.exe'
-    if (-not (Test-Path -LiteralPath $candidateJava) -or -not (Test-Path -LiteralPath $candidateJpackage)) {
+    if (-not (Test-Path -LiteralPath $candidateJava) -or
+        -not (Test-Path -LiteralPath $candidateJlink) -or
+        -not (Test-Path -LiteralPath $candidateJpackage)) {
         return $false
     }
 
@@ -112,6 +115,7 @@ function Resolve-JdkHome {
 
 $JdkHome = Resolve-JdkHome $JdkHome
 $javaExe = Join-Path $JdkHome 'bin\java.exe'
+$jlinkExe = Join-Path $JdkHome 'bin\jlink.exe'
 $jpackageExe = Join-Path $JdkHome 'bin\jpackage.exe'
 $cargoBin = Join-Path $env:USERPROFILE '.cargo\bin'
 
@@ -121,6 +125,7 @@ Import-VsDevEnvironment
 # Desktop delivery depends on jpackage from JDK 25. Use the explicit JDK path
 # instead of trusting a shell PATH that may still contain JDK 8/17.
 Require-File $javaExe 'Check the JDK 25 install path or pass -JdkHome.'
+Require-File $jlinkExe 'Check that the path points to a full JDK, not a JRE.'
 Require-File $jpackageExe 'Check that the path points to a full JDK, not a JRE.'
 
 Require-Command mvn 'Install Maven 3.9+ and add it to PATH.'
@@ -134,6 +139,7 @@ Require-Command link 'Install Visual Studio Build Tools and select Desktop devel
 Write-Host 'Desktop toolchain check passed.'
 Write-Host "JAVA_HOME = $JdkHome"
 & $javaExe -version
+Write-Host "jlink = $(& $jlinkExe --version)"
 Write-Host "jpackage = $(& $jpackageExe --version)"
 Write-Host "node = $(node --version)"
 Write-Host "npm = $(npm --version)"

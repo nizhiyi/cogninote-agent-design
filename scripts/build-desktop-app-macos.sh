@@ -38,7 +38,9 @@ if [[ -n "$JDK_HOME_ARG" ]]; then
   export JDK_HOME="$JDK_HOME_ARG"
 fi
 
-bash "$SCRIPT_DIR/verify-desktop-toolchain-macos.sh"
+# Source the verifier so a resolved JAVA_HOME remains available to the nested
+# backend build and Tauri packaging steps in this same shell.
+. "$SCRIPT_DIR/verify-desktop-toolchain-macos.sh"
 
 cd "$PROJECT_ROOT"
 

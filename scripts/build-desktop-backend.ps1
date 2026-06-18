@@ -53,14 +53,17 @@ function Resolve-JdkHome {
 
 $JdkHome = Resolve-JdkHome $JdkHome
 $javaExe = Join-Path $JdkHome 'bin\java.exe'
+$jlinkExe = Join-Path $JdkHome 'bin\jlink.exe'
 $jpackageExe = Join-Path $JdkHome 'bin\jpackage.exe'
 $jarName = 'cogninote-agent-design.jar'
 $jarPath = Join-Path $projectRoot "target\$jarName"
 $compiledStaticDir = Join-Path $projectRoot 'target\classes\static'
 $desktopBackendDir = Join-Path $projectRoot 'target\desktop\backend'
 $backendImageDir = Join-Path $desktopBackendDir 'CogniNoteBackend'
+$customRuntimeDir = Join-Path $projectRoot 'target\desktop\runtime'
 $jpackageInputDir = Join-Path $projectRoot 'target\desktop\jpackage-input'
 $frontendDir = Join-Path $projectRoot 'cogniNote-agent-front'
+$desktopRuntimeModules = 'java.base,java.compiler,java.desktop,java.instrument,java.net.http,java.prefs,java.rmi,java.scripting,java.security.jgss,java.sql.rowset,java.xml.crypto,jdk.attach,jdk.incubator.vector,jdk.jdi,jdk.jfr,jdk.management,jdk.unsupported'
 
 function Assert-InProject {
     param([string]$Path)
@@ -81,6 +84,54 @@ function Invoke-Native {
     if ($LASTEXITCODE -ne 0) {
         throw "Command failed with exit code ${LASTEXITCODE}: $FilePath $($ArgumentList -join ' ')"
     }
+}
+
+function Get-PathSizeMb {
+    param([string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return '0.00'
+    }
+
+    $item = Get-Item -LiteralPath $Path
+    if ($item.PSIsContainer) {
+        $bytes = (Get-ChildItem -LiteralPath $Path -Recurse -File -Force | Measure-Object Length -Sum).Sum
+    } else {
+        $bytes = $item.Length
+    }
+    return ([math]::Round($bytes / 1MB, 2)).ToString('0.00')
+}
+
+function New-DesktopRuntimeImage {
+    param(
+        [string]$OutputPath
+    )
+
+    if (Test-Path -LiteralPath $OutputPath) {
+        Assert-InProject $OutputPath
+        Remove-Item -LiteralPath $OutputPath -Recurse -Force
+    }
+
+    $jmodsDir = Join-Path $JdkHome 'jmods'
+    if (-not (Test-Path -LiteralPath $jmodsDir)) {
+        throw "JDK jmods directory not found: $jmodsDir"
+    }
+
+    # jdeps is only the starting point for this module list. Keep the first
+    # desktop runtime conservative because Spring reflection, SQLite native
+    # loading, PDF/Office parsing, Lucene and model SDK paths are runtime-heavy.
+    $jlinkArgs = @(
+        '--module-path', $jmodsDir,
+        '--add-modules', $desktopRuntimeModules,
+        '--strip-debug',
+        '--strip-java-debug-attributes',
+        '--strip-native-commands',
+        '--no-header-files',
+        '--no-man-pages',
+        '--compress', 'zip-6',
+        '--output', $OutputPath
+    )
+    Invoke-Native -FilePath $jlinkExe -ArgumentList $jlinkArgs
 }
 
 function Stop-ProjectFrontendDevServer {
@@ -110,6 +161,10 @@ function Stop-ProjectFrontendDevServer {
 
 if (-not (Test-Path -LiteralPath $javaExe)) {
     throw "JDK 25 java.exe not found: $javaExe"
+}
+
+if (-not (Test-Path -LiteralPath $jlinkExe)) {
+    throw "JDK 25 jlink.exe not found: $jlinkExe"
 }
 
 if (-not (Test-Path -LiteralPath $jpackageExe)) {
@@ -146,6 +201,11 @@ try {
         Remove-Item -LiteralPath $backendImageDir -Recurse -Force
     }
 
+    if (Test-Path -LiteralPath $customRuntimeDir) {
+        Assert-InProject $customRuntimeDir
+        Remove-Item -LiteralPath $customRuntimeDir -Recurse -Force
+    }
+
     if (Test-Path -LiteralPath $jpackageInputDir) {
         Assert-InProject $jpackageInputDir
         Remove-Item -LiteralPath $jpackageInputDir -Recurse -Force
@@ -154,6 +214,7 @@ try {
     New-Item -ItemType Directory -Force -Path $desktopBackendDir | Out-Null
     New-Item -ItemType Directory -Force -Path $jpackageInputDir | Out-Null
     Copy-Item -LiteralPath $jarPath -Destination (Join-Path $jpackageInputDir $jarName) -Force
+    New-DesktopRuntimeImage -OutputPath $customRuntimeDir
 
     # SQLite JDBC triggers a native-access warning on JDK 25. The desktop backend
     # uses a bundled runtime, so pass the flag once at package time instead of
@@ -164,6 +225,7 @@ try {
         '--input', $jpackageInputDir,
         '--main-jar', $jarName,
         '--dest', $desktopBackendDir,
+        '--runtime-image', $customRuntimeDir,
         '--java-options', '--enable-native-access=ALL-UNNAMED'
     )
     Invoke-Native -FilePath $jpackageExe -ArgumentList $jpackageArgs
@@ -179,7 +241,9 @@ try {
         }
     }
 
-    Write-Host "Backend app-image generated: $backendImageDir"
+    Write-Host "Custom desktop runtime generated: $customRuntimeDir ($(Get-PathSizeMb $customRuntimeDir) MB)"
+    Write-Host "Backend app-image generated: $backendImageDir ($(Get-PathSizeMb $backendImageDir) MB)"
+    Write-Host "Backend jar size: $jarPath ($(Get-PathSizeMb $jarPath) MB)"
 } finally {
     Pop-Location
 }

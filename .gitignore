@@ -16,6 +16,7 @@ logs/
 资料参考/
 .claude/
 output/
+.codex-local/
 
 # Frontend dependencies and build output
 node_modules/

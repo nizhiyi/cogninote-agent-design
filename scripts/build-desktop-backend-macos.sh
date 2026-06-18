@@ -28,7 +28,9 @@ if [[ -n "$JDK_HOME_ARG" ]]; then
   export JDK_HOME="$JDK_HOME_ARG"
 fi
 
-bash "$SCRIPT_DIR/verify-desktop-toolchain-macos.sh"
+# Source the verifier so a resolved JAVA_HOME remains available to jlink and
+# jpackage in this same shell, including when callers only pass --jdk-home.
+. "$SCRIPT_DIR/verify-desktop-toolchain-macos.sh"
 
 cd "$PROJECT_ROOT"
 
@@ -37,7 +39,39 @@ JAR_PATH="$PROJECT_ROOT/target/$JAR_NAME"
 COMPILED_STATIC_DIR="$PROJECT_ROOT/target/classes/static"
 DESKTOP_BACKEND_DIR="$PROJECT_ROOT/target/desktop-macos/backend"
 BACKEND_IMAGE_DIR="$DESKTOP_BACKEND_DIR/CogniNoteBackend.app"
+CUSTOM_RUNTIME_DIR="$PROJECT_ROOT/target/desktop-macos/runtime"
 JPACKAGE_INPUT_DIR="$PROJECT_ROOT/target/desktop-macos/jpackage-input"
+DESKTOP_RUNTIME_MODULES="java.base,java.compiler,java.desktop,java.instrument,java.net.http,java.prefs,java.rmi,java.scripting,java.security.jgss,java.sql.rowset,java.xml.crypto,jdk.attach,jdk.incubator.vector,jdk.jdi,jdk.jfr,jdk.management,jdk.unsupported"
+
+path_size() {
+  if [[ ! -e "$1" ]]; then
+    echo "0B"
+    return
+  fi
+  du -sh "$1" | awk '{print $1}'
+}
+
+create_desktop_runtime() {
+  rm -rf "$CUSTOM_RUNTIME_DIR"
+  if [[ ! -d "$JAVA_HOME/jmods" ]]; then
+    echo "JDK jmods directory not found: $JAVA_HOME/jmods" >&2
+    exit 1
+  fi
+
+  # jdeps is only the starting point for this module list. Keep the first
+  # desktop runtime conservative because Spring reflection, SQLite native
+  # loading, PDF/Office parsing, Lucene and model SDK paths are runtime-heavy.
+  "$JAVA_HOME/bin/jlink" \
+    --module-path "$JAVA_HOME/jmods" \
+    --add-modules "$DESKTOP_RUNTIME_MODULES" \
+    --strip-debug \
+    --strip-java-debug-attributes \
+    --strip-native-commands \
+    --no-header-files \
+    --no-man-pages \
+    --compress zip-6 \
+    --output "$CUSTOM_RUNTIME_DIR"
+}
 
 rm -rf "$COMPILED_STATIC_DIR"
 
@@ -52,9 +86,10 @@ if [[ ! -f "$JAR_PATH" ]]; then
   exit 1
 fi
 
-rm -rf "$BACKEND_IMAGE_DIR" "$JPACKAGE_INPUT_DIR"
+rm -rf "$BACKEND_IMAGE_DIR" "$CUSTOM_RUNTIME_DIR" "$JPACKAGE_INPUT_DIR"
 mkdir -p "$DESKTOP_BACKEND_DIR" "$JPACKAGE_INPUT_DIR"
 cp "$JAR_PATH" "$JPACKAGE_INPUT_DIR/$JAR_NAME"
+create_desktop_runtime
 
 "$JAVA_HOME/bin/jpackage" \
   --type app-image \
@@ -62,6 +97,7 @@ cp "$JAR_PATH" "$JPACKAGE_INPUT_DIR/$JAR_NAME"
   --input "$JPACKAGE_INPUT_DIR" \
   --main-jar "$JAR_NAME" \
   --dest "$DESKTOP_BACKEND_DIR" \
+  --runtime-image "$CUSTOM_RUNTIME_DIR" \
   --java-options "--enable-native-access=ALL-UNNAMED"
 
 BACKEND_LAUNCHER="$BACKEND_IMAGE_DIR/Contents/MacOS/CogniNoteBackend"
@@ -70,4 +106,6 @@ if [[ ! -x "$BACKEND_LAUNCHER" ]]; then
   exit 1
 fi
 
-echo "macOS backend app-image generated: $BACKEND_IMAGE_DIR"
+echo "macOS custom desktop runtime generated: $CUSTOM_RUNTIME_DIR ($(path_size "$CUSTOM_RUNTIME_DIR"))"
+echo "macOS backend app-image generated: $BACKEND_IMAGE_DIR ($(path_size "$BACKEND_IMAGE_DIR"))"
+echo "Backend jar size: $JAR_PATH ($(path_size "$JAR_PATH"))"

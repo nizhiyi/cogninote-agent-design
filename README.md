@@ -37,13 +37,13 @@
 | 存储 | SQLite |
 | 检索 | Apache Lucene |
 | 模型 | Spring AI Alibaba DashScope, Spring AI OpenAI Runtime for OpenAI-compatible |
-| 桌面 | Tauri 2, jpackage, NSIS, macOS app/dmg |
+| 桌面 | Tauri 2, jlink, jpackage, NSIS, macOS app/dmg |
 
 ## 快速开始
 
 ### 环境要求
 
-- JDK 25
+- JDK 25，桌面打包必须使用包含 `jlink` 和 `jpackage` 的完整 JDK
 - Maven 3.9+
 - Node.js 20.19.6 或兼容版本
 - npm 10.8.2 或兼容版本
@@ -261,6 +261,7 @@ bash ./scripts/build-desktop-app-macos.sh --skip-tests
 | [阶段 27：桌面令牌保护与自动更新](docs/phase-27-desktop-security-auto-update-plan.md) | 本机 API 会话令牌、Tauri updater、stable/preview 通道和 GitHub Release manifest |
 | [阶段 28：应用主题设计方案](docs/phase-28-application-theme-design-plan.md) | 中性主题、蓝色动作 token、Element Plus 桥接、图谱色板和浅色/深色可访问性验收 |
 | [阶段 29：聊天回复片段引用](docs/phase-29-chat-references-plan.md) | 助手回复片段选择、引用标签、刷新恢复、模型上下文注入和 `references_json` 持久化 |
+| [阶段 30：桌面安装包减重与 JDK Runtime 裁剪](docs/phase-30-desktop-package-size-reduction-plan.md) | `jdeps + jlink + jpackage --runtime-image` 裁剪桌面后端 runtime，降低 Windows/macOS 分发包体积 |
 | [可维护性重构计划](docs/maintainability-refactor-plan.md) | 前后端分层、统一响应和注释规范 |
 
 
