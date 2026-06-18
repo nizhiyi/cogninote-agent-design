@@ -125,6 +125,45 @@ function Update-VersionFile {
     return $oldVersions
 }
 
+function Update-DocVersionFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$RelativePath,
+        [Parameter(Mandatory = $true)][string]$OldVersion,
+        [Parameter(Mandatory = $true)][string]$NewVersion
+    )
+
+    if ($OldVersion -eq $NewVersion) {
+        Write-Host "No doc change $RelativePath"
+        return
+    }
+
+    $path = Resolve-RepoFile $RelativePath
+    $oldText = Read-TextFile $path
+    $versionPattern = "(?<![0-9A-Za-z.])(v?)$([regex]::Escape($OldVersion))(?![0-9A-Za-z.])"
+    if (-not [regex]::IsMatch($oldText, $versionPattern)) {
+        Write-Host "No doc change $RelativePath"
+        return
+    }
+
+    # README now contains user-facing Release filenames and tags. Keep this broad
+    # replacement guarded so newly added download examples cannot drift silently.
+    $evaluator = [System.Text.RegularExpressions.MatchEvaluator]{
+        param($match)
+        return $match.Groups[1].Value + $NewVersion
+    }
+    $newText = [regex]::Replace($oldText, $versionPattern, $evaluator)
+    if ([regex]::IsMatch($newText, $versionPattern)) {
+        throw "Doc version update left stale version '$OldVersion' in $RelativePath."
+    }
+
+    if ($WhatIf) {
+        Write-Host "Would update $RelativePath"
+    } else {
+        Write-TextFile -Path $path -Content $newText
+        Write-Host "Updated $RelativePath"
+    }
+}
+
 function Get-VersionFileVersions {
     param(
         [Parameter(Mandatory = $true)][string]$RelativePath,
@@ -240,19 +279,7 @@ foreach ($target in $targets) {
 if (-not $SkipDocs) {
     $docFiles = @('README.md', 'docs/desktop-build-guide.md')
     foreach ($relativePath in $docFiles) {
-        $path = Resolve-RepoFile $relativePath
-        $oldText = Read-TextFile $path
-        $newText = $oldText.Replace($oldVersion, $Version)
-        if ($newText -ne $oldText) {
-            if ($WhatIf) {
-                Write-Host "Would update $relativePath"
-            } else {
-                Write-TextFile -Path $path -Content $newText
-                Write-Host "Updated $relativePath"
-            }
-        } else {
-            Write-Host "No doc change $relativePath"
-        }
+        Update-DocVersionFile -RelativePath $relativePath -OldVersion $oldVersion -NewVersion $Version
     }
 }
 

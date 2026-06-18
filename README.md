@@ -14,6 +14,45 @@
 - 对自己的文档提问，并要求答案带来源引用。
 - 在本机运行 RAG 应用，不把文档上传到托管知识库平台。
 
+## 下载与体验
+
+测试版和后续正式版都会通过 [GitHub Releases](https://github.com/ItQianChen/cogninote-agent-design/releases) 分发。当前 `0.1.35` 定位为可安装测试分发版；发布 `v0.1.35-test.1` 后，优先从 Releases 下载对应平台安装包体验。
+
+> 预发行测试包默认未签名，适合内部测试和小范围试用；正式版发布后优先推荐 signed / notarized 安装包。
+
+| 平台 | 推荐下载 | 说明 |
+| --- | --- | --- |
+| Windows x64 | `CogniNote-0.1.35-windows-x64-unsigned-installer.exe` | 可能出现未知发布者或 SmartScreen 提示；便携版可选择 `CogniNote-0.1.35-windows-x64-unsigned-portable.zip` |
+| macOS Apple Silicon | `CogniNote-0.1.35-macos-arm64-unsigned.dmg` | 未签名测试包可能被 Gatekeeper 拦截；如遇拦截，先参考 Release 说明或 [桌面构建指南](docs/desktop-build-guide.md) 处理 |
+
+
+## 快速使用
+
+1. 下载并安装对应平台的桌面包。
+2. 打开应用，在“设置”页选择 Provider，填写 API Key，并分别配置 Chat / Embedding 模型。
+3. 在“知识库”区域导入本地文档目录。
+4. 使用搜索面板验证索引命中结果。
+5. 回到“对话”页提问，查看带引用来源的流式回答；需要追问某段助手回复时，选中文本并点击“添加到对话”。
+
+模型配置细节见 [模型配置指南](docs/model-configuration-guide.md)。
+
+## 界面预览
+
+<p align="center">
+  <img src="docs/assets/image/聊天页面.png" alt="聊天页面" width="49%">
+  <img src="docs/assets/image/知识库.png" alt="知识库" width="49%">
+</p>
+
+<details>
+<summary>更多截图</summary>
+
+<p align="center">
+  <img src="docs/assets/image/设置相关.png" alt="设置相关" width="49%">
+  <img src="docs/assets/image/知识图谱.png" alt="知识图谱" width="49%">
+</p>
+
+</details>
+
 ## 核心能力
 
 - 本地文档导入：支持 Markdown、TXT、DOCX、文本型 PDF。
@@ -26,7 +65,7 @@
 - Prompt 配置：聊天、RAG、追问补全、连接测试和知识图谱抽取 Prompt 统一放在 `src/main/resources/cogninote-prompts.yaml`；`application.yaml` 只导入该专用配置文件并保留运行配置。
 - 对话式桌面界面：左侧持久化会话列表，主区域流式对话，答案按 AI 流式 Markdown 渲染并支持 Mermaid 流程图代码块，引用来源可折叠；用户可选中已完成助手回复片段添加到下一轮对话，发送后引用标签会随用户消息持久化并支持悬停预览；对话设置可切换知识库、检索模式和 Top K，发送区显示当前会话上下文占用和压缩状态。
 - 主题设置：支持深色/夜间和日间主题，本机保存偏好。
-- 桌面交付：支持构建 Windows 桌面程序和 NSIS 安装包，以及 macOS Apple Silicon `.app` / `.dmg` 独立打包链路；桌面模式下所有 `/api/**` 请求都需要 Tauri 启动时生成的本机会话令牌；设置页支持稳定版/测试版更新通道切换，并通过 GitHub Release 静态 manifest 检查 Tauri 自动更新。`0.1.34` 定位为可安装测试分发版，CI 未配置证书时产出 unsigned 测试包，配置证书后产出签名、公证、staple 后的分发包。macOS signed 流程会同时签名外层 Tauri app 和嵌套的 `CogniNoteBackend.app`，再用已 staple 的 app 重新生成发布用 DMG。
+- 桌面交付：提供 Windows NSIS 安装包、便携包，以及 macOS Apple Silicon `.app` / `.dmg` 打包链路；桌面模式下所有 `/api/**` 请求都使用 Tauri 启动期本机会话令牌保护，设置页支持 stable/preview 更新通道和 GitHub Release manifest 检查。签名、公证、Release tag 和安装升级细节见 [桌面构建指南](docs/desktop-build-guide.md)。
 
 ## 技术栈
 
@@ -39,7 +78,7 @@
 | 模型 | Spring AI Alibaba DashScope, Spring AI OpenAI Runtime for OpenAI-compatible |
 | 桌面 | Tauri 2, jlink, jpackage, NSIS, macOS app/dmg |
 
-## 快速开始
+## 开发者快速开始
 
 ### 环境要求
 
@@ -48,7 +87,7 @@
 - Node.js 20.19.6 或兼容版本
 - npm 10.8.2 或兼容版本
 
-Windows 桌面打包还需要 Rust stable toolchain、MSVC Build Tools 和 WebView2 Runtime。macOS 桌面打包第一版只支持 Apple Silicon，需要 JDK 25 arm64、Rust stable 和 Xcode Command Line Tools。GitHub Actions 无证书时可生成 unsigned 测试包；普通用户分发包必须配置代码签名和公证 Secrets，完整说明见 [桌面构建指南](docs/desktop-build-guide.md)。
+Windows 桌面打包还需要 Rust stable toolchain、MSVC Build Tools 和 WebView2 Runtime。macOS 桌面打包第一版只支持 Apple Silicon，需要 JDK 25 arm64、Rust stable 和 Xcode Command Line Tools。完整的桌面打包、签名、公证和故障排查见 [桌面构建指南](docs/desktop-build-guide.md)。
 
 项目会通过 Maven Enforcer 校验 JDK 25，低版本会直接构建失败。Windows 下可先设置：
 
@@ -99,7 +138,7 @@ java -jar target/cogninote-agent-design.jar
 发布前更新版本号请使用白名单脚本，避免全局替换误改第三方锁文件：
 
 ```powershell
-.\scripts\update-release-version.ps1 0.1.34
+.\scripts\update-release-version.ps1 0.1.35
 ```
 
 ### 构建 Windows 桌面应用
@@ -112,16 +151,12 @@ java -jar target/cogninote-agent-design.jar
 
 ```text
 cogniNote-agent-front/src-tauri/target/release/cogninote-agent.exe
-cogniNote-agent-front/src-tauri/target/release/bundle/nsis/CogniNote_0.1.34_x64-setup.exe
+cogniNote-agent-front/src-tauri/target/release/bundle/nsis/CogniNote_0.1.35_x64-setup.exe
 ```
 
 注意：`target/desktop/backend/CogniNoteBackend/CogniNoteBackend.exe` 只是后端 app-image 的启动器，不是最终桌面应用入口。
 
-也可以在 GitHub Actions 手动触发 `Desktop Windows` workflow 构建。workflow 会在 Windows runner 上安装 JDK 25、Node 和 Rust；未配置证书时上传 `CogniNote-0.1.34-windows-x64-unsigned-*` 测试 artifacts，配置 `WINDOWS_CERTIFICATE_PFX_BASE64` 和 `WINDOWS_CERTIFICATE_PASSWORD` 后上传 `signed` artifacts。
-
-手动触发 workflow 时可设置 `publish_release=true`，把真实安装包 `.exe` 和便携包 `.zip` 发布到 GitHub Release；`release_tag` 留空时，unsigned 构建默认发布到 `v0.1.34-test.1`，signed 构建默认发布到 `v0.1.34`。
-
-Windows 安装器会在升级、降级重装或卸载前尝试关闭旧主程序和 `CogniNoteBackend.exe`，并清理旧安装目录里的主程序、backend 资源和 WebView2 HTTP/字节码缓存；旧资源清理失败时安装会中止，避免新旧版本混装或安装完成后仍显示旧前端。卸载默认保留 `%APPDATA%\CogniNote` 用户数据。
+GitHub Actions 发布、签名证书、默认 Release tag 和安装升级清理策略见 [桌面构建指南](docs/desktop-build-guide.md)。
 
 ### 构建 macOS 桌面应用
 
@@ -135,24 +170,12 @@ bash ./scripts/build-desktop-app-macos.sh --skip-tests
 
 ```text
 cogniNote-agent-front/src-tauri/target/release/bundle/macos/CogniNote.app
-cogniNote-agent-front/src-tauri/target/release/bundle/dmg/CogniNote_0.1.34_aarch64.dmg
+cogniNote-agent-front/src-tauri/target/release/bundle/dmg/CogniNote_0.1.35_aarch64.dmg
 ```
 
 注意：`target/desktop-macos/backend/CogniNoteBackend.app` 只是 macOS 后端 app-image，不是最终桌面应用入口。
 
-macOS 可以在 GitHub Actions `Desktop macOS` workflow 构建。未配置 Apple Developer 证书时会上传 `CogniNote-0.1.34-macos-arm64-unsigned-*` 技术测试 artifacts；普通用户分发必须使用配置 Developer ID 和公证 Secrets 后生成的 signed artifacts，避免微信、浏览器或 GitHub 下载后被 Gatekeeper 判定“已损坏，无法打开”。signed workflow 会先签名嵌套后端 `CogniNoteBackend.app`，再签名、公证并 staple 外层 `CogniNote.app`，最后用已 staple 的 app 重新生成并公证发布用 DMG。
-
-手动触发 workflow 时可设置 `publish_release=true`，把真实 `.dmg` 和 `.app.zip` 发布到 GitHub Release；`release_tag` 留空时，unsigned 构建默认发布到 `v0.1.34-test.1`，signed 构建默认发布到 `v0.1.34`。macOS 升级或降级时应先完全退出旧版，再把 `CogniNote.app` 拖入 `/Applications` 并选择替换；不要直接从 DMG 挂载目录运行，也不要用 `cp -R` 合并覆盖旧 `.app`。DMG 拖拽安装没有安装前 hook，桌面壳会在启动时按版本处理 WKWebView 缓存。
-
-## 使用流程
-
-1. 打开应用。
-2. 进入“设置”页，在“模型”区域选择 Provider，填写 API Key，并分别配置 Chat / Embedding 模型；RAG 回答使用 Chat 模型，向量检索和混合检索使用 Embedding 模型。
-3. 在“设置”页的“知识库”区域导入本地文档目录。
-4. 使用搜索面板验证索引命中结果。
-5. 回到“对话”页提问，查看 AI 流式 Markdown 答案和可折叠引用来源；需要追问某段助手回复时，选中文本并点击“添加到对话”，输入框上方会显示引用标签，发送后该标签会随用户消息保留。生成中点击停止会显式取消本次模型流。模型异常或网络中断时，已生成的非空片段会以错误状态保存并显示为“未完成”。
-
-模型配置细节见 [模型配置指南](docs/model-configuration-guide.md)。
+GitHub Actions 发布、签名公证、默认 Release tag 和 macOS 安装替换策略见 [桌面构建指南](docs/desktop-build-guide.md)。
 
 ## 数据与隐私
 
@@ -182,7 +205,7 @@ SQLite 是业务事实来源，Lucene 是可重建索引。应用不会复制用
 
 日志分为三档：默认发布配置为 `INFO`，不落盘 Spring AI prompt/completion；本地开发使用 `dev` profile 保持详细日志；用户问题排查可临时启用 `diagnostic` profile。桌面安装包会自动带 `desktop` profile，Spring Boot 业务日志只写滚动 `app.log`，避免控制台日志重复撑大 `desktop-backend.log`。
 
-当前 `0.1.34` 仍把 API Key 明文保存到本机 SQLite，适合内部测试和小范围安装验证，不建议作为大范围公开生产发布。桌面本机 API 已通过启动期会话令牌保护，公开发布前仍应改为 Windows 本地加密或系统凭据管理保存 API Key。
+API Key 当前仍明文保存到本机 SQLite，适合内部测试和小范围安装验证，不建议作为大范围公开生产发布。桌面本机 API 已通过启动期会话令牌保护，公开发布前仍应改为 Windows 本地加密或系统凭据管理保存 API Key。
 
 ## 架构概览
 
@@ -249,25 +272,13 @@ bash ./scripts/build-desktop-app-macos.sh --skip-tests
 | [项目方案](docs/cogninote-agent-design.md) | 产品定位、架构、数据模型和里程碑 |
 | [API 参考](docs/api-reference.md) | REST API、统一响应格式、SSE 事件和流式取消接口 |
 | [模型配置指南](docs/model-configuration-guide.md) | DashScope 与 OpenAI-compatible 配置方式 |
-| [桌面构建指南](docs/desktop-build-guide.md) | PowerShell 脚本、Tauri 打包、产物和故障排查 |
-| [阶段 19：桌面安装升级计划](docs/phase-19-desktop-install-upgrade-reliability-plan.md) | macOS/Windows 安装、卸载、升级可靠性 |
-| [阶段 20：代码友好检索优化计划](docs/phase-20-code-aware-retrieval-optimization-plan.md) | 中文正文、代码块、流程图和混合检索准确率优化 |
-| [阶段 21：模型驱动追问补全 Agent](docs/phase-21-query-contextualizer-agent-plan.md) | 知识库省略式追问的检索 query 补全与降级策略 |
-| [阶段 22：对话上下文窗口与 Token 估算优化](docs/phase-22-context-window-token-estimation-plan.md) | 128K 默认上下文、动态历史预算、tokenizer 估算和聊天页上下文占用展示 |
-| [阶段 23：知识库追问补全自动触发与前端可配置](docs/phase-23-query-contextualizer-auto-trigger-plan.md) | 追问补全 AUTO/ALWAYS/OFF 策略、动作型追问本地兜底、聊天设置 API 和知识库设置页配置 |
-| [阶段 24：工作台 UI/UX 全面改造](docs/phase-24-ui-workbench-redesign-plan.md) | 三层工作台、来源证据 Inspector、知识库工作区、设置中心 query 导航和 system/light/dark 主题 |
-| [阶段 25：知识图谱与思维导图](docs/phase-25-knowledge-graph-plan.md) | 基于导入资料 chunks 抽取实体关系，生成可追溯知识图谱、思维导图和 SSE 任务进度 |
-| [阶段 26：知识图谱探索器重设计](docs/phase-26-knowledge-graph-explorer-redesign-plan.md) | 结构化思维导图、Cytoscape 关系探索器、全屏画布、筛选、Inspector 和证据回链 |
-| [阶段 27：桌面令牌保护与自动更新](docs/phase-27-desktop-security-auto-update-plan.md) | 本机 API 会话令牌、Tauri updater、stable/preview 通道和 GitHub Release manifest |
-| [阶段 28：应用主题设计方案](docs/phase-28-application-theme-design-plan.md) | 中性主题、蓝色动作 token、Element Plus 桥接、图谱色板和浅色/深色可访问性验收 |
-| [阶段 29：聊天回复片段引用](docs/phase-29-chat-references-plan.md) | 助手回复片段选择、引用标签、刷新恢复、模型上下文注入和 `references_json` 持久化 |
-| [阶段 30：桌面安装包减重与 JDK Runtime 裁剪](docs/phase-30-desktop-package-size-reduction-plan.md) | `jdeps + jlink + jpackage --runtime-image` 裁剪桌面后端 runtime，降低 Windows/macOS 分发包体积 |
-| [可维护性重构计划](docs/maintainability-refactor-plan.md) | 前后端分层、统一响应和注释规范 |
+| [桌面构建指南](docs/desktop-build-guide.md) | 桌面打包、签名、公证、发布和故障排查 |
 
+阶段计划和内部工程文档保存在 `docs/` 目录，用于追踪研发过程。
 
 ## 开发状态
 
-当前项目已完成文档摄入、代码友好的 Lucene 混合检索、模型驱动追问补全 Agent、追问补全自动触发与知识库设置页配置、知识图谱与思维导图、知识图谱探索器重设计、Prompt 专用配置文件、模型配置、对话上下文窗口配置与 Token 估算优化、RAG 对话、路由式多智能体对话、模式隔离聊天记忆、聊天回复片段引用、智能体模型运行时重构、AI 流式 Markdown 与 Mermaid 渲染、SQLite 聊天记忆、纯模型对话、空白保真的 SSE 流式输出、流式截断识别与错误状态同步、MyBatis 统一数据访问层、Windows 桌面打包、macOS Apple Silicon 独立打包链路、`0.1.34` 双平台 unsigned/signed CI 打包链路、桌面安装/卸载/升级可靠性修复、桌面会话令牌保护、stable/preview 通道自动更新，以及中性主题与蓝色动作色的应用主题方案主要闭环。仍需重点补齐：
+当前项目已完成文档摄入、代码友好的 Lucene 混合检索、模型驱动追问补全 Agent、追问补全自动触发与知识库设置页配置、知识图谱与思维导图、知识图谱探索器重设计、Prompt 专用配置文件、模型配置、对话上下文窗口配置与 Token 估算优化、RAG 对话、路由式多智能体对话、模式隔离聊天记忆、聊天回复片段引用、智能体模型运行时重构、AI 流式 Markdown 与 Mermaid 渲染、SQLite 聊天记忆、纯模型对话、空白保真的 SSE 流式输出、流式截断识别与错误状态同步、MyBatis 统一数据访问层、Windows 桌面打包、macOS Apple Silicon 独立打包链路、`0.1.35` 双平台 unsigned/signed CI 打包链路、桌面安装/卸载/升级可靠性修复、桌面会话令牌保护、stable/preview 通道自动更新，以及中性主题与蓝色动作色的应用主题方案主要闭环。仍需重点补齐：
 
 - API Key 本地加密或凭据管理。
 - 更完整的发布验收和安装包测试。
