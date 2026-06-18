@@ -45,25 +45,50 @@
   RMDir /r "$LOCALAPPDATA\com.itqianchen.cogninote\EBWebView\extensions_crx_cache"
 !macroend
 
-!macro COGNINOTE_DELETE_SHORTCUTS
-  DetailPrint "Removing stale CogniNote shortcuts..."
-  Delete "$DESKTOP\CogniNote.lnk"
+!macro COGNINOTE_DELETE_LEGACY_SHORTCUTS
+  DetailPrint "Removing legacy CogniNote shortcuts..."
   Delete "$DESKTOP\CogniNote Agent.lnk"
-  Delete "$COMMONDESKTOP\CogniNote.lnk"
   Delete "$COMMONDESKTOP\CogniNote Agent.lnk"
-  Delete "$SMPROGRAMS\CogniNote.lnk"
   Delete "$SMPROGRAMS\CogniNote Agent.lnk"
-  Delete "$SMPROGRAMS\CogniNote\CogniNote.lnk"
   Delete "$SMPROGRAMS\CogniNote\CogniNote Agent.lnk"
-  RMDir "$SMPROGRAMS\CogniNote"
+  !if "${INSTALLMODE}" == "currentUser"
+    Delete "$COMMONDESKTOP\${PRODUCTNAME}.lnk"
+  !endif
+  !if "${STARTMENUFOLDER}" != "CogniNote"
+    Delete "$SMPROGRAMS\CogniNote\CogniNote.lnk"
+    RMDir "$SMPROGRAMS\CogniNote"
+  !endif
+!macroend
+
+!macro COGNINOTE_DELETE_INSTALLED_SHORTCUTS
+  DetailPrint "Removing CogniNote shortcuts..."
+  Delete "$DESKTOP\${PRODUCTNAME}.lnk"
+  Delete "$COMMONDESKTOP\${PRODUCTNAME}.lnk"
+  Delete "$SMPROGRAMS\${PRODUCTNAME}.lnk"
+  !insertmacro COGNINOTE_DELETE_LEGACY_SHORTCUTS
+!macroend
+
+!macro COGNINOTE_WRITE_SHORTCUT SHORTCUT_PATH
+  Delete "${SHORTCUT_PATH}"
+  CreateShortcut "${SHORTCUT_PATH}" "$INSTDIR\${MAINBINARYNAME}.exe" "" "$INSTDIR\${MAINBINARYNAME}.exe" 0
+  !insertmacro SetLnkAppUserModelId "${SHORTCUT_PATH}"
 !macroend
 
 !macro COGNINOTE_REFRESH_SHORTCUT_ICON SHORTCUT_PATH
   ${If} ${FileExists} "${SHORTCUT_PATH}"
-    Delete "${SHORTCUT_PATH}"
-    CreateShortcut "${SHORTCUT_PATH}" "$INSTDIR\${MAINBINARYNAME}.exe" "" "$INSTDIR\${MAINBINARYNAME}.exe" 0
-    !insertmacro SetLnkAppUserModelId "${SHORTCUT_PATH}"
+    !insertmacro COGNINOTE_WRITE_SHORTCUT "${SHORTCUT_PATH}"
   ${EndIf}
+!macroend
+
+!macro COGNINOTE_RESTORE_UPDATE_SHORTCUTS
+  DetailPrint "Restoring CogniNote shortcuts after updater install..."
+  /*
+   * The Tauri updater passes /UPDATE to NSIS, and Tauri intentionally skips
+   * shortcut creation in that mode. Recreate the current-user entry points here
+   * so upgrades from affected builds do not leave users without a desktop icon.
+   */
+  !insertmacro COGNINOTE_WRITE_SHORTCUT "$SMPROGRAMS\${PRODUCTNAME}.lnk"
+  !insertmacro COGNINOTE_WRITE_SHORTCUT "$DESKTOP\${PRODUCTNAME}.lnk"
 !macroend
 
 !macro COGNINOTE_REFRESH_INSTALLED_ICONS
@@ -73,12 +98,16 @@
    * Explorer may keep showing the previous cached icon unless the shortcut points at the
    * installed executable explicitly and the shell icon cache is notified.
    */
-  !if "${STARTMENUFOLDER}" != ""
-    !insertmacro COGNINOTE_REFRESH_SHORTCUT_ICON "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}.lnk"
-  !else
-    !insertmacro COGNINOTE_REFRESH_SHORTCUT_ICON "$SMPROGRAMS\${PRODUCTNAME}.lnk"
-  !endif
-  !insertmacro COGNINOTE_REFRESH_SHORTCUT_ICON "$DESKTOP\${PRODUCTNAME}.lnk"
+  ${If} $UpdateMode = 1
+    !insertmacro COGNINOTE_RESTORE_UPDATE_SHORTCUTS
+  ${Else}
+    !if "${STARTMENUFOLDER}" != ""
+      !insertmacro COGNINOTE_REFRESH_SHORTCUT_ICON "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}.lnk"
+    !else
+      !insertmacro COGNINOTE_REFRESH_SHORTCUT_ICON "$SMPROGRAMS\${PRODUCTNAME}.lnk"
+    !endif
+    !insertmacro COGNINOTE_REFRESH_SHORTCUT_ICON "$DESKTOP\${PRODUCTNAME}.lnk"
+  ${EndIf}
   !insertmacro COGNINOTE_REFRESH_SHORTCUT_ICON "$COMMONDESKTOP\${PRODUCTNAME}.lnk"
   System::Call "shell32::SHChangeNotify(i,i,i,i) (0x08000000, 0x1000, 0, 0)"
 !macroend
@@ -89,7 +118,7 @@
   !insertmacro COGNINOTE_KILL_PROCESS "CogniNoteBackend.exe"
   !insertmacro COGNINOTE_CLEAN_INSTALL_DIR
   !insertmacro COGNINOTE_CLEAN_WEBVIEW_CACHE
-  !insertmacro COGNINOTE_DELETE_SHORTCUTS
+  !insertmacro COGNINOTE_DELETE_LEGACY_SHORTCUTS
 !macroend
 
 !macro NSIS_HOOK_POSTINSTALL
@@ -108,6 +137,8 @@
   Delete "$INSTDIR\CogniNote.exe"
   Delete "$INSTDIR\cogninote-agent.exe"
   !insertmacro COGNINOTE_CLEAN_WEBVIEW_CACHE
-  !insertmacro COGNINOTE_DELETE_SHORTCUTS
+  ${If} $UpdateMode <> 1
+    !insertmacro COGNINOTE_DELETE_INSTALLED_SHORTCUTS
+  ${EndIf}
   RMDir "$INSTDIR"
 !macroend

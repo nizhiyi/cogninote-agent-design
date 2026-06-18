@@ -421,6 +421,7 @@ CogniNote-0.1.35-macos-arm64-signed.app.tar.gz
 - 设置页“系统 / 应用更新”能显示当前通道并检查 stable/preview；未配置 updater public key 时应提示自动更新未配置，不影响普通使用。
 - 关闭窗口后，Tauri 会终止后端进程。
 - 第二次启动应用时会聚焦已有窗口，避免旧实例仍运行时误以为新版已启动。
+- Windows 自动更新会以 NSIS `/UPDATE` 的被动安装模式执行，通常不会弹出完整安装向导；更新完成后应保留或恢复当前用户桌面和开始菜单里的 `CogniNote.lnk`。
 - 安装器会在升级、降级重装或卸载前尝试关闭 `CogniNote.exe`、`cogninote-agent.exe` 和 `CogniNoteBackend.exe`。
 - 安装前会清理旧安装目录里的主程序和 `backend/`；如果旧文件仍被占用，安装会中止，避免前端或后端资源停留在旧版本。
 - 安装前和卸载后会清理 `%LOCALAPPDATA%\com.itqianchen.cogninote\EBWebView` 下的 HTTP、Code Cache、GPU、Service Worker 和 CacheStorage 等缓存目录，避免 WebView2 继续加载旧 `index.html` 或旧 Vite chunk。该清理不删除 `%APPDATA%\CogniNote` 业务数据，也不清理 WebView localStorage。
