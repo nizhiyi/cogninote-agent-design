@@ -55,11 +55,6 @@ $JdkHome = Resolve-JdkHome $JdkHome
 $javaExe = Join-Path $JdkHome 'bin\java.exe'
 $jlinkExe = Join-Path $JdkHome 'bin\jlink.exe'
 $jpackageExe = Join-Path $JdkHome 'bin\jpackage.exe'
-$jmodsDir = if ([string]::IsNullOrWhiteSpace($env:JDK_JMODS_DIR)) {
-    Join-Path $JdkHome 'jmods'
-} else {
-    $env:JDK_JMODS_DIR
-}
 $jarName = 'cogninote-agent-design.jar'
 $jarPath = Join-Path $projectRoot "target\$jarName"
 $compiledStaticDir = Join-Path $projectRoot 'target\classes\static'
@@ -117,15 +112,12 @@ function New-DesktopRuntimeImage {
         Remove-Item -LiteralPath $OutputPath -Recurse -Force
     }
 
-    if (-not (Test-Path -LiteralPath (Join-Path $jmodsDir 'java.base.jmod'))) {
-        throw "JDK jmods directory not found: $jmodsDir. If this is GitHub Actions with Temurin JDK 25, run scripts/install-temurin-jmods.ps1 before packaging."
-    }
-
     # jdeps is only the starting point for this module list. Keep the first
     # desktop runtime conservative because Spring reflection, SQLite native
     # loading, PDF/Office parsing, Lucene and model SDK paths are runtime-heavy.
+    # Temurin 24+ can link from the current runtime image, so do not require
+    # $JAVA_HOME/jmods in GitHub Actions.
     $jlinkArgs = @(
-        '--module-path', $jmodsDir,
         '--add-modules', $desktopRuntimeModules,
         '--strip-debug',
         '--strip-java-debug-attributes',

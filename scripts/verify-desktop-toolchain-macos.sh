@@ -39,12 +39,6 @@ if [[ ! -x "$JDK_HOME/bin/jlink" ]]; then
   exit 1
 fi
 
-JMODS_DIR="${JDK_JMODS_DIR:-$JDK_HOME/jmods}"
-if [[ ! -f "$JMODS_DIR/java.base.jmod" ]]; then
-  echo "JDK jmods directory not found: $JMODS_DIR. jlink runtime trimming needs JDK JMODs; on GitHub Actions, run scripts/install-temurin-jmods-macos.sh after setup-java." >&2
-  exit 1
-fi
-
 export JAVA_HOME="$JDK_HOME"
 export PATH="$JAVA_HOME/bin:$PATH"
 
@@ -66,7 +60,6 @@ require_command xcodebuild "Install Xcode Command Line Tools: xcode-select --ins
 
 echo "macOS desktop toolchain check passed."
 echo "JAVA_HOME = $JAVA_HOME"
-echo "JDK_JMODS_DIR = $JMODS_DIR"
 "$JAVA_HOME/bin/java" -version
 echo "jlink = $("$JAVA_HOME/bin/jlink" --version)"
 echo "jpackage = $("$JAVA_HOME/bin/jpackage" --version)"
