@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { Maximize2, Network, Play, RefreshCw, Square } from 'lucide-vue-next'
+import { ElMessageBox } from 'element-plus'
 import GraphAdjacencyList from './graph-adjacency-list.vue'
 import GraphEvidenceDrawer from './graph-evidence-drawer.vue'
 import GraphViewer from './graph-viewer.vue'
@@ -8,11 +9,13 @@ import MindmapViewer from './mindmap-viewer.vue'
 import SegmentedControl from './segmented-control.vue'
 import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
 import { GRAPH_VIEW_OPTIONS, useKnowledgeGraphStore } from '../stores/knowledge-graph'
+import { ensureSystemNotificationPermission } from '../utils/desktop-notifications'
 import { formatTime } from '../utils/formatters'
 
 const knowledgeStore = useKnowledgeFoldersStore()
 const graphStore = useKnowledgeGraphStore()
 const isExplorerDialogOpen = ref(false)
+const rebuildReminderMessage = '当前范围可能包含较多资料，生成知识图谱需要调用模型抽取并合并关系，耗时会随数据量、模型能力和网络状态变化。生成期间可以随时取消。'
 
 /**
  * 知识图谱管理面板。
@@ -102,6 +105,30 @@ async function handleScopeTypeChange(value) {
 async function handleScopeIdChange(value) {
   await graphStore.selectScope(graphStore.scopeType, value)
 }
+
+async function handleRebuildWithReminder() {
+  if (!canGenerate.value || graphStore.isRunActive || graphStore.isRebuilding) {
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      rebuildReminderMessage,
+      '温馨提示',
+      {
+        confirmButtonText: '继续生成',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    void ensureSystemNotificationPermission()
+    await graphStore.rebuild()
+  } catch (err) {
+    if (err !== 'cancel' && err !== 'close') {
+      throw err
+    }
+  }
+}
 </script>
 
 <template>
@@ -129,7 +156,7 @@ async function handleScopeIdChange(value) {
           type="primary"
           :disabled="!canGenerate || graphStore.isRunActive"
           :loading="graphStore.isRebuilding"
-          @click="graphStore.rebuild"
+          @click="handleRebuildWithReminder"
         >
           <Play aria-hidden="true" />
           <span>生成</span>
@@ -226,7 +253,14 @@ async function handleScopeIdChange(value) {
     <section v-if="!graphStore.isRunActive && !graphStore.hasCurrentViewReady()" class="graph-empty-state">
       <Network aria-hidden="true" />
       <p>当前范围还没有知识图谱。</p>
-      <el-button type="primary" :disabled="!canGenerate" @click="graphStore.rebuild">生成知识图谱</el-button>
+      <el-button
+        type="primary"
+        :disabled="!canGenerate"
+        :loading="graphStore.isRebuilding"
+        @click="handleRebuildWithReminder"
+      >
+        生成知识图谱
+      </el-button>
     </section>
 
     <section v-else-if="!graphStore.isRunActive" class="graph-view-shell">

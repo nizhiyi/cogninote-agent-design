@@ -9,6 +9,7 @@ import {
   rebuildKnowledgeGraph,
   streamKnowledgeGraphRun
 } from '../api/knowledge-graph-api'
+import { notifyTaskCompleted } from '../utils/desktop-notifications'
 
 /**
  * 与后端 KnowledgeGraphViewType 保持一致的视图枚举。
@@ -203,6 +204,10 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
         status: payload.status,
         phase: 'COMPLETED'
       }
+      void notifyTaskCompleted({
+        title: '知识图谱生成完成',
+        body: buildGraphCompletedNotification(payload)
+      })
       void loadStatus({ subscribeActive: false, loadView: true })
       return
     }
@@ -273,6 +278,12 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
       return statusSnapshot.value.graphReady
     }
     return false
+  }
+
+  function buildGraphCompletedNotification(payload) {
+    const nodeCount = payload?.nodeCount || 0
+    const edgeCount = payload?.edgeCount || 0
+    return `已生成 ${nodeCount} 个节点、${edgeCount} 条关系，可以回到知识图谱查看。`
   }
 
   return {
