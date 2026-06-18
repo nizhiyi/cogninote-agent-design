@@ -46,6 +46,10 @@ jobs:
           architecture: x64
           cache: maven
 
+      - name: Install JDK JMODs
+        shell: pwsh
+        run: .\scripts\install-temurin-jmods.ps1 -Architecture x64
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:

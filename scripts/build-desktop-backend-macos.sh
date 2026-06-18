@@ -42,6 +42,7 @@ BACKEND_IMAGE_DIR="$DESKTOP_BACKEND_DIR/CogniNoteBackend.app"
 CUSTOM_RUNTIME_DIR="$PROJECT_ROOT/target/desktop-macos/runtime"
 JPACKAGE_INPUT_DIR="$PROJECT_ROOT/target/desktop-macos/jpackage-input"
 DESKTOP_RUNTIME_MODULES="java.base,java.compiler,java.desktop,java.instrument,java.net.http,java.prefs,java.rmi,java.scripting,java.security.jgss,java.sql.rowset,java.xml.crypto,jdk.attach,jdk.incubator.vector,jdk.jdi,jdk.jfr,jdk.management,jdk.unsupported"
+JMODS_DIR="${JDK_JMODS_DIR:-$JAVA_HOME/jmods}"
 
 path_size() {
   if [[ ! -e "$1" ]]; then
@@ -53,8 +54,8 @@ path_size() {
 
 create_desktop_runtime() {
   rm -rf "$CUSTOM_RUNTIME_DIR"
-  if [[ ! -d "$JAVA_HOME/jmods" ]]; then
-    echo "JDK jmods directory not found: $JAVA_HOME/jmods" >&2
+  if [[ ! -f "$JMODS_DIR/java.base.jmod" ]]; then
+    echo "JDK jmods directory not found: $JMODS_DIR. If this is GitHub Actions with Temurin JDK 25, run scripts/install-temurin-jmods-macos.sh before packaging." >&2
     exit 1
   fi
 
@@ -62,7 +63,7 @@ create_desktop_runtime() {
   # desktop runtime conservative because Spring reflection, SQLite native
   # loading, PDF/Office parsing, Lucene and model SDK paths are runtime-heavy.
   "$JAVA_HOME/bin/jlink" \
-    --module-path "$JAVA_HOME/jmods" \
+    --module-path "$JMODS_DIR" \
     --add-modules "$DESKTOP_RUNTIME_MODULES" \
     --strip-debug \
     --strip-java-debug-attributes \

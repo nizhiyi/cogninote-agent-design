@@ -117,6 +117,11 @@ $JdkHome = Resolve-JdkHome $JdkHome
 $javaExe = Join-Path $JdkHome 'bin\java.exe'
 $jlinkExe = Join-Path $JdkHome 'bin\jlink.exe'
 $jpackageExe = Join-Path $JdkHome 'bin\jpackage.exe'
+$jmodsDir = if ([string]::IsNullOrWhiteSpace($env:JDK_JMODS_DIR)) {
+    Join-Path $JdkHome 'jmods'
+} else {
+    $env:JDK_JMODS_DIR
+}
 $cargoBin = Join-Path $env:USERPROFILE '.cargo\bin'
 
 Add-PathIfExists $cargoBin
@@ -127,6 +132,7 @@ Import-VsDevEnvironment
 Require-File $javaExe 'Check the JDK 25 install path or pass -JdkHome.'
 Require-File $jlinkExe 'Check that the path points to a full JDK, not a JRE.'
 Require-File $jpackageExe 'Check that the path points to a full JDK, not a JRE.'
+Require-File (Join-Path $jmodsDir 'java.base.jmod') 'jlink runtime trimming needs JDK JMODs. On GitHub Actions, run scripts/install-temurin-jmods.ps1 after setup-java.'
 
 Require-Command mvn 'Install Maven 3.9+ and add it to PATH.'
 Require-Command node 'Install Node.js 20.19.6 or a compatible version.'
@@ -138,6 +144,7 @@ Require-Command link 'Install Visual Studio Build Tools and select Desktop devel
 
 Write-Host 'Desktop toolchain check passed.'
 Write-Host "JAVA_HOME = $JdkHome"
+Write-Host "JDK_JMODS_DIR = $jmodsDir"
 & $javaExe -version
 Write-Host "jlink = $(& $jlinkExe --version)"
 Write-Host "jpackage = $(& $jpackageExe --version)"

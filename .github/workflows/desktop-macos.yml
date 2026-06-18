@@ -45,6 +45,9 @@ jobs:
           java-version: '25'
           architecture: aarch64
 
+      - name: Install JDK JMODs
+        run: bash ./scripts/install-temurin-jmods-macos.sh
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
