@@ -77,6 +77,8 @@ const fullscreenButtonLabel = computed(() => isStageFullscreen.value ? '退出�
 const zoomPercent = computed(() => `${Math.round(zoomLevel.value * 100)}%`)
 const canZoomOut = computed(() => hasCanvasData.value && zoomLevel.value > MIN_GRAPH_ZOOM + 0.01)
 const canZoomIn = computed(() => hasCanvasData.value && zoomLevel.value < MAX_GRAPH_ZOOM - 0.01)
+const selectedItemTitle = computed(() => selectedItem.value ? inspectorTitle(selectedItem.value) : '')
+const canOpenSelectedEvidence = computed(() => selectedItem.value ? canOpenEvidence(selectedItem.value) : false)
 const rawElements = computed(() => {
   // Cytoscape 不能直接消费 CSS 变量；主题切换时必须重新生成节点/边颜色。
   void themeStore.effectiveTheme
@@ -182,7 +184,8 @@ function graphElements() {
         weight: edge.weight || 1,
         confidence: edge.confidence || 0,
         width: Math.min(7, 1.5 + Number(edge.weight || 1)),
-        color: edgeColor(relation)
+        color: edgeColor(relation),
+        hasEvidence: true
       }
     }
   })
@@ -190,10 +193,10 @@ function graphElements() {
 }
 
 function mindmapElements() {
-  if (Array.isArray(props.payload?.documents)) {
-    return structuredMindmapElements()
-  }
-  return markdownMindmapElements(props.payload?.markdown || '')
+  const elements = Array.isArray(props.payload?.documents)
+    ? structuredMindmapElements()
+    : markdownMindmapElements(props.payload?.markdown || '')
+  return withReadableMindmapEdges(elements)
 }
 
 function structuredMindmapElements() {
@@ -318,11 +321,32 @@ function mindmapEdge(id, source, target) {
       source,
       target,
       label: '',
-      relationType: 'CONTAINS',
-      weight: 1,
+      relationType: 'STRUCTURAL',
+      displayLabel: '包含',
+      relationLabel: '包含',
+      weight: 0,
       width: 1.5,
-      color: cssColor('--chart-color-neutral', '#64748b')
+      color: cssColor('--chart-color-neutral', '#64748b'),
+      hasEvidence: false
     }
+  }
+}
+
+function withReadableMindmapEdges(elements) {
+  const labelsById = new Map(elements.nodes.map((node) => [node.data.id, node.data.label || node.data.id]))
+  return {
+    nodes: elements.nodes,
+    edges: elements.edges.map((edge) => ({
+      ...edge,
+      data: {
+        ...edge.data,
+        sourceLabel: edge.data.sourceLabel || labelsById.get(edge.data.source) || edge.data.source,
+        targetLabel: edge.data.targetLabel || labelsById.get(edge.data.target) || edge.data.target,
+        displayLabel: edge.data.displayLabel || '包含',
+        relationLabel: edge.data.relationLabel || '包含',
+        hasEvidence: false
+      }
+    }))
   }
 }
 
@@ -586,6 +610,9 @@ function openSelectedEvidence() {
     return
   }
   if (selectedItem.value.group === 'edge') {
+    if (!canOpenEvidence(selectedItem.value)) {
+      return
+    }
     emit('open-evidence', {
       type: 'edge',
       id: selectedItem.value.id,
@@ -605,10 +632,34 @@ function openSelectedEvidence() {
   }
 }
 
+function canOpenEvidence(item) {
+  if (item.group === 'edge') {
+    return item.hasEvidence !== false
+  }
+  return item.kind === 'entity' && Boolean(item.evidenceId)
+}
+
+function inspectorTitle(item) {
+  if (item.group === 'edge') {
+    return relationDisplayText(item)
+  }
+  return item.label || '未命名节点'
+}
+
+function relationDisplayText(edge) {
+  return edge.displayLabel || edge.relationLabel || edge.label || formatRelationType(edge.relationType)
+}
+
+function edgeEndpointLabel(edge, side) {
+  const label = side === 'source' ? edge.sourceLabel : edge.targetLabel
+  const id = side === 'source' ? edge.source : edge.target
+  return label || id || '未知节点'
+}
+
 function edgePathText(edge) {
-  const sourceLabel = edge.sourceLabel || edge.source
-  const relationLabel = edge.displayLabel || edge.relationLabel || '相关'
-  const targetLabel = edge.targetLabel || edge.target
+  const sourceLabel = edgeEndpointLabel(edge, 'source')
+  const relationLabel = relationDisplayText(edge)
+  const targetLabel = edgeEndpointLabel(edge, 'target')
   return `${sourceLabel} -> ${relationLabel} -> ${targetLabel}`
 }
 
@@ -943,13 +994,13 @@ function countOptions(values) {
           </button>
         </div>
         <template v-if="selectedItem">
-          <h4>{{ selectedItem.label }}</h4>
+          <h4>{{ selectedItemTitle }}</h4>
           <div class="graph-inspector__meta">
             <span v-if="selectedItem.group === 'node'">{{ selectedItem.nodeType }}</span>
-            <span v-else>{{ selectedItem.relationLabel || formatRelationType(selectedItem.relationType) }}</span>
+            <span v-else>{{ relationDisplayText(selectedItem) }}</span>
             <span v-if="selectedItem.mentionCount">提及 {{ selectedItem.mentionCount }}</span>
             <span v-if="selectedItem.degree">连接 {{ selectedItem.degree }}</span>
-            <span v-if="selectedItem.weight">证据 {{ selectedItem.weight }}</span>
+            <span v-if="selectedItem.group === 'edge' && selectedItem.hasEvidence !== false && selectedItem.weight">证据 {{ selectedItem.weight }}</span>
             <span v-if="selectedItem.confidence">score {{ formatScore(selectedItem.confidence) }}</span>
           </div>
           <p
@@ -958,11 +1009,22 @@ function countOptions(values) {
           >
             {{ selectedItem.description }}
           </p>
-          <p v-if="selectedItem.group === 'edge'" class="graph-inspector__path">
-            {{ edgePathText(selectedItem) }}
-          </p>
+          <dl v-if="selectedItem.group === 'edge'" class="graph-inspector__path">
+            <div>
+              <dt>起点</dt>
+              <dd>{{ edgeEndpointLabel(selectedItem, 'source') }}</dd>
+            </div>
+            <div>
+              <dt>关系</dt>
+              <dd>{{ relationDisplayText(selectedItem) }}</dd>
+            </div>
+            <div>
+              <dt>终点</dt>
+              <dd>{{ edgeEndpointLabel(selectedItem, 'target') }}</dd>
+            </div>
+          </dl>
           <button
-            v-if="selectedItem.group === 'edge' || (selectedItem.kind === 'entity' && selectedItem.evidenceId)"
+            v-if="canOpenSelectedEvidence"
             type="button"
             class="primary-button graph-inspector__evidence"
             @click="openSelectedEvidence"
