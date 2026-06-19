@@ -20,7 +20,9 @@ import com.itqianchen.agentdesign.domain.search.IndexedDocument;
 import com.itqianchen.agentdesign.dto.graph.KnowledgeGraphEvidenceResponse;
 import com.itqianchen.agentdesign.dto.graph.KnowledgeGraphRunResponse;
 import com.itqianchen.agentdesign.dto.graph.KnowledgeGraphStatusResponse;
+import com.itqianchen.agentdesign.dto.graph.KnowledgeGraphSummaryResponse;
 import com.itqianchen.agentdesign.dto.graph.KnowledgeGraphViewResponse;
+import com.itqianchen.agentdesign.mapper.graph.KnowledgeGraphSummaryRow;
 import com.itqianchen.agentdesign.repository.document.DocumentRepository;
 import com.itqianchen.agentdesign.repository.graph.KnowledgeGraphRepository;
 import com.itqianchen.agentdesign.repository.knowledge.KnowledgeFolderRepository;
@@ -93,6 +95,20 @@ public class KnowledgeGraphService {
         this.taskExecutor = taskExecutor;
         this.canonicalizer = canonicalizer;
         this.objectMapper = objectMapper;
+    }
+
+    /**
+     * 查询已生成图谱清单。
+     *
+     * <p>该方法只聚合已存在的 view 元数据和事实计数，不读取 payload_json。完整视图由前端点击具体
+     * scope 后再通过 view 接口按需加载。</p>
+     *
+     * @return 已生成图谱摘要列表
+     */
+    public List<KnowledgeGraphSummaryResponse> listGeneratedGraphs() {
+        return graphRepository.findGeneratedGraphSummaries().stream()
+                .map(this::toSummaryResponse)
+                .toList();
     }
 
     /**
@@ -444,6 +460,58 @@ public class KnowledgeGraphService {
         KnowledgeDocument document = documentRepository.findById(normalizedScopeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Document not found: " + normalizedScopeId));
         return new KnowledgeGraphScope(type, normalizedScopeId, document.fileName());
+    }
+
+    /**
+     * 将 view 聚合行恢复为前端清单项。
+     *
+     * <p>这里不能复用 resolveScope：历史图谱对应的目录或文档可能已被删除，清单仍应展示兜底入口，
+     * 不能因为业务对象缺失导致整个页面加载失败。</p>
+     */
+    private KnowledgeGraphSummaryResponse toSummaryResponse(KnowledgeGraphSummaryRow row) {
+        KnowledgeGraphScopeType scopeType = parseScopeType(row.scopeType());
+        String scopeId = row.scopeId();
+        ScopeDisplay scopeDisplay = scopeDisplay(scopeType, scopeId);
+        KnowledgeGraphScope scope = new KnowledgeGraphScope(
+                scopeType,
+                scopeType == KnowledgeGraphScopeType.ALL ? null : scopeId,
+                scopeDisplay.name()
+        );
+        return new KnowledgeGraphSummaryResponse(
+                scopeType.name(),
+                scope.normalizedScopeId(),
+                scopeDisplay.name(),
+                scopeDisplay.subtitle(),
+                graphRepository.countNodesByScope(scope),
+                graphRepository.countEdgesByScope(scope),
+                row.mindmapReady(),
+                row.graphReady(),
+                row.generatedAt(),
+                graphRepository.findLatestRunForScope(scope).map(KnowledgeGraphRunResponse::from).orElse(null)
+        );
+    }
+
+    /**
+     * 生成清单中用户可读的 scope 标题和副标题。
+     *
+     * <p>目录和文档删除后保留原始 scopeId 作为副标题，方便用户判断这是哪一份旧图谱缓存。</p>
+     */
+    private ScopeDisplay scopeDisplay(KnowledgeGraphScopeType scopeType, String scopeId) {
+        if (scopeType == KnowledgeGraphScopeType.ALL) {
+            return new ScopeDisplay("全库", "全部已解析资料");
+        }
+        String normalizedScopeId = scopeId == null ? "" : scopeId.strip();
+        if (scopeType == KnowledgeGraphScopeType.KNOWLEDGE_FOLDER) {
+            return folderRepository.findById(normalizedScopeId)
+                    .map(folder -> new ScopeDisplay(folder.displayName(), folder.folderPath()))
+                    .orElseGet(() -> new ScopeDisplay("已删除目录", normalizedScopeId));
+        }
+        return documentRepository.findById(normalizedScopeId)
+                .map(document -> new ScopeDisplay(document.fileName(), document.sourcePath()))
+                .orElseGet(() -> new ScopeDisplay("已删除文档", normalizedScopeId));
+    }
+
+    private record ScopeDisplay(String name, String subtitle) {
     }
 
     /**

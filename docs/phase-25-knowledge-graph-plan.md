@@ -417,12 +417,15 @@ POST /api/knowledge-graphs/runs/{runId}/cancel
 ## 查询与视图 API
 
 ```http
+GET /api/knowledge-graphs
 GET /api/knowledge-graphs/status?scopeType=KNOWLEDGE_FOLDER&scopeId=...
 GET /api/knowledge-graphs/view?scopeType=KNOWLEDGE_FOLDER&scopeId=...&viewType=MINDMAP
 GET /api/knowledge-graphs/view?scopeType=KNOWLEDGE_FOLDER&scopeId=...&viewType=GRAPH
 GET /api/knowledge-graphs/nodes/{id}/evidence
 GET /api/knowledge-graphs/edges/{id}/evidence
 ```
+
+`GET /api/knowledge-graphs` 返回已生成图谱的 scope 摘要清单，不携带 `MINDMAP` / `GRAPH` payload。进入知识图谱页时先展示该清单；用户点击全库、目录或文档条目后，再按 scope 调用 `status` 与 `view` 加载完整图谱，避免重新进入应用时看不到历史图谱，也避免首屏拉取大 JSON。
 
 `MINDMAP` payload 第一版可以直接返回 Markdown：
 
@@ -491,6 +494,7 @@ cogniNote-agent-front/src/components/graph-evidence-drawer.vue
 第一版视觉重点：
 
 - 默认展示思维导图，不默认渲染过大的全量关系图。
+- 页面顶部展示已生成图谱清单，列出全库、目录和文档级图谱入口；点击“查看”后才渲染当前 scope 的完整视图。
 - 关系图规模边界：默认只渲染 Top 50–100 节点（该规模 SVG 渲染足够），提供“按节点展开邻居”的局部加载入口；超过 500 节点的全图渲染明确不支持，引导用户改用列表视图或缩小范围。
 - 列表（邻接表）视图：`节点 A -> 关系 -> 节点 B -> 证据数` 表格；关系列直接显示后端 `displayLabel`，并展示中文 `description` 完整关系说明。它同时是网络图的可访问性替代（网络图对屏幕阅读器基本不可用，规范要求永远提供列表替代）和大图兜底。
 - 图谱生成中显示进度条、已处理 chunks、跳过 chunks、失败 chunks 和当前阶段。

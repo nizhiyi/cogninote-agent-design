@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { Maximize2, Network, Play, RefreshCw, Square } from 'lucide-vue-next'
+import { Database, FileText, Folder, Maximize2, Network, Play, RefreshCw, Square } from 'lucide-vue-next'
 import { ElMessageBox } from 'element-plus'
 import GraphAdjacencyList from './graph-adjacency-list.vue'
 import GraphEvidenceDrawer from './graph-evidence-drawer.vue'
@@ -65,11 +65,16 @@ const failedMessage = computed(() => graphStore.currentRun?.status === 'FAILED'
 const currentViewLabel = computed(() =>
   GRAPH_VIEW_OPTIONS.find((option) => option.value === graphStore.viewType)?.label || '图谱视图'
 )
+// 用于区分“选中了历史图谱但视图不可用”和“还没有从清单选择任何图谱”两种空态。
+const hasSelectedGeneratedGraph = computed(() =>
+  graphStore.generatedGraphs.some((graph) => graphKey(graph) === graphStore.selectedGraphKey)
+)
 
 onMounted(async () => {
   await knowledgeStore.ensureFoldersLoaded()
   await ensureScopeSelection()
-  await graphStore.loadStatus()
+  // 重新进入页面时只恢复轻量清单；完整图谱必须等用户点击“查看”后再加载。
+  await graphStore.loadGeneratedGraphs()
 })
 
 watch(
@@ -83,10 +88,10 @@ watch(
 async function ensureScopeSelection() {
   // 默认选中当前可用的第一项，避免用户切到目录/文档范围后生成按钮处于无效空 scope。
   if (graphStore.scopeType === 'KNOWLEDGE_FOLDER' && !graphStore.scopeId && folderOptions.value.length) {
-    await graphStore.selectScope('KNOWLEDGE_FOLDER', folderOptions.value[0].id)
+    graphStore.setScopeForGeneration('KNOWLEDGE_FOLDER', folderOptions.value[0].id)
   }
   if (graphStore.scopeType === 'DOCUMENT' && !graphStore.scopeId && documentOptions.value.length) {
-    await graphStore.selectScope('DOCUMENT', documentOptions.value[0].id)
+    graphStore.setScopeForGeneration('DOCUMENT', documentOptions.value[0].id)
   }
 }
 
@@ -104,6 +109,19 @@ async function handleScopeTypeChange(value) {
 
 async function handleScopeIdChange(value) {
   await graphStore.selectScope(graphStore.scopeType, value)
+}
+
+async function refreshGraphSummaries() {
+  await graphStore.loadGeneratedGraphs()
+}
+
+async function handleRegenerateGraph(graph) {
+  if (!graph) {
+    return
+  }
+  // 清单里的“重新生成”必须先同步 scope，避免沿用工具栏上另一个待生成范围。
+  graphStore.setScopeForGeneration(graph.scopeType || 'ALL', graph.scopeId || '')
+  await handleRebuildWithReminder()
 }
 
 async function handleRebuildWithReminder() {
@@ -129,6 +147,30 @@ async function handleRebuildWithReminder() {
     }
   }
 }
+
+function graphKey(graph) {
+  const type = graph?.scopeType || 'ALL'
+  return `${type}:${type === 'ALL' ? '' : graph?.scopeId || ''}`
+}
+
+function graphTypeLabel(scopeType) {
+  const labels = {
+    ALL: '全库',
+    KNOWLEDGE_FOLDER: '目录',
+    DOCUMENT: '文档'
+  }
+  return labels[scopeType] || '图谱'
+}
+
+function graphIcon(scopeType) {
+  if (scopeType === 'KNOWLEDGE_FOLDER') {
+    return Folder
+  }
+  if (scopeType === 'DOCUMENT') {
+    return FileText
+  }
+  return Database
+}
 </script>
 
 <template>
@@ -146,8 +188,8 @@ async function handleRebuildWithReminder() {
       <div class="header-actions">
         <el-button
           :loading="graphStore.isLoadingStatus"
-          aria-label="刷新图谱状态"
-          title="刷新图谱状态"
+          aria-label="刷新当前图谱"
+          title="刷新当前图谱"
           @click="graphStore.loadStatus"
         >
           <RefreshCw aria-hidden="true" />
@@ -171,6 +213,64 @@ async function handleRebuildWithReminder() {
         </el-button>
       </div>
     </header>
+
+    <section class="generated-graphs" aria-label="已生成图谱">
+      <header class="generated-graphs__header">
+        <div>
+          <p class="eyebrow">已生成图谱</p>
+          <h4>目录与文档</h4>
+        </div>
+        <el-button
+          :loading="graphStore.isLoadingGeneratedGraphs"
+          aria-label="刷新已生成图谱清单"
+          title="刷新已生成图谱清单"
+          @click="refreshGraphSummaries"
+        >
+          <RefreshCw aria-hidden="true" />
+        </el-button>
+      </header>
+
+      <el-alert
+        v-if="graphStore.generatedGraphsError"
+        class="settings-inline-alert"
+        type="error"
+        :title="graphStore.generatedGraphsError"
+        :closable="false"
+        show-icon
+      />
+
+      <p v-if="graphStore.isLoadingGeneratedGraphs" class="panel-message">正在读取已生成图谱...</p>
+      <section v-else-if="graphStore.generatedGraphs.length" class="generated-graphs__list">
+        <article
+          v-for="graph in graphStore.generatedGraphs"
+          :key="graphKey(graph)"
+          class="generated-graph-card"
+          :class="{ 'generated-graph-card--active': graphKey(graph) === graphStore.selectedGraphKey }"
+        >
+          <component :is="graphIcon(graph.scopeType)" class="generated-graph-card__icon" aria-hidden="true" />
+          <div class="generated-graph-card__main">
+            <div class="generated-graph-card__title-line">
+              <span class="status-chip status-chip--graph">{{ graphTypeLabel(graph.scopeType) }}</span>
+              <strong>{{ graph.scopeName }}</strong>
+            </div>
+            <p>{{ graph.scopeSubtitle || '无路径信息' }}</p>
+            <div class="generated-graph-card__meta">
+              <span>{{ graph.nodeCount || 0 }} 节点</span>
+              <span>{{ graph.edgeCount || 0 }} 关系</span>
+              <span>更新 {{ formatTime(graph.generatedAt) }}</span>
+            </div>
+          </div>
+          <div class="generated-graph-card__actions">
+            <el-button type="primary" @click="graphStore.openGeneratedGraph(graph)">查看</el-button>
+            <el-button @click="handleRegenerateGraph(graph)">重新生成</el-button>
+          </div>
+        </article>
+      </section>
+      <section v-else class="generated-graphs__empty">
+        <Network aria-hidden="true" />
+        <span>还没有已生成图谱</span>
+      </section>
+    </section>
 
     <section class="graph-toolbar" aria-label="图谱工具栏">
       <label class="field graph-toolbar__field">
@@ -201,7 +301,7 @@ async function handleRebuildWithReminder() {
 
       <el-button
         class="graph-toolbar__fullscreen"
-        :disabled="!graphStore.hasCurrentViewReady() || graphStore.isRunActive"
+        :disabled="!graphStore.hasCurrentViewLoaded() || graphStore.isRunActive"
         aria-label="全屏探索图谱"
         title="全屏探索图谱"
         @click="isExplorerDialogOpen = true"
@@ -250,9 +350,12 @@ async function handleRebuildWithReminder() {
       show-icon
     />
 
-    <section v-if="!graphStore.isRunActive && !graphStore.hasCurrentViewReady()" class="graph-empty-state">
+    <section
+      v-if="!graphStore.isRunActive && !graphStore.isLoadingView && !graphStore.hasCurrentViewLoaded()"
+      class="graph-empty-state"
+    >
       <Network aria-hidden="true" />
-      <p>当前范围还没有知识图谱。</p>
+      <p>{{ hasSelectedGeneratedGraph ? '当前范围还没有可用视图。' : '请选择一个已生成图谱查看，或选择范围后生成新的图谱。' }}</p>
       <el-button
         type="primary"
         :disabled="!canGenerate"

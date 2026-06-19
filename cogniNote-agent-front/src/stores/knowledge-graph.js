@@ -4,6 +4,7 @@ import {
   cancelKnowledgeGraphRun,
   getKnowledgeGraphStatus,
   getKnowledgeGraphView,
+  listKnowledgeGraphs,
   listEdgeEvidence,
   listNodeEvidence,
   rebuildKnowledgeGraph,
@@ -35,11 +36,16 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
   const statusSnapshot = ref(null)
   const currentRun = ref(null)
   const progress = ref(null)
+  const generatedGraphs = ref([])
+  // 当前真正打开的清单项；范围选择器只准备生成范围，不代表已经加载完整 payload。
+  const activeGraphKey = ref('')
   // 视图按后端 viewType 缓存；LIST 复用 GRAPH payload，只改变前端渲染方式。
   const views = ref({})
   const error = ref('')
+  const generatedGraphsError = ref('')
   const viewError = ref('')
   const evidenceError = ref('')
+  const isLoadingGeneratedGraphs = ref(false)
   const isLoadingStatus = ref(false)
   const isLoadingView = ref(false)
   const isRebuilding = ref(false)
@@ -63,6 +69,27 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
     const key = viewType.value === 'LIST' ? 'GRAPH' : viewType.value
     return views.value[key]?.payload || null
   })
+  const currentScopeKey = computed(() => scopeKey(selectedScope.value))
+  // statusSnapshot 只能说明后端已有视图，不能说明前端已经读取了大 payload。
+  const hasOpenedCurrentScope = computed(() => activeGraphKey.value === currentScopeKey.value)
+  const selectedGraphKey = computed(() => activeGraphKey.value)
+
+  /**
+   * 读取已生成图谱摘要清单。
+   *
+   * <p>首屏只调用该接口，避免重新进入知识图谱页时直接拉取 MINDMAP/GRAPH 大 JSON。</p>
+   */
+  async function loadGeneratedGraphs() {
+    isLoadingGeneratedGraphs.value = true
+    generatedGraphsError.value = ''
+    try {
+      generatedGraphs.value = await listKnowledgeGraphs()
+    } catch (err) {
+      generatedGraphsError.value = `已生成图谱读取失败：${err.message}`
+    } finally {
+      isLoadingGeneratedGraphs.value = false
+    }
+  }
 
   async function loadStatus({ subscribeActive = true, loadView = true } = {}) {
     isLoadingStatus.value = true
@@ -87,6 +114,10 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
     // 后端没有 LIST 视图，列表模式读取 GRAPH payload 后由前端转为邻接表。
     const key = viewType.value === 'LIST' ? 'GRAPH' : viewType.value
     viewError.value = ''
+    // 用户只切换范围时不读取完整视图；必须由清单“查看”或生成完成显式打开当前 scope。
+    if (!hasOpenedCurrentScope.value) {
+      return
+    }
     if (!hasViewReady(key)) {
       return
     }
@@ -110,6 +141,7 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
     viewError.value = ''
     try {
       const run = await rebuildKnowledgeGraph(selectedScope.value)
+      activeGraphKey.value = currentScopeKey.value
       currentRun.value = run
       progress.value = {
         runId: run.runId,
@@ -122,6 +154,7 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
       }
       subscribeToRun(run.runId)
       await loadStatus({ subscribeActive: false, loadView: false })
+      await loadGeneratedGraphs()
     } catch (err) {
       error.value = `知识图谱生成失败：${err.message}`
     } finally {
@@ -150,13 +183,19 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
     }
   }
 
+  function stopRunStream() {
+    if (!runAbortController) {
+      return
+    }
+    runAbortController.abort()
+    runAbortController = null
+  }
+
   function subscribeToRun(runId) {
     if (!runId) {
       return
     }
-    if (runAbortController) {
-      runAbortController.abort()
-    }
+    stopRunStream()
     runAbortController = new AbortController()
     void streamKnowledgeGraphRun(runId, {
       signal: runAbortController.signal,
@@ -209,6 +248,8 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
         body: buildGraphCompletedNotification(payload)
       })
       void loadStatus({ subscribeActive: false, loadView: true })
+      void loadGeneratedGraphs()
+      activeGraphKey.value = currentScopeKey.value
       return
     }
     if (eventName === 'graph-run-failed' || eventName === 'graph-run-cancelled') {
@@ -228,13 +269,43 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
     }
   }
 
-  async function selectScope(nextScopeType, nextScopeId = '') {
-    scopeType.value = nextScopeType
-    scopeId.value = nextScopeType === 'ALL' ? '' : nextScopeId
-    // scope 是图谱缓存键的一部分，切换后旧视图和进度不能继续展示。
+  /**
+   * 切换待生成范围。
+   *
+   * 该方法只准备生成上下文并清空旧视图；历史图谱查看必须走 openGeneratedGraph，避免范围选择器
+   * 无意触发完整 payload 读取。
+   */
+  function setScopeForGeneration(nextScopeType, nextScopeId = '') {
+    stopRunStream()
+    scopeType.value = nextScopeType || 'ALL'
+    scopeId.value = scopeType.value === 'ALL' ? '' : nextScopeId
+    // scope 是图谱缓存键的一部分；只要切换范围，就不能继续展示旧范围的状态和视图。
+    activeGraphKey.value = ''
+    statusSnapshot.value = null
+    currentRun.value = null
     views.value = {}
     progress.value = null
-    await loadStatus()
+  }
+
+  async function selectScope(nextScopeType, nextScopeId = '') {
+    setScopeForGeneration(nextScopeType, nextScopeId)
+    // 范围选择器服务于新建/重新生成；查看历史图谱必须从清单入口触发，保持两段式加载。
+    await loadStatus({ loadView: false })
+  }
+
+  /**
+   * 打开清单中的已生成图谱。
+   *
+   * <p>只有该入口会把 scope 标记为 activeGraphKey，并触发完整视图读取。</p>
+   */
+  async function openGeneratedGraph(graph) {
+    if (!graph) {
+      return
+    }
+    // 清单点击才进入完整图谱读取；首屏只拿摘要，避免应用启动后拉取大 payload。
+    setScopeForGeneration(graph.scopeType || 'ALL', graph.scopeId || '')
+    activeGraphKey.value = currentScopeKey.value
+    await loadStatus({ loadView: true })
   }
 
   /**
@@ -267,6 +338,10 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
     return hasViewReady(viewType.value === 'LIST' ? 'GRAPH' : viewType.value)
   }
 
+  function hasCurrentViewLoaded() {
+    return Boolean(activeViewPayload.value)
+  }
+
   function hasViewReady(key) {
     if (!statusSnapshot.value) {
       return false
@@ -286,6 +361,11 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
     return `已生成 ${nodeCount} 个节点、${edgeCount} 条关系，可以回到知识图谱查看。`
   }
 
+  function scopeKey(scope) {
+    const type = scope?.scopeType || 'ALL'
+    return `${type}:${type === 'ALL' ? '' : scope?.scopeId || ''}`
+  }
+
   return {
     scopeType,
     scopeId,
@@ -293,10 +373,13 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
     statusSnapshot,
     currentRun,
     progress,
+    generatedGraphs,
     views,
     error,
+    generatedGraphsError,
     viewError,
     evidenceError,
+    isLoadingGeneratedGraphs,
     isLoadingStatus,
     isLoadingView,
     isRebuilding,
@@ -308,13 +391,18 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
     selectedScope,
     isRunActive,
     activeViewPayload,
+    selectedGraphKey,
+    loadGeneratedGraphs,
     loadStatus,
     loadCurrentView,
     rebuild,
     cancelRun,
+    setScopeForGeneration,
     selectScope,
+    openGeneratedGraph,
     openEvidence,
     closeEvidence,
-    hasCurrentViewReady
+    hasCurrentViewReady,
+    hasCurrentViewLoaded
   }
 })

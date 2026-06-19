@@ -60,7 +60,7 @@
 - 本地数据存储：SQLite 保存文档元数据、chunk 内容、模型配置、聊天会话、消息和用户引用的助手回复片段。
 - 本地搜索索引：Lucene 提供 BM25 关键词检索、向量检索和混合检索；支持中文正文、代码标识符、路径片段和流程图节点检索，向量检索会使用 active Embedding 模型生成查询向量。
 - RAG 对话：通过 Spring AI ChatClient + Advisor 注入会话记忆和知识库片段；知识库模式可按 `AUTO/ALWAYS/OFF` 策略补全省略、指代、动作型和领域切换追问的检索 query，并保留空白的 SSE 流式输出答案、展示引用来源；模型截断、异常或流提前断开时会标记“未完成”，避免半截回答伪装成完成。
-- 知识图谱：基于已导入 chunks 调用 active Chat 模型抽取实体、中文关系谓词、关系描述和证据，写入 SQLite 图谱缓存与派生视图；关系 `type` 只做内部粗分类，画布、邻接表、Inspector 和证据抽屉直接展示后端校验后的中文 `displayLabel` 与 `description`。
+- 知识图谱：基于已导入 chunks 调用 active Chat 模型抽取实体、中文关系谓词、关系描述和证据，写入 SQLite 图谱缓存与派生视图；进入图谱页先展示已生成的全库/目录/文档清单，点击具体条目后才按需加载完整视图；关系 `type` 只做内部粗分类，画布、邻接表、Inspector 和证据抽屉直接展示后端校验后的中文 `displayLabel` 与 `description`。
 - 模型配置：支持阿里百炼 DashScope 默认通道，也支持 OpenAI-compatible 自定义 Base URL；Chat 模型可配置上下文窗口，默认 `128K`。
 - Prompt 配置：聊天、RAG、追问补全、连接测试和知识图谱抽取 Prompt 统一放在 `src/main/resources/cogninote-prompts.yaml`；`application.yaml` 只导入该专用配置文件并保留运行配置。
 - 对话式桌面界面：左侧持久化会话列表，主区域流式对话，答案按 AI 流式 Markdown 渲染并支持 Mermaid 流程图代码块，引用来源可折叠；用户可选中已完成助手回复片段添加到下一轮对话，发送后引用标签会随用户消息持久化并支持悬停预览；对话设置可切换知识库、检索模式和 Top K，发送区显示当前会话上下文占用和压缩状态。

@@ -5,6 +5,7 @@ import com.itqianchen.agentdesign.dto.graph.KnowledgeGraphEvidenceResponse;
 import com.itqianchen.agentdesign.dto.graph.KnowledgeGraphRebuildRequest;
 import com.itqianchen.agentdesign.dto.graph.KnowledgeGraphRunResponse;
 import com.itqianchen.agentdesign.dto.graph.KnowledgeGraphStatusResponse;
+import com.itqianchen.agentdesign.dto.graph.KnowledgeGraphSummaryResponse;
 import com.itqianchen.agentdesign.dto.graph.KnowledgeGraphViewResponse;
 import com.itqianchen.agentdesign.service.graph.KnowledgeGraphService;
 import jakarta.validation.Valid;
@@ -35,6 +36,18 @@ public class KnowledgeGraphController {
      */
     public KnowledgeGraphController(KnowledgeGraphService knowledgeGraphService) {
         this.knowledgeGraphService = knowledgeGraphService;
+    }
+
+    /**
+     * 查询已生成图谱清单。
+     *
+     * <p>该接口只返回 scope 摘要，不携带视图 payload；前端点击条目后再读取具体视图。</p>
+     *
+     * @return 已生成图谱摘要列表
+     */
+    @GetMapping
+    public ApiResponse<List<KnowledgeGraphSummaryResponse>> listGeneratedGraphs() {
+        return ApiResponse.ok(knowledgeGraphService.listGeneratedGraphs());
     }
 
     /**

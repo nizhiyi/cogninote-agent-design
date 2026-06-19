@@ -55,6 +55,13 @@ public interface KnowledgeGraphMapper {
     );
 
     /**
+     * 查询已有图谱视图的 scope 摘要。
+     *
+     * @return 已生成图谱的轻量 scope 列表
+     */
+    List<KnowledgeGraphSummaryRow> findGeneratedGraphSummaries();
+
+    /**
      * 标记运行开始并写入计划 chunk 总数。
      *
      * @param id 运行 ID
@@ -307,7 +314,7 @@ public interface KnowledgeGraphMapper {
      * @param scopeId 归一化范围 ID；全局范围为 null
      * @return 节点数量
      */
-    int countNodesByScope(
+    long countNodesByScope(
             @Param("scopeType") String scopeType,
             @Param("scopeId") String scopeId
     );
@@ -319,7 +326,7 @@ public interface KnowledgeGraphMapper {
      * @param scopeId 归一化范围 ID；全局范围为 null
      * @return 边数量
      */
-    int countEdgesByScope(
+    long countEdgesByScope(
             @Param("scopeType") String scopeType,
             @Param("scopeId") String scopeId
     );

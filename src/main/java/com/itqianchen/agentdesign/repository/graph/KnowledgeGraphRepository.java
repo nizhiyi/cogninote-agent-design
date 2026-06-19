@@ -9,6 +9,7 @@ import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphScope;
 import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphView;
 import com.itqianchen.agentdesign.mapper.graph.KnowledgeGraphEvidenceDetailRow;
 import com.itqianchen.agentdesign.mapper.graph.KnowledgeGraphMapper;
+import com.itqianchen.agentdesign.mapper.graph.KnowledgeGraphSummaryRow;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
@@ -70,6 +71,17 @@ public class KnowledgeGraphRepository {
      */
     public Optional<KnowledgeGraphRun> findLatestRunForScope(KnowledgeGraphScope scope) {
         return mapper.findLatestRunForScope(scope.scopeType().name(), scope.normalizedScopeId()).stream().findFirst();
+    }
+
+    /**
+     * 查询已生成图谱的 scope 摘要。
+     *
+     * <p>只读取视图元数据，不解析 payload；前端点击具体条目后再走 view 接口读取完整图谱。</p>
+     *
+     * @return 已生成图谱摘要行
+     */
+    public List<KnowledgeGraphSummaryRow> findGeneratedGraphSummaries() {
+        return mapper.findGeneratedGraphSummaries();
     }
 
     /**
@@ -307,7 +319,7 @@ public class KnowledgeGraphRepository {
      * @return 节点数量
      */
     public int countNodesByScope(KnowledgeGraphScope scope) {
-        return mapper.countNodesByScope(scope.scopeType().name(), scope.normalizedScopeId());
+        return Math.toIntExact(mapper.countNodesByScope(scope.scopeType().name(), scope.normalizedScopeId()));
     }
 
     /**
@@ -317,7 +329,7 @@ public class KnowledgeGraphRepository {
      * @return 边数量
      */
     public int countEdgesByScope(KnowledgeGraphScope scope) {
-        return mapper.countEdgesByScope(scope.scopeType().name(), scope.normalizedScopeId());
+        return Math.toIntExact(mapper.countEdgesByScope(scope.scopeType().name(), scope.normalizedScopeId()));
     }
 
     /**

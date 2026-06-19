@@ -10,6 +10,15 @@ export function rebuildKnowledgeGraph(payload) {
   return requestJson('/api/knowledge-graphs/rebuild', jsonOptions('POST', payload))
 }
 
+/**
+ * 读取已生成图谱清单。
+ *
+ * 该接口只返回 scope 摘要，不能替代 getKnowledgeGraphView 读取完整图谱 payload。
+ */
+export function listKnowledgeGraphs() {
+  return requestJson('/api/knowledge-graphs')
+}
+
 export function getKnowledgeGraphStatus(scope) {
   const params = scopeParams(scope)
   return requestJson(`/api/knowledge-graphs/status?${params}`)

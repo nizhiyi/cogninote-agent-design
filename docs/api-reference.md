@@ -699,6 +699,51 @@ PUT /api/chat/settings
 
 `viewType` 支持 `MINDMAP` 和 `GRAPH`。
 
+### 查询已生成图谱清单
+
+```text
+GET /api/knowledge-graphs
+```
+
+返回已生成过前端视图的 scope 摘要列表，不返回 `MINDMAP` / `GRAPH` payload。客户端进入知识图谱页时应先调用该接口展示“已生成图谱”入口；用户点击具体条目后，再调用 `status` 和 `view` 读取完整图谱。
+
+```json
+[
+  {
+    "scopeType": "KNOWLEDGE_FOLDER",
+    "scopeId": "folder-xxx",
+    "scopeName": "项目资料",
+    "scopeSubtitle": "D:/notes/project",
+    "nodeCount": 42,
+    "edgeCount": 31,
+    "mindmapReady": true,
+    "graphReady": true,
+    "generatedAt": 1780000005000,
+    "latestRun": {
+      "runId": "run-xxx",
+      "scopeType": "KNOWLEDGE_FOLDER",
+      "scopeId": "folder-xxx",
+      "status": "COMPLETED",
+      "modelConfigId": "chat-config-xxx",
+      "promptVersion": "kg-extract-v2",
+      "totalChunkCount": 120,
+      "processedChunkCount": 120,
+      "skippedChunkCount": 80,
+      "extractedNodeCount": 42,
+      "extractedEdgeCount": 31,
+      "failedChunkCount": 0,
+      "errorMessage": null,
+      "startedAt": 1780000000000,
+      "completedAt": 1780000005000,
+      "createdAt": 1780000000000,
+      "updatedAt": 1780000005000
+    }
+  }
+]
+```
+
+同一 scope 同时存在 `MINDMAP` 和 `GRAPH` 时只返回一条摘要，`generatedAt` 取对应 scope 最新视图更新时间。目录或文档已被删除时接口仍会返回摘要，`scopeName` 分别兜底为 `已删除目录` / `已删除文档`，`scopeSubtitle` 返回原始 scopeId，避免旧图谱入口导致页面失败。
+
 ### 重建图谱
 
 ```text

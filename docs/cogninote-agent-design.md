@@ -820,8 +820,10 @@ CogninoteMemoryAdvisor 注入会话摘要和最近原文消息
   ↓
 GraphViewBuilder 生成 MINDMAP markdown 和 GRAPH nodes/edges payload（含中文关系谓词与关系描述）
   ↓
-前端通过 SSE 进度和状态快照恢复展示
+前端先展示已生成图谱清单，点击具体 scope 后按需读取完整视图
 ```
+
+知识图谱页采用两段式加载：进入页面先调用 `GET /api/knowledge-graphs` 读取已生成 scope 摘要清单，只展示全库、目录和文档级入口、节点/关系数量与更新时间，不读取 `MINDMAP` / `GRAPH` payload；用户点击“查看”后，前端再按该 scope 调用 `status` 和 `view` 拉取完整图谱。这样重启应用后能看见过去生成过的图谱，也避免首屏加载大 JSON。
 
 抽取 Prompt 位于 `cogninote-prompts.yaml` 的 `app.knowledge-graph.prompts.extraction`，当前关系抽取契约为 `kg-extract-v2`。其中 `version` 是缓存契约的一部分：Prompt 抽取语义变更时必须升级版本，旧缓存才会失效并重新抽取。关系展示契约分三层：`relation_type` / `GRAPH edges[].label` 是 8 类机器可筛选粗分类；`display_label` / `GRAPH edges[].displayLabel` 是模型直接输出的中文短谓词，也是前端唯一用于边标签的展示字段；`description` 是中文完整关系说明。后端会在抽取、合并和读取旧 `GRAPH` 缓存时统一校验这些字段：旧细粒度英文关系码只用于归入粗分类，不能继续作为 UI 文案展示。
 
@@ -1193,6 +1195,7 @@ POST   /api/chat/stream/{requestId}/cancel
 - 新增 `knowledge_graph_*` SQLite 表，按“抽取缓存层 + scope 派生层”保存图谱事实、证据和视图。
 - 新增 `KnowledgeGraphService`、`GraphExtractionService`、`GraphMergeService`、`GraphViewBuilder` 和 `KnowledgeGraphController`，支持按全库、知识库目录和单文档重建图谱。
 - 图谱抽取复用 active Chat 模型，Prompt 来自 `cogninote-prompts.yaml`，`prompt_version` 参与缓存命中，修改抽取语义时必须升级版本；关系 `type` 只作为 8 类内部粗分类，中文短谓词由 `displayLabel` 承担，中文完整说明由 `description` 承担。
+- `GET /api/knowledge-graphs` 返回已生成图谱的轻量 scope 清单，前端点击具体条目后才读取完整视图 payload。
 - 生成过程通过 SSE 推送 started/progress/view-ready/completed/failed/cancelled 等事件，前端断线后用 run/status 快照恢复。
 - 知识库工作台新增“知识图谱” tab，提供思维导图、关系图、邻接列表和节点/边证据抽屉。
 - 删除知识库目录时显式清理对应图谱派生数据和抽取缓存；应用启动时将遗留 QUEUED/RUNNING run 标记为失败，避免卡住重建入口。
