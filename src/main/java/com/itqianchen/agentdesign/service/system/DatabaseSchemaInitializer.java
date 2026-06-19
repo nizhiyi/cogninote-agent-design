@@ -28,7 +28,8 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
             "model_config.base_url", "TEXT NOT NULL DEFAULT 'https://dashscope.aliyuncs.com/api/v1'",
             "model_configs.context_window_tokens", "INTEGER",
             "chat_messages.agent_type", "TEXT",
-            "chat_messages.references_json", "TEXT"
+            "chat_messages.references_json", "TEXT",
+            "knowledge_graph_edges.display_label", "TEXT NOT NULL DEFAULT '相关'"
     );
 
     private final DatabaseSchemaMapper databaseSchemaMapper;
@@ -90,6 +91,7 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
         databaseSchemaMapper.createKnowledgeGraphChunkExtractionsTable();
         databaseSchemaMapper.createKnowledgeGraphNodesTable();
         databaseSchemaMapper.createKnowledgeGraphEdgesTable();
+        addColumnIfMissing("knowledge_graph_edges", "display_label", "TEXT NOT NULL DEFAULT '相关'");
         databaseSchemaMapper.createKnowledgeGraphEvidenceTable();
         databaseSchemaMapper.createKnowledgeGraphViewsTable();
         addColumnIfMissing("chat_messages", "agent_type", "TEXT");
@@ -106,6 +108,8 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
         databaseSchemaMapper.createChatMessagesConversationIdIndex();
         databaseSchemaMapper.createKnowledgeGraphNodesScopeCanonicalIndex();
         databaseSchemaMapper.createKnowledgeGraphEdgesScopeIndex();
+        // 旧索引不包含 display_label，会错误合并同一粗分类下的不同中文谓词。
+        databaseSchemaMapper.dropKnowledgeGraphEdgesScopeTripleIndex();
         databaseSchemaMapper.createKnowledgeGraphEdgesScopeTripleIndex();
         databaseSchemaMapper.createKnowledgeGraphEvidenceNodeIndex();
         databaseSchemaMapper.createKnowledgeGraphEvidenceEdgeIndex();

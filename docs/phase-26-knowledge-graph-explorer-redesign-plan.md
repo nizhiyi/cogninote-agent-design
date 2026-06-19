@@ -4,7 +4,7 @@
 
 第 26 阶段在第 25 阶段已落地的知识图谱事实层之上，重做前端探索体验：思维导图从缩进列表升级为文档结构图，关系图从固定圆环升级为可筛选、可聚焦、可回证据的图谱探索器，并提供全屏弹窗承载完整画布。
 
-本阶段不改变 `knowledge_graph_*` SQLite 事实表，不新增 API endpoint，不扩大 `GRAPH_NODE_LIMIT=100`。后端只对已有 `MINDMAP` / `GRAPH` 视图 payload 做向后兼容扩展；旧缓存仍可显示，重新生成图谱后获得增强 payload。
+本阶段主体不引入新的图谱 endpoint，也不扩大 `GRAPH_NODE_LIMIT=100`。后续关系可读化补丁对 `knowledge_graph_edges` 做了一次轻量 schema 扩展，新增 `display_label` 字段；旧缓存仍可显示，读取 `GRAPH` 时后端会补齐或兜底 `displayLabel` 和中文 `description`。
 
 核心目标是解决第 25 阶段展示层的三个真实问题：
 
@@ -15,7 +15,7 @@
 ## Goals
 
 - `MINDMAP` 保留 `markdown` 字段，同时新增 `documents -> headings -> entities` 结构化数据，用于渲染范围、文档、标题、实体四层结构图。
-- `GRAPH` 保留 `nodes` / `edges`，新增节点类型统计、关系类型统计、隐藏节点数、边两端展示名和可选关系描述，减少前端重复推导。
+- `GRAPH` 保留 `nodes` / `edges`，新增节点类型统计、关系类型统计、隐藏节点数、边两端展示名、中文关系谓词和关系描述，减少前端重复推导。
 - 前端显式依赖 `cytoscape` 和 `cytoscape-fcose`，不依赖 mermaid 的传递依赖。
 - 普通视图展示可读预览，全屏弹窗提供筛选栏、大画布和右侧 Inspector。
 - 列表视图继续作为关系图的可访问性替代，并增强搜索、筛选和排序能力。
@@ -75,10 +75,12 @@
 `GRAPH` 旧 payload 保持可用，第 26 阶段新增：
 
 - `nodeTypeCounts`：节点类型计数，用于图例和筛选。
-- `relationTypeCounts`：关系类型计数，用于图例和筛选。
+- `relationTypeCounts`：8 类内部关系粗分类计数，用于图例和筛选。
 - `hiddenNodeCount`：`totalNodeCount - nodes.length`，提醒用户当前视图是 Top N 裁剪结果。
 - `sourceLabel` / `targetLabel`：边两端展示名，表格和 Inspector 不再反复查 node map。
-- `description`：可选的自然语言关系说明，来自边事实表；旧缓存缺少该字段时，读取视图可按 edge id 从当前边事实补齐。
+- `label`：内部关系粗分类 code，保留用于筛选、统计和旧缓存兼容，不直接展示为边标签。
+- `displayLabel`：中文短关系谓词，来自后端事实表或模型输出校验结果，是画布边标签、邻接表关系列和证据标题的唯一短标签来源。
+- `description`：中文自然语言关系说明，来自边事实表；旧缓存缺少该字段或仍是英文时，读取视图会按 edge id 从当前边事实补齐或用 `sourceLabel + displayLabel + targetLabel` 生成保守中文兜底句。
 
 ## Frontend UX
 
@@ -104,14 +106,14 @@
 - 节点大小映射 `mentionCount` 和 `degree`。
 - 节点颜色映射 `type`。
 - 边宽映射 `weight`。
-- 边展示箭头和短中文关系标签；完整关系描述放在 Inspector、邻接列表和证据抽屉，避免把英文关系码当说明文案。
+- 边展示箭头和后端返回的 `displayLabel`；完整关系描述放在 Inspector、邻接列表和证据抽屉，避免把英文关系码当说明文案。
 - 选中节点时高亮一跳邻居和关联边，降低非相关元素透明度。
 
 全屏探索器提供：
 
 - 搜索实体。
 - 节点类型筛选。
-- 关系类型筛选。
+- 关系类型筛选，筛选值来自 `label` 粗分类，展示名只使用内置 8 类小字典。
 - 最小证据数筛选。
 - 重排布局。
 - 适配视图。
@@ -122,7 +124,7 @@
 - 使用现有中性 surface、border、focus token 和第 28 阶段蓝色动作色；图谱色板使用多色序列，避免绿色优先造成界面主色回潮。
 - 不使用装饰渐变、悬浮大卡片或营销式布局。
 - 图例必须解释节点颜色、边宽、箭头方向和证据数含义。
-- 未知关系类型的兜底文案必须保持可读，不再显示 `自定义关系：RELATION_CODE` 这类面向实现的描述。
+- 未知关系类型和旧细粒度英文关系码必须兜底为 `相关` 或 8 类粗分类展示名，不再显示 `自定义关系：RELATION_CODE` 这类面向实现的描述。
 - 图标按钮使用 lucide，并提供 `aria-label` 和 `title`。
 - 图谱不是唯一信息来源，列表视图必须始终可用。
 
@@ -132,8 +134,8 @@
 - `npm --prefix cogniNote-agent-front run build`
 - 验证旧 `MINDMAP` 只有 `markdown` 时仍可显示。
 - 验证新 `MINDMAP` 结构化字段能生成四层 Cytoscape 导图。
-- 验证 `GRAPH` 统计字段、边展示名、隐藏节点数和关系描述正确；旧缓存缺少 `description` 时能从边事实补齐。
-- 验证未知关系类型会生成可读短中文标签，Inspector、邻接列表和证据抽屉能展示完整关系描述。
+- 验证 `GRAPH` 统计字段、边展示名、隐藏节点数、`displayLabel` 和关系描述正确；旧缓存缺少 `displayLabel` / `description` 时能从边事实补齐或兜底为中文。
+- 验证旧细粒度英文关系码不会作为边标签展示，Inspector、邻接列表和证据抽屉能展示中文短谓词和完整关系描述。
 - 验证普通视图、全屏弹窗、搜索、筛选、重排、适配视图、Inspector 和证据抽屉可用。
 - 验证空图谱、单文档少节点、接近 100 节点和搜索无结果状态。
 

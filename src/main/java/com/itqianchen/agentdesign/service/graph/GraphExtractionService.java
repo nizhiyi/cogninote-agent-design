@@ -283,11 +283,20 @@ public class GraphExtractionService {
             if (source.isBlank() || target.isBlank()) {
                 continue;
             }
+            String displayLabel = canonicalizer.relationDisplayLabel(edge.displayLabel());
+            // v2 缓存中就写入已校验的中文关系语义，避免后续 merge/view 再处理原始模型噪音。
             edges.add(new GraphExtractionPayload.Edge(
                     source,
                     target,
                     canonicalizer.relationType(edge.type()),
-                    canonicalizer.displayText(edge.description(), MAX_DESCRIPTION_LENGTH),
+                    displayLabel,
+                    canonicalizer.relationDescription(
+                            source,
+                            target,
+                            displayLabel,
+                            edge.description(),
+                            MAX_DESCRIPTION_LENGTH
+                    ),
                     normalizeConfidence(edge.confidence()),
                     canonicalizer.displayText(edge.quote(), MAX_QUOTE_LENGTH)
             ));

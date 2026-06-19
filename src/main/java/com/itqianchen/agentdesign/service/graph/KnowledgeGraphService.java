@@ -44,6 +44,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 public class KnowledgeGraphService {
 
     private static final Logger log = LoggerFactory.getLogger(KnowledgeGraphService.class);
+    private static final int MAX_GRAPH_DESCRIPTION_LENGTH = 280;
 
     private final KnowledgeGraphRepository graphRepository;
     private final KnowledgeFolderRepository folderRepository;
@@ -53,6 +54,7 @@ public class KnowledgeGraphService {
     private final GraphMergeService mergeService;
     private final KnowledgeGraphRunPublisher publisher;
     private final TaskExecutor taskExecutor;
+    private final GraphCanonicalizer canonicalizer;
     private final ObjectMapper objectMapper;
 
     /**
@@ -66,6 +68,7 @@ public class KnowledgeGraphService {
      * @param mergeService 图谱合并服务
      * @param publisher 运行事件发布器
      * @param taskExecutor 后台任务执行器
+     * @param canonicalizer 图谱规范化工具
      * @param objectMapper JSON 解析器
      */
     public KnowledgeGraphService(
@@ -77,6 +80,7 @@ public class KnowledgeGraphService {
             GraphMergeService mergeService,
             KnowledgeGraphRunPublisher publisher,
             TaskExecutor taskExecutor,
+            GraphCanonicalizer canonicalizer,
             ObjectMapper objectMapper
     ) {
         this.graphRepository = graphRepository;
@@ -87,6 +91,7 @@ public class KnowledgeGraphService {
         this.mergeService = mergeService;
         this.publisher = publisher;
         this.taskExecutor = taskExecutor;
+        this.canonicalizer = canonicalizer;
         this.objectMapper = objectMapper;
     }
 
@@ -185,7 +190,7 @@ public class KnowledgeGraphService {
                 .orElseThrow(() -> new ResourceNotFoundException("Knowledge graph view not found: " + normalizedViewType));
         try {
             JsonNode payload = objectMapper.readTree(view.payloadJson());
-            JsonNode enrichedPayload = enrichGraphPayloadDescriptions(scope, normalizedViewType, payload);
+            JsonNode enrichedPayload = enrichGraphPayloadEdges(scope, normalizedViewType, payload);
             return KnowledgeGraphViewResponse.from(view, enrichedPayload);
         } catch (JsonProcessingException ex) {
             throw new KnowledgeGraphException("Knowledge graph view payload is corrupted", ex);
@@ -193,16 +198,16 @@ public class KnowledgeGraphService {
     }
 
     /**
-     * 为旧版 GRAPH 视图快照补充关系描述。
+     * 为旧版 GRAPH 视图快照补充关系展示字段。
      *
-     * <p>关系描述来自事实表，旧缓存 payload 里可能没有该字段；读取时补齐可以避免用户必须重建图谱。</p>
+     * <p>旧缓存里可能只有英文细关系码；读取时统一收敛到粗分类和中文谓词，避免前端继续展示英文关系。</p>
      *
      * @param scope 图谱范围
      * @param viewType 视图类型
      * @param payload 已解析的视图 payload
      * @return 可直接返回前端的 payload
      */
-    private JsonNode enrichGraphPayloadDescriptions(
+    private JsonNode enrichGraphPayloadEdges(
             KnowledgeGraphScope scope,
             KnowledgeGraphViewType viewType,
             JsonNode payload
@@ -215,31 +220,50 @@ public class KnowledgeGraphService {
             return objectPayload;
         }
 
-        Map<String, String> descriptionByEdgeId = graphRepository.findEdgesByScope(scope).stream()
-                .filter(edge -> edge.description() != null && !edge.description().isBlank())
+        Map<String, KnowledgeGraphEdge> edgeById = graphRepository.findEdgesByScope(scope).stream()
                 .collect(Collectors.toMap(
                         KnowledgeGraphEdge::id,
-                        KnowledgeGraphEdge::description,
+                        edge -> edge,
                         (left, ignored) -> left
                 ));
-        if (descriptionByEdgeId.isEmpty()) {
-            return objectPayload;
-        }
 
         for (JsonNode edgeNode : edgesNode) {
             if (!(edgeNode instanceof ObjectNode edgePayload)) {
                 continue;
             }
-            if (edgePayload.hasNonNull("description") && !edgePayload.path("description").asText().isBlank()) {
-                continue;
-            }
             String edgeId = edgePayload.path("id").asText("");
-            String description = descriptionByEdgeId.get(edgeId);
-            if (description != null) {
-                edgePayload.put("description", description);
-            }
+            KnowledgeGraphEdge edge = edgeById.get(edgeId);
+            String relationType = hasNonBlankText(edgePayload, "label")
+                    ? edgePayload.path("label").asText()
+                    : edge == null ? null : edge.relationType();
+            // 旧 GRAPH payload 的 label 可能是 USES 等细粒度英文码，返回前统一压回内部粗分类。
+            edgePayload.put("label", canonicalizer.relationType(relationType));
+            String displayLabel = hasNonBlankText(edgePayload, "displayLabel")
+                    ? edgePayload.path("displayLabel").asText()
+                    : edge == null ? null : edge.displayLabel();
+            String normalizedDisplayLabel = canonicalizer.relationDisplayLabel(displayLabel);
+            edgePayload.put("displayLabel", normalizedDisplayLabel);
+            String description = hasNonBlankText(edgePayload, "description")
+                    ? edgePayload.path("description").asText()
+                    : edge == null ? null : edge.description();
+            // 不用 source/target 节点 ID 拼描述；旧缓存没有展示名时，兜底句只保留中文关系谓词。
+            edgePayload.put("description", canonicalizer.relationDescription(
+                    payloadText(edgePayload, "sourceLabel"),
+                    payloadText(edgePayload, "targetLabel"),
+                    normalizedDisplayLabel,
+                    description,
+                    MAX_GRAPH_DESCRIPTION_LENGTH
+            ));
         }
         return objectPayload;
+    }
+
+    private static boolean hasNonBlankText(ObjectNode node, String fieldName) {
+        return node.hasNonNull(fieldName) && !node.path(fieldName).asText("").isBlank();
+    }
+
+    private static String payloadText(ObjectNode node, String fieldName) {
+        return hasNonBlankText(node, fieldName) ? node.path(fieldName).asText() : "";
     }
 
     /**

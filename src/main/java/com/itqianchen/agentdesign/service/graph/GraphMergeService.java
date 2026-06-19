@@ -34,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class GraphMergeService {
 
     private static final Logger log = LoggerFactory.getLogger(GraphMergeService.class);
+    private static final int MAX_DESCRIPTION_LENGTH = 280;
 
     private final KnowledgeGraphRepository repository;
     private final GraphCanonicalizer canonicalizer;
@@ -203,12 +204,22 @@ public class GraphMergeService {
             target.addEvidence(runId, chunk, null, confidence, extractedEdge.quote(), true, now);
 
             String relationType = canonicalizer.relationType(extractedEdge.type());
-            EdgeKey edgeKey = new EdgeKey(source.id(), target.id(), relationType);
+            String displayLabel = canonicalizer.relationDisplayLabel(extractedEdge.displayLabel());
+            // 旧 chunk 缓存可能绕过 v2 抽取清洗，merge 阶段再兜底一次，避免事实表写回英文描述。
+            String description = canonicalizer.relationDescription(
+                    source.displayName,
+                    target.displayName,
+                    displayLabel,
+                    extractedEdge.description(),
+                    MAX_DESCRIPTION_LENGTH
+            );
+            // 同一粗分类下的“使用/依赖/通知”语义不同，displayLabel 必须参与边去重。
+            EdgeKey edgeKey = new EdgeKey(source.id(), target.id(), relationType, displayLabel);
             EdgeAccumulator edge = edges.computeIfAbsent(
                     edgeKey,
-                    ignored -> new EdgeAccumulator(edgeKey, relationType)
+                    ignored -> new EdgeAccumulator(edgeKey, relationType, displayLabel)
             );
-            edge.addEvidence(runId, chunk, extractedEdge.description(), confidence, extractedEdge.quote(), now);
+            edge.addEvidence(runId, chunk, description, confidence, extractedEdge.quote(), now);
         }
     }
 
@@ -286,7 +297,7 @@ public class GraphMergeService {
     private record NodeKey(String canonicalName, String nodeType) {
     }
 
-    private record EdgeKey(String sourceNodeId, String targetNodeId, String relationType) {
+    private record EdgeKey(String sourceNodeId, String targetNodeId, String relationType, String displayLabel) {
     }
 
     private class NodeAccumulator {
@@ -400,6 +411,7 @@ public class GraphMergeService {
         private final String sourceNodeId;
         private final String targetNodeId;
         private final String relationType;
+        private final String displayLabel;
         private final List<KnowledgeGraphEvidence> evidence = new ArrayList<>();
         private final Set<String> evidenceIds = new HashSet<>();
         private String description;
@@ -411,13 +423,16 @@ public class GraphMergeService {
          *
          * @param key 边合并键
          * @param relationType 关系类型
+         * @param displayLabel 中文展示谓词
          */
-        private EdgeAccumulator(EdgeKey key, String relationType) {
+        private EdgeAccumulator(EdgeKey key, String relationType, String displayLabel) {
             this.key = key;
-            this.id = canonicalizer.stableId("edge|" + key.sourceNodeId() + "|" + key.targetNodeId() + "|" + key.relationType());
+            this.id = canonicalizer.stableId("edge|" + key.sourceNodeId() + "|" + key.targetNodeId()
+                    + "|" + key.relationType() + "|" + key.displayLabel());
             this.sourceNodeId = key.sourceNodeId();
             this.targetNodeId = key.targetNodeId();
             this.relationType = relationType;
+            this.displayLabel = displayLabel;
         }
 
         /**
@@ -479,6 +494,7 @@ public class GraphMergeService {
                     sourceNodeId,
                     targetNodeId,
                     relationType,
+                    displayLabel,
                     description,
                     mentionCount == 0 ? 0 : confidenceTotal / mentionCount,
                     mentionCount,

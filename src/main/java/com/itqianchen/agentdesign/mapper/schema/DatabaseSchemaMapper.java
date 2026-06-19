@@ -168,6 +168,13 @@ public interface DatabaseSchemaMapper {
     void createKnowledgeGraphEdgesScopeIndex();
 
     /**
+     * 删除旧版图谱边去重索引。
+     *
+     * <p>旧索引只包含 relation_type；关系中文谓词独立持久化后，需要先删除再用同名索引重建。</p>
+     */
+    void dropKnowledgeGraphEdgesScopeTripleIndex();
+
+    /**
      * 创建图谱边 scope 三元组去重索引。
      */
     void createKnowledgeGraphEdgesScopeTripleIndex();

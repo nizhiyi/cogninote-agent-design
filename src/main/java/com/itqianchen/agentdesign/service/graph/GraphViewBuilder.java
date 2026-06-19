@@ -31,6 +31,7 @@ public class GraphViewBuilder {
 
     private static final int MINDMAP_ENTITY_LIMIT_PER_HEADING = 12;
     private static final int GRAPH_NODE_LIMIT = 100;
+    private static final int GRAPH_EDGE_DESCRIPTION_LIMIT = 280;
 
     private final KnowledgeGraphRepository repository;
     private final GraphCanonicalizer canonicalizer;
@@ -284,9 +285,16 @@ public class GraphViewBuilder {
                     payload.put("sourceLabel", sourceNode.displayName());
                     payload.put("targetLabel", targetNode.displayName());
                     payload.put("label", edge.relationType());
-                    if (edge.description() != null && !edge.description().isBlank()) {
-                        payload.put("description", edge.description());
-                    }
+                    // label 保持内部粗分类；画布和列表的可读短标签必须使用 displayLabel。
+                    String displayLabel = canonicalizer.relationDisplayLabel(edge.displayLabel());
+                    payload.put("displayLabel", displayLabel);
+                    payload.put("description", canonicalizer.relationDescription(
+                            sourceNode.displayName(),
+                            targetNode.displayName(),
+                            displayLabel,
+                            edge.description(),
+                            GRAPH_EDGE_DESCRIPTION_LIMIT
+                    ));
                     payload.put("weight", edge.mentionCount());
                     payload.put("confidence", edge.confidence());
                     return payload;

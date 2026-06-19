@@ -64,6 +64,7 @@
             <arg column="source_node_id" javaType="java.lang.String"/>
             <arg column="target_node_id" javaType="java.lang.String"/>
             <arg column="relation_type" javaType="java.lang.String"/>
+            <arg column="display_label" javaType="java.lang.String"/>
             <arg column="description" javaType="java.lang.String"/>
             <arg column="confidence" javaType="_double"/>
             <arg column="mention_count" javaType="_int"/>
@@ -306,11 +307,11 @@
     <insert id="insertEdge">
         INSERT INTO knowledge_graph_edges (
             id, scope_type, scope_id, source_node_id, target_node_id, relation_type,
-            description, confidence, mention_count, created_at, updated_at
+            display_label, description, confidence, mention_count, created_at, updated_at
         )
         VALUES (
             #{id}, #{scopeType}, #{scopeId}, #{sourceNodeId}, #{targetNodeId}, #{relationType},
-            #{description}, #{confidence}, #{mentionCount}, #{createdAt}, #{updatedAt}
+            #{displayLabel}, #{description}, #{confidence}, #{mentionCount}, #{createdAt}, #{updatedAt}
         )
     </insert>
 
@@ -343,7 +344,7 @@
         SELECT *
         FROM knowledge_graph_edges
         WHERE <include refid="ScopePredicate"/>
-        ORDER BY mention_count DESC, relation_type ASC
+        ORDER BY mention_count DESC, relation_type ASC, display_label ASC
     </select>
 
     <select id="findView" resultMap="GraphViewMap">

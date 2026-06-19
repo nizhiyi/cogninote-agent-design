@@ -63,7 +63,8 @@ class GraphViewBuilderTests {
                 "edge-1",
                 "node-1",
                 "node-2",
-                "USES",
+                "FUNCTIONAL",
+                "使用",
                 "CogniNote 使用 Lucene 做混合检索",
                 2,
                 now
@@ -75,11 +76,12 @@ class GraphViewBuilderTests {
         assertThat(payload.path("hiddenNodeCount").asInt()).isZero();
         assertThat(payload.path("nodeTypeCounts").path("PRODUCT").asInt()).isEqualTo(1);
         assertThat(payload.path("nodeTypeCounts").path("TECHNOLOGY").asInt()).isEqualTo(1);
-        assertThat(payload.path("relationTypeCounts").path("USES").asInt()).isEqualTo(1);
+        assertThat(payload.path("relationTypeCounts").path("FUNCTIONAL").asInt()).isEqualTo(1);
         JsonNode edge = payload.path("edges").get(0);
         assertThat(edge.path("sourceLabel").asText()).isEqualTo("CogniNote");
         assertThat(edge.path("targetLabel").asText()).isEqualTo("Lucene");
-        assertThat(edge.path("label").asText()).isEqualTo("USES");
+        assertThat(edge.path("label").asText()).isEqualTo("FUNCTIONAL");
+        assertThat(edge.path("displayLabel").asText()).isEqualTo("使用");
         assertThat(edge.path("description").asText()).isEqualTo("CogniNote 使用 Lucene 做混合检索");
     }
 
@@ -153,7 +155,7 @@ class GraphViewBuilderTests {
     }
 
     private static KnowledgeGraphEdge edge(String id, String source, String target, String type, int mentions, long now) {
-        return edge(id, source, target, type, "", mentions, now);
+        return edge(id, source, target, type, "相关", "", mentions, now);
     }
 
     private static KnowledgeGraphEdge edge(
@@ -161,6 +163,7 @@ class GraphViewBuilderTests {
             String source,
             String target,
             String type,
+            String displayLabel,
             String description,
             int mentions,
             long now
@@ -172,6 +175,7 @@ class GraphViewBuilderTests {
                 source,
                 target,
                 type,
+                displayLabel,
                 description,
                 0.8,
                 mentions,

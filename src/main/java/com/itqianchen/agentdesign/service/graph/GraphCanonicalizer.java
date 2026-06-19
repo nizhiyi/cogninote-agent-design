@@ -3,6 +3,8 @@ package com.itqianchen.agentdesign.service.graph;
 import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 
@@ -12,6 +14,71 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class GraphCanonicalizer {
+
+    private static final String RELATED = "RELATED";
+    private static final String DEFAULT_RELATION_DISPLAY_LABEL = "相关";
+    private static final int MAX_RELATION_DISPLAY_LABEL_LENGTH = 8;
+    private static final Set<String> COARSE_RELATION_TYPES = Set.of(
+            RELATED,
+            "STRUCTURAL",
+            "FUNCTIONAL",
+            "CAUSAL",
+            "SEQUENCE",
+            "OWNERSHIP",
+            "COMPARISON",
+            "CONSTRAINT"
+    );
+    // 仅用于读取旧缓存和旧事实表：旧英文细关系不能再作为 UI 展示文案，只能归入 8 类粗分类。
+    private static final Map<String, String> LEGACY_RELATION_TYPE_ALIASES = Map.ofEntries(
+            Map.entry("RELATED_TO", RELATED),
+            Map.entry("RELATES_TO", RELATED),
+            Map.entry("HAS", "STRUCTURAL"),
+            Map.entry("HAS_PART", "STRUCTURAL"),
+            Map.entry("PART_OF", "STRUCTURAL"),
+            Map.entry("CONTAINS", "STRUCTURAL"),
+            Map.entry("INCLUDES", "STRUCTURAL"),
+            Map.entry("TYPE_OF", "STRUCTURAL"),
+            Map.entry("INSTANCE_OF", "STRUCTURAL"),
+            Map.entry("IS_A", "STRUCTURAL"),
+            Map.entry("USES", "FUNCTIONAL"),
+            Map.entry("USED_FOR", "FUNCTIONAL"),
+            Map.entry("BUILT_WITH", "FUNCTIONAL"),
+            Map.entry("CALLS", "FUNCTIONAL"),
+            Map.entry("READS", "FUNCTIONAL"),
+            Map.entry("WRITES", "FUNCTIONAL"),
+            Map.entry("STORES", "FUNCTIONAL"),
+            Map.entry("QUERIES", "FUNCTIONAL"),
+            Map.entry("CREATES", "FUNCTIONAL"),
+            Map.entry("PRODUCES", "FUNCTIONAL"),
+            Map.entry("CONSUMES", "FUNCTIONAL"),
+            Map.entry("CONFIGURES", "FUNCTIONAL"),
+            Map.entry("IMPLEMENTS", "FUNCTIONAL"),
+            Map.entry("CAUSES", "CAUSAL"),
+            Map.entry("CAUSED_BY", "CAUSAL"),
+            Map.entry("RESULTS_IN", "CAUSAL"),
+            Map.entry("LEADS_TO", "CAUSAL"),
+            Map.entry("TRIGGERS", "CAUSAL"),
+            Map.entry("NOTIFIES", "CAUSAL"),
+            Map.entry("NOTIFIES_ABOUT", "CAUSAL"),
+            Map.entry("PRECEDES", "SEQUENCE"),
+            Map.entry("FOLLOWS", "SEQUENCE"),
+            Map.entry("OWNS", "OWNERSHIP"),
+            Map.entry("OWNED_BY", "OWNERSHIP"),
+            Map.entry("MANAGES", "OWNERSHIP"),
+            Map.entry("MANAGED_BY", "OWNERSHIP"),
+            Map.entry("CONTROLLED_BY", "OWNERSHIP"),
+            Map.entry("COMPARED_WITH", "COMPARISON"),
+            Map.entry("CONTRASTS_WITH", "COMPARISON"),
+            Map.entry("ALTERNATIVE_TO", "COMPARISON"),
+            Map.entry("SIMILAR_TO", "COMPARISON"),
+            Map.entry("EVALUATES", "COMPARISON"),
+            Map.entry("REQUIRES", "CONSTRAINT"),
+            Map.entry("DEPENDS_ON", "CONSTRAINT"),
+            Map.entry("GOVERNED_BY", "CONSTRAINT"),
+            Map.entry("PROTECTS_AGAINST", "CONSTRAINT"),
+            Map.entry("PREVENTS", "CONSTRAINT"),
+            Map.entry("AVOIDS", "CONSTRAINT")
+    );
 
     /**
      * 生成用于节点合并的规范名。
@@ -34,13 +101,76 @@ public class GraphCanonicalizer {
     }
 
     /**
-     * 归一化关系类型。
+     * 归一化关系粗分类。
      *
      * @param value 模型输出类型
-     * @return 大写蛇形关系类型
+     * @return 允许的关系粗分类
      */
     public String relationType(String value) {
-        return snakeUpper(value, "RELATED_TO");
+        String normalized = snakeUpper(value, RELATED);
+        if (COARSE_RELATION_TYPES.contains(normalized)) {
+            return normalized;
+        }
+        return LEGACY_RELATION_TYPE_ALIASES.getOrDefault(normalized, RELATED);
+    }
+
+    /**
+     * 归一化关系展示谓词。
+     *
+     * @param value 模型输出的中文短谓词
+     * @return 可直接展示的中文短标签
+     */
+    public String relationDisplayLabel(String value) {
+        String normalized = normalizeText(value).replaceAll("\\s+", "");
+        // displayLabel 会直接出现在边标签上，含英文或过长时宁可兜底，避免把模型噪音暴露给用户。
+        if (normalized.isBlank()
+                || normalized.length() > MAX_RELATION_DISPLAY_LABEL_LENGTH
+                || !containsChinese(normalized)
+                || containsAsciiLetter(normalized)
+                || isOnlySymbols(normalized)) {
+            return DEFAULT_RELATION_DISPLAY_LABEL;
+        }
+        return normalized;
+    }
+
+    /**
+     * 归一化关系完整描述。
+     *
+     * <p>关系描述最终会直接展示给用户；模型输出纯英文时，使用已清洗的中文谓词构造保守兜底句。</p>
+     *
+     * @param source 关系起点展示名
+     * @param target 关系终点展示名
+     * @param displayLabel 中文关系谓词
+     * @param value 模型输出的关系描述
+     * @param maxLength 最大长度
+     * @return 中文关系描述
+     */
+    public String relationDescription(
+            String source,
+            String target,
+            String displayLabel,
+            String value,
+            int maxLength
+    ) {
+        String normalized = displayText(value, maxLength);
+        if (containsChinese(normalized)) {
+            return normalized;
+        }
+        String safeSource = displayText(source, 120);
+        String safeTarget = displayText(target, 120);
+        String safeLabel = relationDisplayLabel(displayLabel);
+        // 这里不是翻译英文描述，只在模型没有给出中文句子时构造一个保守、可读的事实陈述。
+        String fallback;
+        if (!safeSource.isBlank() && !safeTarget.isBlank()) {
+            fallback = safeSource + " " + safeLabel + " " + safeTarget + "。";
+        } else if (!safeSource.isBlank()) {
+            fallback = safeSource + " " + safeLabel + "。";
+        } else if (!safeTarget.isBlank()) {
+            fallback = safeLabel + " " + safeTarget + "。";
+        } else {
+            fallback = safeLabel + "。";
+        }
+        return displayText(fallback, maxLength);
     }
 
     /**
@@ -129,6 +259,19 @@ public class GraphCanonicalizer {
         return Normalizer.normalize(value, Normalizer.Form.NFKC)
                 .replaceAll("\\s+", " ")
                 .strip();
+    }
+
+    private static boolean containsChinese(String value) {
+        return value.codePoints().anyMatch(codePoint -> codePoint >= 0x4E00 && codePoint <= 0x9FFF);
+    }
+
+    private static boolean containsAsciiLetter(String value) {
+        return value.codePoints().anyMatch(codePoint ->
+                (codePoint >= 'A' && codePoint <= 'Z') || (codePoint >= 'a' && codePoint <= 'z'));
+    }
+
+    private static boolean isOnlySymbols(String value) {
+        return value.codePoints().noneMatch(Character::isLetterOrDigit);
     }
 
     /**

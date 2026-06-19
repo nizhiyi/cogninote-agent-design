@@ -188,6 +188,7 @@
             source_node_id TEXT NOT NULL,
             target_node_id TEXT NOT NULL,
             relation_type TEXT NOT NULL,
+            display_label TEXT NOT NULL DEFAULT '相关',
             description TEXT,
             confidence REAL NOT NULL DEFAULT 0,
             mention_count INTEGER NOT NULL DEFAULT 0,
@@ -283,9 +284,13 @@
         ON knowledge_graph_edges(scope_type, scope_id)
     </update>
 
+    <update id="dropKnowledgeGraphEdgesScopeTripleIndex">
+        DROP INDEX IF EXISTS idx_kg_edges_scope_triple
+    </update>
+
     <update id="createKnowledgeGraphEdgesScopeTripleIndex">
         CREATE UNIQUE INDEX IF NOT EXISTS idx_kg_edges_scope_triple
-        ON knowledge_graph_edges(scope_type, scope_id, source_node_id, target_node_id, relation_type)
+        ON knowledge_graph_edges(scope_type, scope_id, source_node_id, target_node_id, relation_type, display_label)
     </update>
 
     <update id="createKnowledgeGraphEvidenceNodeIndex">

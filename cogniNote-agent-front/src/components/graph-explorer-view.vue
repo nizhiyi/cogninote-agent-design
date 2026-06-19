@@ -164,15 +164,18 @@ function graphElements() {
     }
   }))
   const edges = (props.payload?.edges || []).map((edge) => {
-    const relation = edge.label || 'RELATED_TO'
+    const relation = edge.label || 'RELATED'
+    // edge.label 是后端内部粗分类，只能用于筛选和配色；画布边文字必须使用中文 displayLabel。
+    const displayLabel = edge.displayLabel || '相关'
     return {
       data: {
         id: edge.id,
         source: edge.source,
         target: edge.target,
-        label: formatRelationType(relation),
+        label: displayLabel,
         relationType: relation,
-        relationLabel: formatRelationType(relation),
+        displayLabel,
+        relationLabel: displayLabel,
         description: edge.description || '',
         sourceLabel: edge.sourceLabel || nodeLabelById.get(edge.source) || edge.source,
         targetLabel: edge.targetLabel || nodeLabelById.get(edge.target) || edge.target,
@@ -586,7 +589,7 @@ function openSelectedEvidence() {
     emit('open-evidence', {
       type: 'edge',
       id: selectedItem.value.id,
-      label: selectedItem.value.relationLabel || selectedItem.value.label,
+      label: selectedItem.value.displayLabel || selectedItem.value.relationLabel || selectedItem.value.label,
       meta: edgePathText(selectedItem.value),
       description: selectedItem.value.description || ''
     })
@@ -604,7 +607,7 @@ function openSelectedEvidence() {
 
 function edgePathText(edge) {
   const sourceLabel = edge.sourceLabel || edge.source
-  const relationLabel = edge.relationLabel || formatRelationType(edge.relationType || edge.label)
+  const relationLabel = edge.displayLabel || edge.relationLabel || '相关'
   const targetLabel = edge.targetLabel || edge.target
   return `${sourceLabel} -> ${relationLabel} -> ${targetLabel}`
 }
@@ -725,7 +728,7 @@ function edgeColor(type) {
     cssColor('--chart-color-3', '#d97706'),
     cssColor('--chart-color-5', '#0891b2')
   ]
-  const text = String(type || 'RELATED_TO')
+  const text = String(type || 'RELATED')
   let hash = 0
   for (let index = 0; index < text.length; index += 1) {
     hash = (hash + text.charCodeAt(index)) % palette.length

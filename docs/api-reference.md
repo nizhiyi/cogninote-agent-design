@@ -687,7 +687,7 @@ PUT /api/chat/settings
 
 ## 知识图谱
 
-知识图谱是知识库资料的派生物。后端基于已解析 chunks 调用 active Chat 模型抽取实体、关系、关系描述和证据，写入 SQLite 图谱缓存，再生成思维导图和关系图视图。导入文档或重建 Lucene 索引不会自动重建图谱，必须由用户显式触发。
+知识图谱是知识库资料的派生物。后端基于已解析 chunks 调用 active Chat 模型抽取实体、中文关系谓词、关系描述和证据，写入 SQLite 图谱缓存，再生成思维导图和关系图视图。导入文档或重建 Lucene 索引不会自动重建图谱，必须由用户显式触发。
 
 `scopeType` 支持：
 
@@ -723,7 +723,7 @@ POST /api/knowledge-graphs/rebuild
   "scopeId": "folder-xxx",
   "status": "QUEUED",
   "modelConfigId": "chat-config-xxx",
-  "promptVersion": "kg-extract-v1",
+  "promptVersion": "kg-extract-v2",
   "totalChunkCount": 0,
   "processedChunkCount": 0,
   "skippedChunkCount": 0,
@@ -757,7 +757,7 @@ GET /api/knowledge-graphs/status?scopeType=KNOWLEDGE_FOLDER&scopeId=folder-xxx
     "scopeId": "folder-xxx",
     "status": "COMPLETED",
     "modelConfigId": "chat-config-xxx",
-    "promptVersion": "kg-extract-v1",
+    "promptVersion": "kg-extract-v2",
     "totalChunkCount": 120,
     "processedChunkCount": 120,
     "skippedChunkCount": 80,
@@ -896,7 +896,7 @@ GET /api/knowledge-graphs/view?scopeType=KNOWLEDGE_FOLDER&scopeId=folder-xxx&vie
       "TECHNOLOGY": 1
     },
     "relationTypeCounts": {
-      "USES": 1
+      "FUNCTIONAL": 1
     },
     "nodes": [
       {
@@ -915,7 +915,8 @@ GET /api/knowledge-graphs/view?scopeType=KNOWLEDGE_FOLDER&scopeId=folder-xxx&vie
         "target": "node-yyy",
         "sourceLabel": "CogniNote",
         "targetLabel": "Lucene",
-        "label": "USES",
+        "label": "FUNCTIONAL",
+        "displayLabel": "使用",
         "description": "CogniNote 使用 Lucene 做混合检索",
         "weight": 2,
         "confidence": 0.88
@@ -928,7 +929,7 @@ GET /api/knowledge-graphs/view?scopeType=KNOWLEDGE_FOLDER&scopeId=folder-xxx&vie
 }
 ```
 
-`nodes` / `edges` 的基础字段保持兼容。`edges[].label` 保持后端归一化后的关系类型码，用于筛选、统计和兼容旧缓存；前端会把它翻译成短中文关系标签。`edges[].description` 是可选字段，来自模型抽取 JSON 和 `knowledge_graph_edges.description`，用于 Inspector、邻接列表和证据抽屉展示完整关系说明。旧 `GRAPH` 缓存缺少 `description` 时，读取视图会按 edge id 从当前边事实表补齐，避免用户必须立刻重建图谱。`nodeTypeCounts`、`relationTypeCounts`、`hiddenNodeCount`、`sourceLabel` 和 `targetLabel` 是第 26 阶段新增的展示辅助字段，用于图例、筛选、Inspector 和列表视图。
+`nodes` / `edges` 的基础字段保持兼容。`edges[].label` 保持后端归一化后的内部粗分类 code，用于筛选、统计和兼容旧缓存，不直接作为边标签展示；允许值为 `RELATED`、`STRUCTURAL`、`FUNCTIONAL`、`CAUSAL`、`SEQUENCE`、`OWNERSHIP`、`COMPARISON`、`CONSTRAINT`。`edges[].displayLabel` 是唯一用于 UI 短标签展示的中文关系谓词，来自模型输出并经后端校验，缺失或非法时兜底为 `相关`。`edges[].description` 是中文完整关系说明，用于 Inspector、邻接列表和证据抽屉展示完整语义。旧 `GRAPH` 缓存缺少 `displayLabel` 或 `description` 时，读取视图会按 edge id 从当前边事实表补齐；旧细粒度英文 `label` 会归一为粗分类，无法映射时统一视为 `RELATED`，避免前端继续展示英文关系码。`nodeTypeCounts`、`relationTypeCounts`、`hiddenNodeCount`、`sourceLabel` 和 `targetLabel` 是第 26 阶段新增的展示辅助字段，用于图例、筛选、Inspector 和列表视图。
 
 ### 查询证据
 

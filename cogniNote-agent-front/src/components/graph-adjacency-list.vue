@@ -21,18 +21,22 @@ const sortDirection = ref('desc')
 
 const nodeById = computed(() => new Map((props.payload?.nodes || []).map((node) => [node.id, node])))
 const relationOptions = computed(() => {
-  const values = new Set((props.payload?.edges || []).map((edge) => edge.label || 'RELATED_TO'))
+  const values = new Set((props.payload?.edges || []).map((edge) => edge.label || 'RELATED'))
   return [...values]
     .map((value) => ({ value, label: formatRelationType(value) }))
     .sort((left, right) => left.label.localeCompare(right.label, 'zh-CN') || left.value.localeCompare(right.value))
 })
 const rows = computed(() =>
   (props.payload?.edges || []).map((edge) => {
-    const relation = edge.label || 'RELATED_TO'
+    const relation = edge.label || 'RELATED'
+    // 关系列展示后端校验后的中文谓词；label 保留为粗分类筛选值。
+    const displayLabel = edge.displayLabel || '相关'
     return {
       ...edge,
       label: relation,
-      relationLabel: formatRelationType(relation),
+      relationType: relation,
+      displayLabel,
+      relationLabel: displayLabel,
       description: edge.description || '',
       sourceNode: nodeById.value.get(edge.source),
       targetNode: nodeById.value.get(edge.target),
@@ -45,7 +49,7 @@ const filteredRows = computed(() => {
   const query = keyword.value.trim().toLowerCase()
   const rowsToRender = rows.value.filter((row) => {
     const matchesRelation = !relationType.value || row.label === relationType.value
-    const haystack = `${row.sourceLabel} ${row.label} ${row.relationLabel} ${row.description} ${row.targetLabel}`.toLowerCase()
+    const haystack = `${row.sourceLabel} ${row.label} ${row.displayLabel} ${row.description} ${row.targetLabel}`.toLowerCase()
     return matchesRelation && (!query || haystack.includes(query))
   })
   return [...rowsToRender].sort((left, right) => {
@@ -58,8 +62,8 @@ function openEdge(row) {
   emit('open-evidence', {
     type: 'edge',
     id: row.id,
-    label: row.relationLabel,
-    meta: `${row.sourceLabel} -> ${row.relationLabel} -> ${row.targetLabel}`,
+    label: row.displayLabel,
+    meta: `${row.sourceLabel} -> ${row.displayLabel} -> ${row.targetLabel}`,
     description: row.description || ''
   })
 }
@@ -110,7 +114,7 @@ function openEdge(row) {
         >
           <td>{{ row.sourceLabel }}</td>
           <td>
-            <span class="relation-chip">{{ row.relationLabel }}</span>
+            <span class="relation-chip">{{ row.displayLabel }}</span>
             <p v-if="row.description" class="graph-adjacency-list__description">{{ row.description }}</p>
           </td>
           <td>{{ row.targetLabel }}</td>
