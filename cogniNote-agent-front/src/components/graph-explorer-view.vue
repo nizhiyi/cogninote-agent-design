@@ -2,11 +2,27 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import cytoscape from 'cytoscape'
 import fcose from 'cytoscape-fcose'
-import { LocateFixed, Maximize2, Minimize2, RotateCcw, Search, SlidersHorizontal } from 'lucide-vue-next'
+import {
+  LocateFixed,
+  Maximize2,
+  Minimize2,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  RotateCcw,
+  Search,
+  SlidersHorizontal,
+  ZoomIn,
+  ZoomOut
+} from 'lucide-vue-next'
 import { useThemeStore } from '../stores/theme'
 import { formatRelationType, formatScore } from '../utils/formatters'
 
 let isFcoseRegistered = false
+const MIN_GRAPH_ZOOM = 0.25
+const MAX_GRAPH_ZOOM = 2.5
+const ZOOM_STEP = 0.15
 
 function ensureFcoseRegistered() {
   if (isFcoseRegistered) {
@@ -51,10 +67,16 @@ const minWeight = ref(0)
 const selectedItem = ref(null)
 const renderError = ref('')
 const isStageFullscreen = ref(false)
+const isFilterPanelCollapsed = ref(false)
+const isInspectorPanelCollapsed = ref(false)
+const zoomLevel = ref(1)
 let cy = null
 
 const isGraphMode = computed(() => props.mode === 'GRAPH')
 const fullscreenButtonLabel = computed(() => isStageFullscreen.value ? '退出画布全屏' : '画布全屏')
+const zoomPercent = computed(() => `${Math.round(zoomLevel.value * 100)}%`)
+const canZoomOut = computed(() => hasCanvasData.value && zoomLevel.value > MIN_GRAPH_ZOOM + 0.01)
+const canZoomIn = computed(() => hasCanvasData.value && zoomLevel.value < MAX_GRAPH_ZOOM - 0.01)
 const rawElements = computed(() => {
   // Cytoscape 不能直接消费 CSS 变量；主题切换时必须重新生成节点/边颜色。
   void themeStore.effectiveTheme
@@ -91,6 +113,13 @@ watch(
 watch(() => themeStore.effectiveTheme, () => {
   renderGraphSafely()
 })
+
+watch(
+  () => [isFilterPanelCollapsed.value, isInspectorPanelCollapsed.value],
+  () => {
+    resizeGraphAfterContainerChange({ fit: false })
+  }
+)
 
 watch(filteredElements, () => {
   if (!selectedItem.value) {
@@ -358,13 +387,15 @@ async function renderGraph() {
   destroyGraph()
   renderError.value = ''
   if (!hasCanvasData.value) {
+    zoomLevel.value = 1
     return
   }
   cy = cytoscape({
     container: canvasRef.value,
     elements: [...filteredElements.value.nodes, ...filteredElements.value.edges],
-    minZoom: 0.25,
-    maxZoom: 2.5,
+    minZoom: MIN_GRAPH_ZOOM,
+    maxZoom: MAX_GRAPH_ZOOM,
+    userZoomingEnabled: true,
     wheelSensitivity: 0.18,
     style: graphStyle()
   })
@@ -377,6 +408,7 @@ async function renderGraph() {
       clearFocus()
     }
   })
+  cy.on('zoom', syncZoomLevel)
   runLayout()
 }
 
@@ -412,15 +444,57 @@ function runLayout() {
         padding: graphPadding(),
         spacingFactor: 1.35
       }
-  cy.layout(layout).run()
+  const layoutInstance = cy.layout(layout)
+  layoutInstance.on('layoutstop', syncZoomLevel)
+  layoutInstance.run()
 }
 
 function fitGraph() {
-  cy?.fit(undefined, graphPadding())
+  if (!cy) {
+    return
+  }
+  cy.fit(undefined, graphPadding())
+  syncZoomLevel()
 }
 
 function graphPadding() {
   return props.fullscreen || isStageFullscreen.value ? 72 : 40
+}
+
+function zoomGraph(delta) {
+  setGraphZoom(zoomLevel.value + delta)
+}
+
+function handleZoomSliderInput(event) {
+  setGraphZoom(Number(event.target.value))
+}
+
+function setGraphZoom(value) {
+  if (!cy) {
+    return
+  }
+  const nextZoom = clampZoom(value)
+  cy.zoom({
+    level: nextZoom,
+    renderedPosition: {
+      x: cy.width() / 2,
+      y: cy.height() / 2
+    }
+  })
+  syncZoomLevel()
+}
+
+function syncZoomLevel() {
+  if (!cy) {
+    return
+  }
+  zoomLevel.value = clampZoom(cy.zoom())
+}
+
+function clampZoom(value) {
+  const numericValue = Number(value)
+  const safeValue = Number.isFinite(numericValue) ? numericValue : 1
+  return Number(Math.min(MAX_GRAPH_ZOOM, Math.max(MIN_GRAPH_ZOOM, safeValue)).toFixed(2))
 }
 
 async function toggleStageFullscreen() {
@@ -447,12 +521,16 @@ function handleFullscreenChange() {
   resizeGraphAfterContainerChange()
 }
 
-function resizeGraphAfterContainerChange() {
+function resizeGraphAfterContainerChange({ fit = true } = {}) {
   // Fullscreen API 会异步改变容器尺寸，等浏览器完成布局后再同步 Cytoscape 视口。
   nextTick(() => {
     requestAnimationFrame(() => {
       cy?.resize()
-      fitGraph()
+      if (fit) {
+        fitGraph()
+      } else {
+        syncZoomLevel()
+      }
     })
   })
 }
@@ -667,48 +745,86 @@ function countOptions(values) {
 </script>
 
 <template>
-  <section class="graph-explorer" :class="{ 'graph-explorer--fullscreen': fullscreen }" aria-label="图谱探索器">
-    <aside class="graph-explorer__filters" aria-label="图谱筛选">
-      <div class="graph-explorer__filter-title">
-        <SlidersHorizontal aria-hidden="true" />
-        <strong>筛选</strong>
-      </div>
-
-      <label class="graph-explorer__search">
-        <span>搜索实体</span>
-        <span>
-          <Search aria-hidden="true" />
-          <input v-model="searchQuery" type="search" placeholder="输入节点名称" />
-        </span>
-      </label>
-
-      <section v-if="typeOptions.length" class="graph-explorer__filter-group">
-        <strong>节点类型</strong>
-        <label v-for="option in typeOptions" :key="option.value">
-          <input v-model="selectedNodeTypes" type="checkbox" :value="option.value" />
-          <span>{{ option.value }}</span>
-          <em>{{ option.count }}</em>
-        </label>
-      </section>
-
-      <section v-if="isGraphMode && relationOptions.length" class="graph-explorer__filter-group">
-        <strong>关系类型</strong>
-        <label v-for="option in relationOptions" :key="option.value">
-          <input v-model="selectedRelationTypes" type="checkbox" :value="option.value" />
-          <span>{{ option.label }}</span>
-          <em>{{ option.count }}</em>
-        </label>
-      </section>
-
-      <label v-if="isGraphMode" class="graph-explorer__number-filter">
-        <span>最小证据数</span>
-        <input v-model.number="minWeight" type="number" min="0" />
-      </label>
-
-      <button type="button" class="secondary-button graph-explorer__reset" @click="resetExplorer">
-        <RotateCcw aria-hidden="true" />
-        <span>重置</span>
+  <section
+    class="graph-explorer"
+    :class="{
+      'graph-explorer--fullscreen': fullscreen,
+      'graph-explorer--filters-collapsed': isFilterPanelCollapsed,
+      'graph-explorer--inspector-collapsed': isInspectorPanelCollapsed
+    }"
+    aria-label="图谱探索器"
+  >
+    <aside
+      class="graph-explorer__filters graph-explorer__side-panel"
+      :class="{ 'graph-explorer__side-panel--collapsed': isFilterPanelCollapsed }"
+      :aria-label="isFilterPanelCollapsed ? '图谱筛选已隐藏' : '图谱筛选'"
+    >
+      <button
+        v-if="isFilterPanelCollapsed"
+        type="button"
+        class="icon-button graph-explorer__collapsed-toggle"
+        aria-label="展开筛选侧栏"
+        title="展开筛选侧栏"
+        :aria-expanded="false"
+        @click="isFilterPanelCollapsed = false"
+      >
+        <PanelLeftOpen aria-hidden="true" />
       </button>
+
+      <template v-else>
+        <div class="graph-explorer__filter-title">
+          <span>
+            <SlidersHorizontal aria-hidden="true" />
+            <strong>筛选</strong>
+          </span>
+          <button
+            type="button"
+            class="icon-button graph-explorer__panel-toggle"
+            aria-label="收起筛选侧栏"
+            title="收起筛选侧栏"
+            :aria-expanded="true"
+            @click="isFilterPanelCollapsed = true"
+          >
+            <PanelLeftClose aria-hidden="true" />
+          </button>
+        </div>
+
+        <label class="graph-explorer__search">
+          <span>搜索实体</span>
+          <span>
+            <Search aria-hidden="true" />
+            <input v-model="searchQuery" type="search" placeholder="输入节点名称" />
+          </span>
+        </label>
+
+        <section v-if="typeOptions.length" class="graph-explorer__filter-group">
+          <strong>节点类型</strong>
+          <label v-for="option in typeOptions" :key="option.value">
+            <input v-model="selectedNodeTypes" type="checkbox" :value="option.value" />
+            <span>{{ option.value }}</span>
+            <em>{{ option.count }}</em>
+          </label>
+        </section>
+
+        <section v-if="isGraphMode && relationOptions.length" class="graph-explorer__filter-group">
+          <strong>关系类型</strong>
+          <label v-for="option in relationOptions" :key="option.value">
+            <input v-model="selectedRelationTypes" type="checkbox" :value="option.value" />
+            <span>{{ option.label }}</span>
+            <em>{{ option.count }}</em>
+          </label>
+        </section>
+
+        <label v-if="isGraphMode" class="graph-explorer__number-filter">
+          <span>最小证据数</span>
+          <input v-model.number="minWeight" type="number" min="0" />
+        </label>
+
+        <button type="button" class="secondary-button graph-explorer__reset" @click="resetExplorer">
+          <RotateCcw aria-hidden="true" />
+          <span>重置</span>
+        </button>
+      </template>
     </aside>
 
     <div ref="stageRef" class="graph-explorer__stage">
@@ -718,7 +834,40 @@ function countOptions(values) {
           <span>{{ summaryText }}</span>
           <span v-if="isGraphMode && payload?.hiddenNodeCount">隐藏 {{ payload.hiddenNodeCount }} 节点</span>
         </div>
-        <div>
+        <div class="graph-explorer__stage-actions">
+          <div class="graph-explorer__zoom-controls" aria-label="图谱缩放">
+            <button
+              type="button"
+              class="icon-button"
+              :disabled="!canZoomOut"
+              aria-label="缩小图谱"
+              title="缩小图谱"
+              @click="zoomGraph(-ZOOM_STEP)"
+            >
+              <ZoomOut aria-hidden="true" />
+            </button>
+            <input
+              type="range"
+              :min="MIN_GRAPH_ZOOM"
+              :max="MAX_GRAPH_ZOOM"
+              step="0.05"
+              :value="zoomLevel"
+              :disabled="!hasCanvasData"
+              aria-label="缩放比例"
+              @input="handleZoomSliderInput"
+            />
+            <button
+              type="button"
+              class="icon-button"
+              :disabled="!canZoomIn"
+              aria-label="放大图谱"
+              title="放大图谱"
+              @click="zoomGraph(ZOOM_STEP)"
+            >
+              <ZoomIn aria-hidden="true" />
+            </button>
+            <span class="graph-explorer__zoom-value">{{ zoomPercent }}</span>
+          </div>
           <button type="button" class="icon-button" :aria-label="fullscreenButtonLabel" :title="fullscreenButtonLabel" @click="toggleStageFullscreen">
             <Minimize2 v-if="isStageFullscreen" aria-hidden="true" />
             <Maximize2 v-else aria-hidden="true" />
@@ -750,33 +899,63 @@ function countOptions(values) {
       </div>
     </div>
 
-    <aside class="graph-explorer__inspector" aria-label="图谱详情">
-      <p class="eyebrow">Inspector</p>
-      <template v-if="selectedItem">
-        <h4>{{ selectedItem.label }}</h4>
-        <div class="graph-inspector__meta">
-          <span v-if="selectedItem.group === 'node'">{{ selectedItem.nodeType }}</span>
-          <span v-else>{{ selectedItem.relationLabel || formatRelationType(selectedItem.relationType) }}</span>
-          <span v-if="selectedItem.mentionCount">提及 {{ selectedItem.mentionCount }}</span>
-          <span v-if="selectedItem.degree">连接 {{ selectedItem.degree }}</span>
-          <span v-if="selectedItem.weight">证据 {{ selectedItem.weight }}</span>
-          <span v-if="selectedItem.confidence">score {{ formatScore(selectedItem.confidence) }}</span>
-        </div>
-        <p v-if="selectedItem.group === 'edge'" class="graph-inspector__path">
-          {{ selectedItem.sourceLabel || selectedItem.source }} -> {{ selectedItem.label }} -> {{ selectedItem.targetLabel || selectedItem.target }}
-        </p>
-        <button
-          v-if="selectedItem.group === 'edge' || (selectedItem.kind === 'entity' && selectedItem.evidenceId)"
-          type="button"
-          class="primary-button graph-inspector__evidence"
-          @click="openSelectedEvidence"
-        >
-          查看证据
-        </button>
-      </template>
+    <aside
+      class="graph-explorer__inspector graph-explorer__side-panel"
+      :class="{ 'graph-explorer__side-panel--collapsed': isInspectorPanelCollapsed }"
+      :aria-label="isInspectorPanelCollapsed ? '图谱详情已隐藏' : '图谱详情'"
+    >
+      <button
+        v-if="isInspectorPanelCollapsed"
+        type="button"
+        class="icon-button graph-explorer__collapsed-toggle"
+        aria-label="展开详情侧栏"
+        title="展开详情侧栏"
+        :aria-expanded="false"
+        @click="isInspectorPanelCollapsed = false"
+      >
+        <PanelRightOpen aria-hidden="true" />
+      </button>
+
       <template v-else>
-        <h4>选择节点或关系</h4>
-        <p class="muted-text">点击画布中的实体、标题或关系，查看类型、证据数和回链入口。</p>
+        <div class="graph-explorer__inspector-title">
+          <p class="eyebrow">Inspector</p>
+          <button
+            type="button"
+            class="icon-button graph-explorer__panel-toggle"
+            aria-label="收起详情侧栏"
+            title="收起详情侧栏"
+            :aria-expanded="true"
+            @click="isInspectorPanelCollapsed = true"
+          >
+            <PanelRightClose aria-hidden="true" />
+          </button>
+        </div>
+        <template v-if="selectedItem">
+          <h4>{{ selectedItem.label }}</h4>
+          <div class="graph-inspector__meta">
+            <span v-if="selectedItem.group === 'node'">{{ selectedItem.nodeType }}</span>
+            <span v-else>{{ selectedItem.relationLabel || formatRelationType(selectedItem.relationType) }}</span>
+            <span v-if="selectedItem.mentionCount">提及 {{ selectedItem.mentionCount }}</span>
+            <span v-if="selectedItem.degree">连接 {{ selectedItem.degree }}</span>
+            <span v-if="selectedItem.weight">证据 {{ selectedItem.weight }}</span>
+            <span v-if="selectedItem.confidence">score {{ formatScore(selectedItem.confidence) }}</span>
+          </div>
+          <p v-if="selectedItem.group === 'edge'" class="graph-inspector__path">
+            {{ selectedItem.sourceLabel || selectedItem.source }} -> {{ selectedItem.label }} -> {{ selectedItem.targetLabel || selectedItem.target }}
+          </p>
+          <button
+            v-if="selectedItem.group === 'edge' || (selectedItem.kind === 'entity' && selectedItem.evidenceId)"
+            type="button"
+            class="primary-button graph-inspector__evidence"
+            @click="openSelectedEvidence"
+          >
+            查看证据
+          </button>
+        </template>
+        <template v-else>
+          <h4>选择节点或关系</h4>
+          <p class="muted-text">点击画布中的实体、标题或关系，查看类型、证据数和回链入口。</p>
+        </template>
       </template>
     </aside>
   </section>
