@@ -202,7 +202,6 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
         resetCurrentGraphState()
       }
     } catch (err) {
-      generatedGraphsError.value = `知识图谱删除失败：${err?.message || '请稍后重试'}`
       throw err
     }
   }

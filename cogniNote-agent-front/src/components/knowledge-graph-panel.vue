@@ -311,7 +311,14 @@ async function handleDeleteGeneratedGraph(graph) {
     ElMessage.success('知识图谱已删除')
   } catch (err) {
     if (err !== 'cancel' && err !== 'close') {
-      ElMessage.error(err?.message || '知识图谱删除失败')
+      await ElMessageBox.alert(
+        err?.message || '知识图谱删除失败，请稍后重试。',
+        '删除失败',
+        {
+          confirmButtonText: '知道了',
+          type: 'error'
+        }
+      ).catch(() => undefined)
     }
   } finally {
     deletingGraphKey.value = ''
