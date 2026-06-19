@@ -33,6 +33,7 @@ const rows = computed(() =>
       ...edge,
       label: relation,
       relationLabel: formatRelationType(relation),
+      description: edge.description || '',
       sourceNode: nodeById.value.get(edge.source),
       targetNode: nodeById.value.get(edge.target),
       sourceLabel: edge.sourceLabel || nodeById.value.get(edge.source)?.label || edge.source,
@@ -44,7 +45,7 @@ const filteredRows = computed(() => {
   const query = keyword.value.trim().toLowerCase()
   const rowsToRender = rows.value.filter((row) => {
     const matchesRelation = !relationType.value || row.label === relationType.value
-    const haystack = `${row.sourceLabel} ${row.label} ${row.relationLabel} ${row.targetLabel}`.toLowerCase()
+    const haystack = `${row.sourceLabel} ${row.label} ${row.relationLabel} ${row.description} ${row.targetLabel}`.toLowerCase()
     return matchesRelation && (!query || haystack.includes(query))
   })
   return [...rowsToRender].sort((left, right) => {
@@ -58,7 +59,8 @@ function openEdge(row) {
     type: 'edge',
     id: row.id,
     label: row.relationLabel,
-    meta: `${row.sourceLabel} -> ${row.relationLabel} -> ${row.targetLabel}`
+    meta: `${row.sourceLabel} -> ${row.relationLabel} -> ${row.targetLabel}`,
+    description: row.description || ''
   })
 }
 </script>
@@ -107,7 +109,10 @@ function openEdge(row) {
           @keyup.space.prevent="openEdge(row)"
         >
           <td>{{ row.sourceLabel }}</td>
-          <td><span class="relation-chip">{{ row.relationLabel }}</span></td>
+          <td>
+            <span class="relation-chip">{{ row.relationLabel }}</span>
+            <p v-if="row.description" class="graph-adjacency-list__description">{{ row.description }}</p>
+          </td>
           <td>{{ row.targetLabel }}</td>
           <td>{{ row.weight }}</td>
         </tr>

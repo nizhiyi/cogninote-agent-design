@@ -240,7 +240,7 @@ com.itqianchen.agentdesign.controller.graph
 | `GraphExtractionService` | 按 chunk 串行调用模型，维护抽取缓存；每个 chunk 之间检查取消标志；模型调用期间不持有 DB 连接。 |
 | `GraphCanonicalizer` | 字符串规范化（trim、小写、全半角、空白折叠）实体名与关系类型，生成去重 key。 |
 | `GraphMergeService` | 从缓存全量合并出 scope 的节点/边/证据：quote 归一化校验、孤儿边丢弃、mention_count 与 confidence 聚合、证据 quote 长度控制。 |
-| `GraphViewBuilder` | 从图谱事实生成 `MINDMAP` 和 `GRAPH` 两类前端 payload。 |
+| `GraphViewBuilder` | 从图谱事实生成 `MINDMAP` 和 `GRAPH` 两类前端 payload，`GRAPH` 边会保留关系类型码和可选自然语言关系描述。 |
 | `KnowledgeGraphRunPublisher` | 维护运行中任务的 SSE 事件订阅和发布，进度数据来自内存计数器。 |
 | `KnowledgeGraphStartupCleaner` | 应用启动时把遗留 QUEUED/RUNNING run 标记为 FAILED。 |
 
@@ -291,7 +291,8 @@ app:
 - `name` 必须来自 chunk 语义，不允许凭空引入外部实体。
 - `quote` 必须是 chunk 原文中的短片段，用于证据展示。
 - `quote` 校验采用归一化后的包含匹配（忽略空白与标点差异），因为模型经常微调原文空白；严格 `contains` 会误杀大量有效证据。匹配失败的证据丢弃或降低 confidence，不作为强证据入库。
-- `type` 和关系类型允许模型给出，但后端要归一化为大写 snake case。
+- `type` 和关系类型允许模型给出，但后端要归一化为大写 snake case。关系类型是机器可筛选的代码，不等同于用户阅读的完整关系说明。
+- `edges.description` 来自模型输出的自然语言关系说明，后端保存到边事实并透传给前端；前端用关系类型生成短中文标签，用 `description` 展示完整语义。
 - `edges` 的 `source` / `target` 必须能解析到本次抽取返回的 `nodes`（按规范化后名称匹配）；解析不到端点的边直接丢弃，不入库。
 - 如果 chunk 没有实体关系，返回空数组（缓存为 EXTRACTED 空结果，同样可复用）。
 - 单个 chunk 的节点和边数量需要有上限，避免模型把整段文字拆成噪音图。
@@ -438,7 +439,14 @@ GET /api/knowledge-graphs/edges/{id}/evidence
     {"id": "node-1", "label": "CogniNote", "type": "PRODUCT", "degree": 12}
   ],
   "edges": [
-    {"id": "edge-1", "source": "node-1", "target": "node-2", "label": "USES", "weight": 3}
+    {
+      "id": "edge-1",
+      "source": "node-1",
+      "target": "node-2",
+      "label": "USES",
+      "description": "CogniNote 使用 Lucene 做混合检索",
+      "weight": 3
+    }
   ]
 }
 ```
@@ -468,7 +476,7 @@ cogniNote-agent-front/src/components/graph-evidence-drawer.vue
   - 生成中：进度条（processed/total）+ 跳过/失败计数 + 取消按钮
   - 完成：渲染当前视图
   - 失败：错误原因 + 恢复路径（如“未配置 Chat 模型 -> 去设置”，复用现有 embeddingReady 警告条 + 设置跳转模式）
-证据侧栏：点击节点/边滑出；实体名 + 类型 chip + 描述 + 证据列表（quote、文件名、heading、页码）；
+证据侧栏：点击节点/边滑出；实体名或关系路径 + 类型/关系 chip + 描述 + 证据列表（quote、文件名、heading、页码）；
   点击证据打开 chunk 详情弹窗（复用 getDocumentChunk API 与 source-inspector 的交互模式）
 ```
 
@@ -480,7 +488,7 @@ cogniNote-agent-front/src/components/graph-evidence-drawer.vue
 
 - 默认展示思维导图，不默认渲染过大的全量关系图。
 - 关系图规模边界：默认只渲染 Top 50–100 节点（该规模 SVG 渲染足够），提供“按节点展开邻居”的局部加载入口；超过 500 节点的全图渲染明确不支持，引导用户改用列表视图或缩小范围。
-- 列表（邻接表）视图：`节点 A -> 关系 -> 节点 B -> 证据数` 表格。它同时是网络图的可访问性替代（网络图对屏幕阅读器基本不可用，规范要求永远提供列表替代）和大图兜底。
+- 列表（邻接表）视图：`节点 A -> 关系 -> 节点 B -> 证据数` 表格；关系列显示短中文标签，并在存在 `description` 时展示完整关系说明。它同时是网络图的可访问性替代（网络图对屏幕阅读器基本不可用，规范要求永远提供列表替代）和大图兜底。
 - 图谱生成中显示进度条、已处理 chunks、跳过 chunks、失败 chunks 和当前阶段。
 - 节点类型用分类色板、边用低饱和色、选中/路径高亮用强调色；具体色值取自项目现有 design tokens（第 24 阶段刚统一过），不引入新色板。
 
@@ -540,7 +548,7 @@ cogniNote-agent-front/src/components/graph-evidence-drawer.vue
 - 前端刷新后能通过 `GET /runs/{runId}` 恢复任务状态。
 - 删除知识库目录时，scope 图谱数据与对应抽取缓存均不残留。
 - 思维导图视图能渲染空状态、生成中、完成和失败状态。
-- 列表（邻接表）视图能渲染节点-关系-节点表格。
+- 列表（邻接表）视图能渲染节点-关系-节点表格，并能显示关系描述。
 
 ## Assumptions
 

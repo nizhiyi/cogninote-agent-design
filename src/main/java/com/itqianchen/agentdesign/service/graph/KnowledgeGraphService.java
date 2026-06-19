@@ -3,8 +3,10 @@ package com.itqianchen.agentdesign.service.graph;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.itqianchen.agentdesign.common.api.ResourceNotFoundException;
 import com.itqianchen.agentdesign.domain.document.KnowledgeDocument;
+import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphEdge;
 import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphException;
 import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphRun;
 import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphRunStatus;
@@ -27,6 +29,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.task.TaskExecutor;
@@ -182,10 +185,61 @@ public class KnowledgeGraphService {
                 .orElseThrow(() -> new ResourceNotFoundException("Knowledge graph view not found: " + normalizedViewType));
         try {
             JsonNode payload = objectMapper.readTree(view.payloadJson());
-            return KnowledgeGraphViewResponse.from(view, payload);
+            JsonNode enrichedPayload = enrichGraphPayloadDescriptions(scope, normalizedViewType, payload);
+            return KnowledgeGraphViewResponse.from(view, enrichedPayload);
         } catch (JsonProcessingException ex) {
             throw new KnowledgeGraphException("Knowledge graph view payload is corrupted", ex);
         }
+    }
+
+    /**
+     * 为旧版 GRAPH 视图快照补充关系描述。
+     *
+     * <p>关系描述来自事实表，旧缓存 payload 里可能没有该字段；读取时补齐可以避免用户必须重建图谱。</p>
+     *
+     * @param scope 图谱范围
+     * @param viewType 视图类型
+     * @param payload 已解析的视图 payload
+     * @return 可直接返回前端的 payload
+     */
+    private JsonNode enrichGraphPayloadDescriptions(
+            KnowledgeGraphScope scope,
+            KnowledgeGraphViewType viewType,
+            JsonNode payload
+    ) {
+        if (viewType != KnowledgeGraphViewType.GRAPH || !(payload instanceof ObjectNode objectPayload)) {
+            return payload;
+        }
+        JsonNode edgesNode = objectPayload.path("edges");
+        if (!edgesNode.isArray() || edgesNode.size() == 0) {
+            return objectPayload;
+        }
+
+        Map<String, String> descriptionByEdgeId = graphRepository.findEdgesByScope(scope).stream()
+                .filter(edge -> edge.description() != null && !edge.description().isBlank())
+                .collect(Collectors.toMap(
+                        KnowledgeGraphEdge::id,
+                        KnowledgeGraphEdge::description,
+                        (left, ignored) -> left
+                ));
+        if (descriptionByEdgeId.isEmpty()) {
+            return objectPayload;
+        }
+
+        for (JsonNode edgeNode : edgesNode) {
+            if (!(edgeNode instanceof ObjectNode edgePayload)) {
+                continue;
+            }
+            if (edgePayload.hasNonNull("description") && !edgePayload.path("description").asText().isBlank()) {
+                continue;
+            }
+            String edgeId = edgePayload.path("id").asText("");
+            String description = descriptionByEdgeId.get(edgeId);
+            if (description != null) {
+                edgePayload.put("description", description);
+            }
+        }
+        return objectPayload;
     }
 
     /**

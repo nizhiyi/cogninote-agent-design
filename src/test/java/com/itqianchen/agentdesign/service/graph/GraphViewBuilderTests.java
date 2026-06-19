@@ -59,7 +59,15 @@ class GraphViewBuilderTests {
                 node("node-1", "CogniNote", "PRODUCT", 5, now),
                 node("node-2", "Lucene", "TECHNOLOGY", 3, now)
         );
-        repository.edges = List.of(edge("edge-1", "node-1", "node-2", "USES", 2, now));
+        repository.edges = List.of(edge(
+                "edge-1",
+                "node-1",
+                "node-2",
+                "USES",
+                "CogniNote 使用 Lucene 做混合检索",
+                2,
+                now
+        ));
 
         builder.buildViews(scope, "run-1", List.of());
 
@@ -71,6 +79,8 @@ class GraphViewBuilderTests {
         JsonNode edge = payload.path("edges").get(0);
         assertThat(edge.path("sourceLabel").asText()).isEqualTo("CogniNote");
         assertThat(edge.path("targetLabel").asText()).isEqualTo("Lucene");
+        assertThat(edge.path("label").asText()).isEqualTo("USES");
+        assertThat(edge.path("description").asText()).isEqualTo("CogniNote 使用 Lucene 做混合检索");
     }
 
     @Test
@@ -143,6 +153,18 @@ class GraphViewBuilderTests {
     }
 
     private static KnowledgeGraphEdge edge(String id, String source, String target, String type, int mentions, long now) {
+        return edge(id, source, target, type, "", mentions, now);
+    }
+
+    private static KnowledgeGraphEdge edge(
+            String id,
+            String source,
+            String target,
+            String type,
+            String description,
+            int mentions,
+            long now
+    ) {
         return new KnowledgeGraphEdge(
                 id,
                 KnowledgeGraphScopeType.ALL,
@@ -150,7 +172,7 @@ class GraphViewBuilderTests {
                 source,
                 target,
                 type,
-                "",
+                description,
                 0.8,
                 mentions,
                 now,

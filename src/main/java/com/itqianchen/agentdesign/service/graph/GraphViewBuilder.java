@@ -277,16 +277,19 @@ public class GraphViewBuilder {
                 .map(edge -> {
                     KnowledgeGraphNode sourceNode = selectedNodeById.get(edge.sourceNodeId());
                     KnowledgeGraphNode targetNode = selectedNodeById.get(edge.targetNodeId());
-                    return Map.<String, Object>of(
-                            "id", edge.id(),
-                            "source", edge.sourceNodeId(),
-                            "target", edge.targetNodeId(),
-                            "sourceLabel", sourceNode.displayName(),
-                            "targetLabel", targetNode.displayName(),
-                            "label", edge.relationType(),
-                            "weight", edge.mentionCount(),
-                            "confidence", edge.confidence()
-                    );
+                    Map<String, Object> payload = new LinkedHashMap<>();
+                    payload.put("id", edge.id());
+                    payload.put("source", edge.sourceNodeId());
+                    payload.put("target", edge.targetNodeId());
+                    payload.put("sourceLabel", sourceNode.displayName());
+                    payload.put("targetLabel", targetNode.displayName());
+                    payload.put("label", edge.relationType());
+                    if (edge.description() != null && !edge.description().isBlank()) {
+                        payload.put("description", edge.description());
+                    }
+                    payload.put("weight", edge.mentionCount());
+                    payload.put("confidence", edge.confidence());
+                    return payload;
                 })
                 .toList();
 

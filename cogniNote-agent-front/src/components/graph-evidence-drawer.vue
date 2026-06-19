@@ -89,6 +89,9 @@ function closeDrawer(value) {
       <span v-if="target?.meta">{{ target.meta }}</span>
       <span>{{ evidence.length }} 条证据</span>
     </div>
+    <p v-if="target?.description" class="graph-evidence-drawer__description">
+      {{ target.description }}
+    </p>
 
     <p v-if="loading" class="panel-message">正在读取证据...</p>
     <el-alert

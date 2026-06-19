@@ -747,7 +747,7 @@ CREATE TABLE knowledge_graph_views (
 
 `app_settings` 是第 23 阶段新增的全局应用设置表，当前用于保存 `chat.query-contextualizer.mode`。它的优先级高于 `COGNINOTE_QUERY_CONTEXTUALIZER_MODE` 和旧的 `COGNINOTE_QUERY_CONTEXTUALIZER_ENABLED=false` 兼容开关。
 
-第 25 阶段新增知识图谱表。`knowledge_graph_chunk_extractions` 是跨 scope 复用的单 chunk 模型抽取缓存，命中条件是 `content_hash + prompt_version + model_config_id + EXTRACTED` 一致；`knowledge_graph_nodes`、`knowledge_graph_edges`、`knowledge_graph_evidence` 和 `knowledge_graph_views` 是按 scope 合并出的派生层，可从抽取缓存全量重建。SQLite 外键默认未开启，删除知识库目录或 scope 图谱时必须继续使用显式 SQL 清理。
+第 25 阶段新增知识图谱表。`knowledge_graph_chunk_extractions` 是跨 scope 复用的单 chunk 模型抽取缓存，命中条件是 `content_hash + prompt_version + model_config_id + EXTRACTED` 一致；`knowledge_graph_nodes`、`knowledge_graph_edges`、`knowledge_graph_evidence` 和 `knowledge_graph_views` 是按 scope 合并出的派生层，可从抽取缓存全量重建。`knowledge_graph_edges.relation_type` 保存归一化后的大写蛇形关系码，用于合并、筛选和统计；`knowledge_graph_edges.description` 保存模型抽取出的自然语言关系说明，用于前端展示。SQLite 外键默认未开启，删除知识库目录或 scope 图谱时必须继续使用显式 SQL 清理。
 
 `chunks.content` 会额外占用一份解析后的文本空间，这是有意设计。
 
@@ -817,12 +817,12 @@ CogninoteMemoryAdvisor 注入会话摘要和最近原文消息
   ↓
 本地 merge 生成 nodes / edges / evidence
   ↓
-GraphViewBuilder 生成 MINDMAP markdown 和 GRAPH nodes/edges payload
+GraphViewBuilder 生成 MINDMAP markdown 和 GRAPH nodes/edges payload（含关系描述）
   ↓
 前端通过 SSE 进度和状态快照恢复展示
 ```
 
-抽取 Prompt 位于 `cogninote-prompts.yaml` 的 `app.knowledge-graph.prompts.extraction`。其中 `version` 是缓存契约的一部分：Prompt 抽取语义变更时必须升级版本，旧缓存才会失效并重新抽取。
+抽取 Prompt 位于 `cogninote-prompts.yaml` 的 `app.knowledge-graph.prompts.extraction`。其中 `version` 是缓存契约的一部分：Prompt 抽取语义变更时必须升级版本，旧缓存才会失效并重新抽取。关系展示契约分两层：`relation_type` / `GRAPH edges[].label` 是机器可筛选的关系码，前端用 `formatRelationType` 转成短中文标签；`edge.description` 是模型输出的自然语言说明，后端写入边事实并透传到 `GRAPH` payload，旧 `GRAPH` 缓存缺少该字段时由 `KnowledgeGraphService.view()` 从边事实表补齐。
 
 ### 8.5 存储取舍
 
@@ -1191,7 +1191,7 @@ POST   /api/chat/stream/{requestId}/cancel
 
 - 新增 `knowledge_graph_*` SQLite 表，按“抽取缓存层 + scope 派生层”保存图谱事实、证据和视图。
 - 新增 `KnowledgeGraphService`、`GraphExtractionService`、`GraphMergeService`、`GraphViewBuilder` 和 `KnowledgeGraphController`，支持按全库、知识库目录和单文档重建图谱。
-- 图谱抽取复用 active Chat 模型，Prompt 来自 `cogninote-prompts.yaml`，`prompt_version` 参与缓存命中，修改抽取语义时必须升级版本。
+- 图谱抽取复用 active Chat 模型，Prompt 来自 `cogninote-prompts.yaml`，`prompt_version` 参与缓存命中，修改抽取语义时必须升级版本；关系 `type` 作为机器码归一化，关系 `description` 作为自然语言说明展示。
 - 生成过程通过 SSE 推送 started/progress/view-ready/completed/failed/cancelled 等事件，前端断线后用 run/status 快照恢复。
 - 知识库工作台新增“知识图谱” tab，提供思维导图、关系图、邻接列表和节点/边证据抽屉。
 - 删除知识库目录时显式清理对应图谱派生数据和抽取缓存；应用启动时将遗留 QUEUED/RUNNING run 标记为失败，避免卡住重建入口。
@@ -1200,9 +1200,9 @@ POST   /api/chat/stream/{requestId}/cancel
 
 - 不改变第 25 阶段的 SQLite 图谱事实层，也不新增图谱 endpoint；只扩展 `MINDMAP` / `GRAPH` 派生视图 payload。
 - `MINDMAP` 保留 Markdown，同时新增 `documents -> headings -> entities` 结构化数据，让思维导图从缩进列表升级为文档结构图。
-- `GRAPH` 保留 `nodes` / `edges`，新增类型统计、关系统计、隐藏节点数和边两端展示名，支撑图例、筛选和 Inspector。
+- `GRAPH` 保留 `nodes` / `edges`，新增类型统计、关系统计、隐藏节点数、边两端展示名和可选关系描述，支撑图例、筛选、Inspector、邻接列表和证据抽屉。
 - 前端显式引入 Cytoscape，普通视图展示可读预览，全屏弹窗提供筛选栏、大画布和右侧 Inspector。
-- 关系图用节点大小、节点颜色、边宽、箭头和标签表达提及次数、实体类型、证据强弱和关系方向；列表视图继续作为可访问性替代。
+- 关系图用节点大小、节点颜色、边宽、箭头和短中文标签表达提及次数、实体类型、证据强弱和关系方向；完整关系描述在 Inspector、邻接列表和证据抽屉展示，列表视图继续作为可访问性替代。
 
 ### Milestone 27：桌面会话令牌保护与自动更新
 

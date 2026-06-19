@@ -173,6 +173,7 @@ function graphElements() {
         label: formatRelationType(relation),
         relationType: relation,
         relationLabel: formatRelationType(relation),
+        description: edge.description || '',
         sourceLabel: edge.sourceLabel || nodeLabelById.get(edge.source) || edge.source,
         targetLabel: edge.targetLabel || nodeLabelById.get(edge.target) || edge.target,
         weight: edge.weight || 1,
@@ -585,8 +586,9 @@ function openSelectedEvidence() {
     emit('open-evidence', {
       type: 'edge',
       id: selectedItem.value.id,
-      label: selectedItem.value.label,
-      meta: `${selectedItem.value.sourceLabel || selectedItem.value.source} -> ${selectedItem.value.label} -> ${selectedItem.value.targetLabel || selectedItem.value.target}`
+      label: selectedItem.value.relationLabel || selectedItem.value.label,
+      meta: edgePathText(selectedItem.value),
+      description: selectedItem.value.description || ''
     })
     return
   }
@@ -598,6 +600,13 @@ function openSelectedEvidence() {
       meta: selectedItem.value.nodeType
     })
   }
+}
+
+function edgePathText(edge) {
+  const sourceLabel = edge.sourceLabel || edge.source
+  const relationLabel = edge.relationLabel || formatRelationType(edge.relationType || edge.label)
+  const targetLabel = edge.targetLabel || edge.target
+  return `${sourceLabel} -> ${relationLabel} -> ${targetLabel}`
 }
 
 function graphStyle() {
@@ -940,8 +949,14 @@ function countOptions(values) {
             <span v-if="selectedItem.weight">证据 {{ selectedItem.weight }}</span>
             <span v-if="selectedItem.confidence">score {{ formatScore(selectedItem.confidence) }}</span>
           </div>
+          <p
+            v-if="selectedItem.group === 'edge' && selectedItem.description"
+            class="graph-inspector__description"
+          >
+            {{ selectedItem.description }}
+          </p>
           <p v-if="selectedItem.group === 'edge'" class="graph-inspector__path">
-            {{ selectedItem.sourceLabel || selectedItem.source }} -> {{ selectedItem.label }} -> {{ selectedItem.targetLabel || selectedItem.target }}
+            {{ edgePathText(selectedItem) }}
           </p>
           <button
             v-if="selectedItem.group === 'edge' || (selectedItem.kind === 'entity' && selectedItem.evidenceId)"
