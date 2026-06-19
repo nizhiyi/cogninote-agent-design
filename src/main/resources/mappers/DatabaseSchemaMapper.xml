@@ -335,7 +335,7 @@
         DELETE FROM chat_sessions WHERE deleted = 1
     </delete>
 
-    <select id="countModelConfigs" resultType="_long">
+    <select id="countModelConfigs" resultType="long">
         SELECT COUNT(*) FROM model_configs
     </select>
 
