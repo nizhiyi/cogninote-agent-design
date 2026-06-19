@@ -262,7 +262,8 @@ public class GraphCanonicalizer {
     }
 
     private static boolean containsChinese(String value) {
-        return value.codePoints().anyMatch(codePoint -> codePoint >= 0x4E00 && codePoint <= 0x9FFF);
+        return value.codePoints().anyMatch(codePoint ->
+                Character.UnicodeScript.of(codePoint) == Character.UnicodeScript.HAN);
     }
 
     private static boolean containsAsciiLetter(String value) {

@@ -34,6 +34,7 @@ class DatabaseSchemaInitializerTests {
                     "relation_type",
                     "display_label"
             );
+            assertThat(indexColumnNames(sqlSession, "idx_kg_edges_scope_triple_migration")).isEmpty();
         }
     }
 

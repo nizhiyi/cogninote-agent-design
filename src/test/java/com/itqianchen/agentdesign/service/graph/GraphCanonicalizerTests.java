@@ -21,6 +21,7 @@ class GraphCanonicalizerTests {
     void relationDisplayLabelKeepsShortChinesePredicateOnly() {
         assertThat(canonicalizer.relationDisplayLabel("使用")).isEqualTo("使用");
         assertThat(canonicalizer.relationDisplayLabel(" 复制 到 ")).isEqualTo("复制到");
+        assertThat(canonicalizer.relationDisplayLabel("㐀用")).isEqualTo("㐀用");
         assertThat(canonicalizer.relationDisplayLabel("Notifies About")).isEqualTo("相关");
         assertThat(canonicalizer.relationDisplayLabel("")).isEqualTo("相关");
         assertThat(canonicalizer.relationDisplayLabel("这是一个过长的关系描述")).isEqualTo("相关");

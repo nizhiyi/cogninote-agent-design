@@ -180,6 +180,18 @@ public interface DatabaseSchemaMapper {
     void createKnowledgeGraphEdgesScopeTripleIndex();
 
     /**
+     * 创建图谱边索引迁移保护索引。
+     *
+     * <p>替换同名索引前先创建临时唯一索引，保证旧索引被删除后仍有唯一约束保护写入。</p>
+     */
+    void createKnowledgeGraphEdgesScopeTripleMigrationIndex();
+
+    /**
+     * 删除图谱边索引迁移保护索引。
+     */
+    void dropKnowledgeGraphEdgesScopeTripleMigrationIndex();
+
+    /**
      * 创建图谱证据 nodeId 索引。
      */
     void createKnowledgeGraphEvidenceNodeIndex();

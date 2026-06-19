@@ -108,9 +108,15 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
         databaseSchemaMapper.createChatMessagesConversationIdIndex();
         databaseSchemaMapper.createKnowledgeGraphNodesScopeCanonicalIndex();
         databaseSchemaMapper.createKnowledgeGraphEdgesScopeIndex();
-        // 旧索引不包含 display_label，会错误合并同一粗分类下的不同中文谓词。
+        /*
+         * 旧索引不包含 display_label，会错误合并同一粗分类下的不同中文谓词。
+         * SQLite 不能用 CREATE INDEX IF NOT EXISTS 覆盖同名旧索引；先建临时唯一索引，
+         * 再替换同名索引，避免 DROP 和 CREATE 之间出现无唯一约束窗口。
+         */
+        databaseSchemaMapper.createKnowledgeGraphEdgesScopeTripleMigrationIndex();
         databaseSchemaMapper.dropKnowledgeGraphEdgesScopeTripleIndex();
         databaseSchemaMapper.createKnowledgeGraphEdgesScopeTripleIndex();
+        databaseSchemaMapper.dropKnowledgeGraphEdgesScopeTripleMigrationIndex();
         databaseSchemaMapper.createKnowledgeGraphEvidenceNodeIndex();
         databaseSchemaMapper.createKnowledgeGraphEvidenceEdgeIndex();
         databaseSchemaMapper.createKnowledgeGraphEvidenceChunkIndex();

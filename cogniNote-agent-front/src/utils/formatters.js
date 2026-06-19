@@ -6,9 +6,7 @@ const RELATION_TYPE_LABELS = {
   SEQUENCE: '顺序',
   OWNERSHIP: '归属',
   COMPARISON: '对比',
-  CONSTRAINT: '约束',
-  RELATED_TO: '相关',
-  RELATES_TO: '相关'
+  CONSTRAINT: '约束'
 }
 
 /**
