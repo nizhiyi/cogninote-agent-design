@@ -36,6 +36,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
@@ -124,6 +125,23 @@ public class KnowledgeGraphService {
         return graphRepository.findActiveRun(scope)
                 .map(KnowledgeGraphRunResponse::from)
                 .orElseGet(() -> createAndStartRun(scope));
+    }
+
+    /**
+     * 删除指定范围已生成的知识图谱。
+     *
+     * <p>该操作只删除可从抽取缓存重建的派生图和运行历史；目录、文档、chunk 以及 chunk 抽取缓存保留。</p>
+     *
+     * @param scopeType 范围类型
+     * @param scopeId 范围 ID；全库范围为空
+     */
+    @Transactional
+    public synchronized void deleteGeneratedGraph(String scopeType, String scopeId) {
+        KnowledgeGraphScope scope = resolveScopeForDeletion(scopeType, scopeId);
+        if (graphRepository.findActiveRun(scope).isPresent()) {
+            throw new KnowledgeGraphException("当前范围的知识图谱正在生成，请取消或等待完成后再删除。");
+        }
+        graphRepository.deleteGeneratedGraph(scope);
     }
 
     /**
@@ -463,6 +481,27 @@ public class KnowledgeGraphService {
     }
 
     /**
+     * 解析删除请求的图谱范围。
+     *
+     * <p>删除旧缓存时，原目录或文档可能已经不存在，因此这里只校验 scope 形状，不校验业务对象是否仍存在。</p>
+     *
+     * @param scopeType 范围类型
+     * @param scopeId 范围 ID
+     * @return 可用于数据库删除的范围
+     */
+    private KnowledgeGraphScope resolveScopeForDeletion(String scopeType, String scopeId) {
+        KnowledgeGraphScopeType type = parseScopeType(scopeType);
+        if (type == KnowledgeGraphScopeType.ALL) {
+            return new KnowledgeGraphScope(type, null, "全库");
+        }
+        String normalizedScopeId = scopeId == null ? "" : scopeId.strip();
+        if (normalizedScopeId.isBlank()) {
+            throw new KnowledgeGraphException(type.name() + " scope requires scopeId");
+        }
+        return new KnowledgeGraphScope(type, normalizedScopeId, normalizedScopeId);
+    }
+
+    /**
      * 将 view 聚合行恢复为前端清单项。
      *
      * <p>这里不能复用 resolveScope：历史图谱对应的目录或文档可能已被删除，清单仍应展示兜底入口，
@@ -498,7 +537,7 @@ public class KnowledgeGraphService {
      */
     private ScopeDisplay scopeDisplay(KnowledgeGraphScopeType scopeType, String scopeId) {
         if (scopeType == KnowledgeGraphScopeType.ALL) {
-            return new ScopeDisplay("全库", "全部已解析资料");
+            return new ScopeDisplay("全库", "全部范围");
         }
         String normalizedScopeId = scopeId == null ? "" : scopeId.strip();
         if (scopeType == KnowledgeGraphScopeType.KNOWLEDGE_FOLDER) {

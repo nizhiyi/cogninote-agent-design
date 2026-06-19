@@ -705,7 +705,7 @@ PUT /api/chat/settings
 GET /api/knowledge-graphs
 ```
 
-返回已生成过前端视图的 scope 摘要列表，不返回 `MINDMAP` / `GRAPH` payload。客户端进入知识图谱页时应先调用该接口展示“已生成图谱”入口；用户点击具体条目后，再调用 `status` 和 `view` 读取完整图谱。
+返回已生成过前端视图的 scope 摘要列表，不返回 `MINDMAP` / `GRAPH` payload。客户端进入知识图谱页时应先调用该接口展示“已有知识图谱”入口，并在前端完成搜索、范围类型筛选和视图可用性筛选；用户点击具体条目的“查看”后，再调用 `status` 和 `view` 读取完整图谱并在弹窗中渲染。
 
 ```json
 [
@@ -743,6 +743,40 @@ GET /api/knowledge-graphs
 ```
 
 同一 scope 同时存在 `MINDMAP` 和 `GRAPH` 时只返回一条摘要，`generatedAt` 取对应 scope 最新视图更新时间。目录或文档已被删除时接口仍会返回摘要，`scopeName` 分别兜底为 `已删除目录` / `已删除文档`，`scopeSubtitle` 返回原始 scopeId，避免旧图谱入口导致页面失败。
+
+### 删除已生成图谱
+
+```text
+DELETE /api/knowledge-graphs?scopeType=KNOWLEDGE_FOLDER&scopeId=folder-xxx
+```
+
+删除指定 scope 已生成的知识图谱数据，包括节点、关系、证据、前端视图和运行历史。该操作不会删除用户原始目录、文档、chunks 或 chunk 抽取缓存；保留 chunk 抽取缓存是为了后续重新生成同一 scope 时继续复用模型抽取结果。目录或文档已经被删除时，只要清单中仍存在旧 scope 视图，客户端仍可用原始 `scopeId` 调用该接口清理旧图谱缓存。
+
+同一 scope 正在 `QUEUED` / `RUNNING` 时会返回 400，客户端应提示用户先取消或等待完成。
+
+成功响应：
+
+```json
+{
+  "success": true,
+  "code": "OK",
+  "message": "OK",
+  "data": true,
+  "timestamp": 1780000000000
+}
+```
+
+运行中删除的错误响应示例：
+
+```json
+{
+  "success": false,
+  "code": "BAD_REQUEST",
+  "message": "当前范围的知识图谱正在生成，请取消或等待完成后再删除。",
+  "data": null,
+  "timestamp": 1780000000000
+}
+```
 
 ### 重建图谱
 

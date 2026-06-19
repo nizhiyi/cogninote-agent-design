@@ -748,7 +748,7 @@ CREATE TABLE knowledge_graph_views (
 
 `app_settings` 是第 23 阶段新增的全局应用设置表，当前用于保存 `chat.query-contextualizer.mode`。它的优先级高于 `COGNINOTE_QUERY_CONTEXTUALIZER_MODE` 和旧的 `COGNINOTE_QUERY_CONTEXTUALIZER_ENABLED=false` 兼容开关。
 
-第 25 阶段新增知识图谱表。`knowledge_graph_chunk_extractions` 是跨 scope 复用的单 chunk 模型抽取缓存，命中条件是 `content_hash + prompt_version + model_config_id + EXTRACTED` 一致；`knowledge_graph_nodes`、`knowledge_graph_edges`、`knowledge_graph_evidence` 和 `knowledge_graph_views` 是按 scope 合并出的派生层，可从抽取缓存全量重建。`knowledge_graph_edges.relation_type` 保存归一化后的 8 类内部粗分类，用于合并、筛选、统计和配色；`knowledge_graph_edges.display_label` 保存模型输出并由后端校验的中文短关系谓词，用于画布边标签、邻接表和证据标题；`knowledge_graph_edges.description` 保存中文完整关系说明，用于 Inspector、邻接表详情和证据抽屉。SQLite 外键默认未开启，删除知识库目录或 scope 图谱时必须继续使用显式 SQL 清理。
+第 25 阶段新增知识图谱表。`knowledge_graph_chunk_extractions` 是跨 scope 复用的单 chunk 模型抽取缓存，命中条件是 `content_hash + prompt_version + model_config_id + EXTRACTED` 一致；`knowledge_graph_nodes`、`knowledge_graph_edges`、`knowledge_graph_evidence` 和 `knowledge_graph_views` 是按 scope 合并出的派生层，可从抽取缓存全量重建；`knowledge_graph_runs` 保存用户生成图谱的运行历史和进度恢复快照。`knowledge_graph_edges.relation_type` 保存归一化后的 8 类内部粗分类，用于合并、筛选、统计和配色；`knowledge_graph_edges.display_label` 保存模型输出并由后端校验的中文短关系谓词，用于画布边标签、邻接表和证据标题；`knowledge_graph_edges.description` 保存中文完整关系说明，用于 Inspector、邻接表详情和证据抽屉。SQLite 外键默认未开启，删除知识库目录或 scope 图谱时必须继续使用显式 SQL 清理；用户删除某个已有图谱只清理该 scope 的 nodes、edges、evidence、views 和 runs，不删除原始目录、文档、chunks 或 `knowledge_graph_chunk_extractions`。
 
 `chunks.content` 会额外占用一份解析后的文本空间，这是有意设计。
 
@@ -820,10 +820,10 @@ CogninoteMemoryAdvisor 注入会话摘要和最近原文消息
   ↓
 GraphViewBuilder 生成 MINDMAP markdown 和 GRAPH nodes/edges payload（含中文关系谓词与关系描述）
   ↓
-前端先展示已生成图谱清单，点击具体 scope 后按需读取完整视图
+前端先展示可搜索、可筛选的已生成图谱清单，点击具体 scope 后按需读取完整视图
 ```
 
-知识图谱页采用两段式加载：进入页面先调用 `GET /api/knowledge-graphs` 读取已生成 scope 摘要清单，只展示全库、目录和文档级入口、节点/关系数量与更新时间，不读取 `MINDMAP` / `GRAPH` payload；用户点击“查看”后，前端再按该 scope 调用 `status` 和 `view` 拉取完整图谱。这样重启应用后能看见过去生成过的图谱，也避免首屏加载大 JSON。
+知识图谱页采用两段式加载：进入页面先调用 `GET /api/knowledge-graphs` 读取已生成 scope 摘要清单，只展示全库、目录和文件级入口、节点/关系数量与更新时间，不读取 `MINDMAP` / `GRAPH` payload；清单在前端提供名称/路径搜索、范围类型筛选和视图可用性筛选。用户点击“查看”后，前端再按该 scope 调用 `status` 和 `view` 拉取完整图谱，并在全屏弹窗中展示思维导图、关系图或邻接列表；页面下方不再保留常驻图谱预览区。生成完成后前端弹出完成提示，用户可选择“立即打开”进入对应图谱。用户可以通过 `DELETE /api/knowledge-graphs` 删除某个 scope 的已生成图谱；该操作只清理节点、关系、证据、视图和运行历史，不删除原始目录、文档、chunks 或 chunk 抽取缓存，正在生成的 scope 会拒绝删除以避免后台任务写回旧数据。
 
 抽取 Prompt 位于 `cogninote-prompts.yaml` 的 `app.knowledge-graph.prompts.extraction`，当前关系抽取契约为 `kg-extract-v2`。其中 `version` 是缓存契约的一部分：Prompt 抽取语义变更时必须升级版本，旧缓存才会失效并重新抽取。关系展示契约分三层：`relation_type` / `GRAPH edges[].label` 是 8 类机器可筛选粗分类；`display_label` / `GRAPH edges[].displayLabel` 是模型直接输出的中文短谓词，也是前端唯一用于边标签的展示字段；`description` 是中文完整关系说明。后端会在抽取、合并和读取旧 `GRAPH` 缓存时统一校验这些字段：旧细粒度英文关系码只用于归入粗分类，不能继续作为 UI 文案展示。
 
@@ -1195,7 +1195,8 @@ POST   /api/chat/stream/{requestId}/cancel
 - 新增 `knowledge_graph_*` SQLite 表，按“抽取缓存层 + scope 派生层”保存图谱事实、证据和视图。
 - 新增 `KnowledgeGraphService`、`GraphExtractionService`、`GraphMergeService`、`GraphViewBuilder` 和 `KnowledgeGraphController`，支持按全库、知识库目录和单文档重建图谱。
 - 图谱抽取复用 active Chat 模型，Prompt 来自 `cogninote-prompts.yaml`，`prompt_version` 参与缓存命中，修改抽取语义时必须升级版本；关系 `type` 只作为 8 类内部粗分类，中文短谓词由 `displayLabel` 承担，中文完整说明由 `description` 承担。
-- `GET /api/knowledge-graphs` 返回已生成图谱的轻量 scope 清单，前端点击具体条目后才读取完整视图 payload。
+- `GET /api/knowledge-graphs` 返回已生成图谱的轻量 scope 清单，前端支持搜索和筛选；点击具体条目的“查看”后才读取完整视图 payload。
+- `DELETE /api/knowledge-graphs` 删除某个 scope 的已生成图谱派生数据和运行历史，保留原始资料、chunks 和 chunk 抽取缓存；正在生成的 scope 会拒绝删除。
 - 生成过程通过 SSE 推送 started/progress/view-ready/completed/failed/cancelled 等事件，前端断线后用 run/status 快照恢复。
 - 知识库工作台新增“知识图谱” tab，提供思维导图、关系图、邻接列表和节点/边证据抽屉。
 - 删除知识库目录时显式清理对应图谱派生数据和抽取缓存；应用启动时将遗留 QUEUED/RUNNING run 标记为失败，避免卡住重建入口。
@@ -1205,7 +1206,7 @@ POST   /api/chat/stream/{requestId}/cancel
 - 在第 25 阶段 SQLite 图谱事实层上补充 `knowledge_graph_edges.display_label`，不新增图谱 endpoint；`MINDMAP` / `GRAPH` 派生视图 payload 继续向后兼容旧缓存。
 - `MINDMAP` 保留 Markdown，同时新增 `documents -> headings -> entities` 结构化数据，让思维导图从缩进列表升级为文档结构图。
 - `GRAPH` 保留 `nodes` / `edges`，新增类型统计、关系统计、隐藏节点数、边两端展示名、中文 `displayLabel` 和关系描述，支撑图例、筛选、Inspector、邻接列表和证据抽屉。
-- 前端显式引入 Cytoscape，普通视图展示可读预览，全屏弹窗提供筛选栏、大画布和右侧 Inspector。
+- 前端显式引入 Cytoscape，完整图谱只在“查看”后的全屏弹窗中渲染；关系图弹窗提供筛选栏、大画布和右侧 Inspector，列表视图提供可搜索、可筛选的邻接表。
 - 关系图用节点大小、节点颜色、边宽、箭头和短中文标签表达提及次数、实体类型、证据强弱和关系方向；完整关系描述在 Inspector、邻接列表和证据抽屉展示，列表视图继续作为可访问性替代。
 
 ### Milestone 27：桌面会话令牌保护与自动更新

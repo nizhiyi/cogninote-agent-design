@@ -1,6 +1,7 @@
 package com.itqianchen.agentdesign.service.graph;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -8,6 +9,7 @@ import com.itqianchen.agentdesign.domain.document.DocumentStatus;
 import com.itqianchen.agentdesign.domain.document.FileType;
 import com.itqianchen.agentdesign.domain.document.KnowledgeDocument;
 import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphEdge;
+import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphException;
 import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphRun;
 import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphRunStatus;
 import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphScope;
@@ -90,7 +92,7 @@ class KnowledgeGraphServiceTests {
         assertThat(allSummary.scopeType()).isEqualTo("ALL");
         assertThat(allSummary.scopeId()).isNull();
         assertThat(allSummary.scopeName()).isEqualTo("全库");
-        assertThat(allSummary.scopeSubtitle()).isEqualTo("全部已解析资料");
+        assertThat(allSummary.scopeSubtitle()).isEqualTo("全部范围");
         assertThat(allSummary.nodeCount()).isEqualTo(12);
         assertThat(allSummary.edgeCount()).isEqualTo(9);
     }
@@ -175,6 +177,27 @@ class KnowledgeGraphServiceTests {
         assertThat(secondEdge.path("description").asText()).isEqualTo("Sentinel 相关 客户端。");
     }
 
+    @Test
+    void deleteGeneratedGraphAcceptsDeletedScopeTarget() {
+        service.deleteGeneratedGraph("DOCUMENT", "missing-doc");
+
+        assertThat(repository.deletedScopes).containsExactly("DOCUMENT:missing-doc");
+    }
+
+    @Test
+    void deleteGeneratedGraphRejectsActiveRun() {
+        long now = 1780000000000L;
+        repository.activeRuns.put(
+                "KNOWLEDGE_FOLDER:folder-1",
+                run("run-active", KnowledgeGraphScopeType.KNOWLEDGE_FOLDER, "folder-1", KnowledgeGraphRunStatus.RUNNING, now)
+        );
+
+        assertThatThrownBy(() -> service.deleteGeneratedGraph("KNOWLEDGE_FOLDER", "folder-1"))
+                .isInstanceOf(KnowledgeGraphException.class)
+                .hasMessageContaining("正在生成");
+        assertThat(repository.deletedScopes).isEmpty();
+    }
+
     private static final class FakeKnowledgeGraphRepository extends KnowledgeGraphRepository {
         private KnowledgeGraphView view;
         private List<KnowledgeGraphEdge> edges = List.of();
@@ -182,6 +205,8 @@ class KnowledgeGraphServiceTests {
         private final Map<String, Integer> nodeCounts = new HashMap<>();
         private final Map<String, Integer> edgeCounts = new HashMap<>();
         private final Map<String, KnowledgeGraphRun> latestRuns = new HashMap<>();
+        private final Map<String, KnowledgeGraphRun> activeRuns = new HashMap<>();
+        private final List<String> deletedScopes = new java.util.ArrayList<>();
 
         private FakeKnowledgeGraphRepository() {
             super(null);
@@ -205,6 +230,16 @@ class KnowledgeGraphServiceTests {
         @Override
         public Optional<KnowledgeGraphRun> findLatestRunForScope(KnowledgeGraphScope scope) {
             return Optional.ofNullable(latestRuns.get(scopeKey(scope)));
+        }
+
+        @Override
+        public Optional<KnowledgeGraphRun> findActiveRun(KnowledgeGraphScope scope) {
+            return Optional.ofNullable(activeRuns.get(scopeKey(scope)));
+        }
+
+        @Override
+        public void deleteGeneratedGraph(KnowledgeGraphScope scope) {
+            deletedScopes.add(scopeKey(scope));
         }
 
         @Override
@@ -254,11 +289,21 @@ class KnowledgeGraphServiceTests {
             String scopeId,
             long now
     ) {
+        return run(id, scopeType, scopeId, KnowledgeGraphRunStatus.COMPLETED, now);
+    }
+
+    private static KnowledgeGraphRun run(
+            String id,
+            KnowledgeGraphScopeType scopeType,
+            String scopeId,
+            KnowledgeGraphRunStatus status,
+            long now
+    ) {
         return new KnowledgeGraphRun(
                 id,
                 scopeType,
                 scopeId,
-                KnowledgeGraphRunStatus.COMPLETED,
+                status,
                 "chat-config-1",
                 "kg-extract-v2",
                 4,

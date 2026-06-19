@@ -418,6 +418,7 @@ POST /api/knowledge-graphs/runs/{runId}/cancel
 
 ```http
 GET /api/knowledge-graphs
+DELETE /api/knowledge-graphs?scopeType=KNOWLEDGE_FOLDER&scopeId=...
 GET /api/knowledge-graphs/status?scopeType=KNOWLEDGE_FOLDER&scopeId=...
 GET /api/knowledge-graphs/view?scopeType=KNOWLEDGE_FOLDER&scopeId=...&viewType=MINDMAP
 GET /api/knowledge-graphs/view?scopeType=KNOWLEDGE_FOLDER&scopeId=...&viewType=GRAPH
@@ -425,7 +426,7 @@ GET /api/knowledge-graphs/nodes/{id}/evidence
 GET /api/knowledge-graphs/edges/{id}/evidence
 ```
 
-`GET /api/knowledge-graphs` 返回已生成图谱的 scope 摘要清单，不携带 `MINDMAP` / `GRAPH` payload。进入知识图谱页时先展示该清单；用户点击全库、目录或文档条目后，再按 scope 调用 `status` 与 `view` 加载完整图谱，避免重新进入应用时看不到历史图谱，也避免首屏拉取大 JSON。
+`GET /api/knowledge-graphs` 返回已生成图谱的 scope 摘要清单，不携带 `MINDMAP` / `GRAPH` payload。进入知识图谱页时先展示该清单；用户点击全库、目录或文档条目的“查看”后，再按 scope 调用 `status` 与 `view` 加载完整图谱，避免重新进入应用时看不到历史图谱，也避免首屏拉取大 JSON。`DELETE /api/knowledge-graphs` 用于删除某个 scope 的已生成图谱，只清理 nodes、edges、evidence、views 和 runs，不删除原始资料、chunks 或 chunk 抽取缓存。
 
 `MINDMAP` payload 第一版可以直接返回 Markdown：
 
@@ -477,14 +478,12 @@ cogniNote-agent-front/src/components/graph-evidence-drawer.vue
 面板布局：
 
 ```text
-工具栏：范围选择（全库 / 目录下拉） · 视图切换（思维导图 | 关系图 | 列表，复用 segmented-control） · 生成 / 取消 · 上次生成时间
-主区四态状态机：
-  - 空态：说明文案 + 生成按钮
-  - 生成中：进度条（processed/total）+ 跳过/失败计数 + 取消按钮
-  - 完成：渲染当前视图
-  - 失败：错误原因 + 恢复路径（如“未配置 Chat 模型 -> 去设置”，复用现有 embeddingReady 警告条 + 设置跳转模式）
-证据侧栏：点击节点/边滑出；实体名或关系路径 + 类型/关系 chip + 描述 + 证据列表（quote、文件名、heading、页码）；
-  点击证据打开 chunk 详情弹窗（复用 getDocumentChunk API 与 source-inspector 的交互模式）
+顶部模式：生成知识图谱 / 已有知识图谱
+生成模式：三级范围选择（全部 / 目录 / 文件） · 生成 / 取消 · 进度条（processed/total）+ 跳过/失败计数
+已有模式：可搜索、可按范围类型和视图可用性筛选的图谱清单；每条提供 查看 / 重新生成 / 删除
+查看：点击“查看”后按需读取 status/view，并在全屏弹窗中切换思维导图 / 关系图 / 列表
+证据抽屉：点击节点/边滑出；实体名或关系路径 + 类型/关系 chip + 描述 + 证据列表（quote、文件名、heading、页码）
+完成提示：生成完成后弹窗提示节点/关系数量，并提供“立即打开”
 ```
 
 状态归属：
@@ -493,8 +492,9 @@ cogniNote-agent-front/src/components/graph-evidence-drawer.vue
 
 第一版视觉重点：
 
-- 默认展示思维导图，不默认渲染过大的全量关系图。
-- 页面顶部展示已生成图谱清单，列出全库、目录和文档级图谱入口；点击“查看”后才渲染当前 scope 的完整视图。
+- 首屏默认进入“已有知识图谱”，只展示轻量摘要清单，不默认渲染过大的完整视图。
+- 已有知识图谱清单列出全库、目录和文件级图谱入口；点击“查看”后才在全屏弹窗中渲染当前 scope 的完整视图。
+- 清单里的“删除”是危险操作，必须二次确认；后端只删除该 scope 的图谱派生数据和运行记录，不删除原始目录、文件、chunks 或 chunk 抽取缓存。
 - 关系图规模边界：默认只渲染 Top 50–100 节点（该规模 SVG 渲染足够），提供“按节点展开邻居”的局部加载入口；超过 500 节点的全图渲染明确不支持，引导用户改用列表视图或缩小范围。
 - 列表（邻接表）视图：`节点 A -> 关系 -> 节点 B -> 证据数` 表格；关系列直接显示后端 `displayLabel`，并展示中文 `description` 完整关系说明。它同时是网络图的可访问性替代（网络图对屏幕阅读器基本不可用，规范要求永远提供列表替代）和大图兜底。
 - 图谱生成中显示进度条、已处理 chunks、跳过 chunks、失败 chunks 和当前阶段。
@@ -516,7 +516,7 @@ cogniNote-agent-front/src/components/graph-evidence-drawer.vue
 ## 与现有功能的关系
 
 - 文档导入成功后，不自动调用图谱生成。图谱生成有模型成本，必须由用户显式触发。
-- 删除知识库目录时，按现有显式删除模式级联清理：该目录 scope 的 nodes / edges / evidence / views / runs，以及目录下所有 chunk 的抽取缓存行。不依赖 FK 级联（本项目未开启 foreign_keys）。
+- 删除知识库目录时，按现有显式删除模式级联清理：该目录 scope 的 nodes / edges / evidence / views / runs，以及目录下所有 chunk 的抽取缓存行。不依赖 FK 级联（本项目未开启 foreign_keys）。用户在“已有知识图谱”里删除某个 scope 图谱时只删除该 scope 的派生图和 runs，保留 chunk 抽取缓存以便重新生成复用。
 - 文档重新导入后，旧 chunk 的抽取缓存成为孤儿，由下次 rebuild 开头的 GC 清理，不侵入导入流程。
 - 合并阶段对 scope 旧图谱做全删重建，因此旧 run 的派生数据不会无限累积；runs 表只保留历史记录行。
 - 停用知识库目录时，图谱数据可以保留，但默认查询和展示不包含停用目录。
@@ -555,6 +555,7 @@ cogniNote-agent-front/src/components/graph-evidence-drawer.vue
 - SSE 能收到 started、progress、completed 或 failed 事件。
 - 前端刷新后能通过 `GET /runs/{runId}` 恢复任务状态。
 - 删除知识库目录时，scope 图谱数据与对应抽取缓存均不残留。
+- 删除已有知识图谱时，该 scope 的 nodes、edges、evidence、views 和 runs 不残留；原始目录、文档、chunks 和 chunk 抽取缓存仍保留。
 - 思维导图视图能渲染空状态、生成中、完成和失败状态。
 - 列表（邻接表）视图能渲染节点-关系-节点表格，并能显示中文关系谓词和关系描述。
 

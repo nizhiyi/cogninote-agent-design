@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import {
   cancelKnowledgeGraphRun,
+  deleteKnowledgeGraph,
   getKnowledgeGraphStatus,
   getKnowledgeGraphView,
   listKnowledgeGraphs,
@@ -83,9 +84,10 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
     isLoadingGeneratedGraphs.value = true
     generatedGraphsError.value = ''
     try {
-      generatedGraphs.value = await listKnowledgeGraphs()
+      const graphs = await listKnowledgeGraphs()
+      generatedGraphs.value = Array.isArray(graphs) ? graphs : []
     } catch (err) {
-      generatedGraphsError.value = `已生成图谱读取失败：${err.message}`
+      generatedGraphsError.value = `已生成图谱读取失败：${err?.message || '请稍后重试'}`
     } finally {
       isLoadingGeneratedGraphs.value = false
     }
@@ -183,6 +185,28 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
     }
   }
 
+  async function deleteGeneratedGraph(graph) {
+    if (!graph) {
+      return
+    }
+    const targetScope = {
+      scopeType: graph.scopeType || 'ALL',
+      scopeId: graph.scopeId || ''
+    }
+    const targetKey = scopeKey(targetScope)
+    generatedGraphsError.value = ''
+    try {
+      await deleteKnowledgeGraph(targetScope)
+      generatedGraphs.value = generatedGraphs.value.filter((item) => scopeKey(item) !== targetKey)
+      if (activeGraphKey.value === targetKey || currentScopeKey.value === targetKey) {
+        resetCurrentGraphState()
+      }
+    } catch (err) {
+      generatedGraphsError.value = `知识图谱删除失败：${err?.message || '请稍后重试'}`
+      throw err
+    }
+  }
+
   function stopRunStream() {
     if (!runAbortController) {
       return
@@ -247,9 +271,9 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
         title: '知识图谱生成完成',
         body: buildGraphCompletedNotification(payload)
       })
+      activeGraphKey.value = currentScopeKey.value
       void loadStatus({ subscribeActive: false, loadView: true })
       void loadGeneratedGraphs()
-      activeGraphKey.value = currentScopeKey.value
       return
     }
     if (eventName === 'graph-run-failed' || eventName === 'graph-run-cancelled') {
@@ -279,7 +303,11 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
     stopRunStream()
     scopeType.value = nextScopeType || 'ALL'
     scopeId.value = scopeType.value === 'ALL' ? '' : nextScopeId
-    // scope 是图谱缓存键的一部分；只要切换范围，就不能继续展示旧范围的状态和视图。
+    resetCurrentGraphState()
+  }
+
+  function resetCurrentGraphState() {
+    // scope 是图谱缓存键的一部分；只要切换范围或删除当前图谱，就不能继续展示旧范围的状态和视图。
     activeGraphKey.value = ''
     statusSnapshot.value = null
     currentRun.value = null
@@ -397,6 +425,7 @@ export const useKnowledgeGraphStore = defineStore('knowledgeGraph', () => {
     loadCurrentView,
     rebuild,
     cancelRun,
+    deleteGeneratedGraph,
     setScopeForGeneration,
     selectScope,
     openGeneratedGraph,

@@ -2,12 +2,22 @@ package com.itqianchen.agentdesign.service.graph;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphEdge;
+import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphEvidence;
+import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphNode;
+import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphRun;
+import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphRunStatus;
+import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphScope;
 import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphScopeType;
 import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphView;
 import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphViewType;
 import com.itqianchen.agentdesign.mapper.graph.KnowledgeGraphMapper;
 import com.itqianchen.agentdesign.mapper.graph.KnowledgeGraphSummaryRow;
 import com.itqianchen.agentdesign.mapper.schema.DatabaseSchemaMapper;
+import com.itqianchen.agentdesign.repository.graph.KnowledgeGraphRepository;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.List;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
@@ -50,6 +60,47 @@ class KnowledgeGraphMapperTests {
         }
     }
 
+    @Test
+    void deleteGeneratedGraphRemovesScopeFactsViewsAndRuns() {
+        try (SqlSession sqlSession = sqliteSqlSession()) {
+            DatabaseSchemaMapper schemaMapper = sqlSession.getMapper(DatabaseSchemaMapper.class);
+            KnowledgeGraphMapper graphMapper = sqlSession.getMapper(KnowledgeGraphMapper.class);
+            schemaMapper.createKnowledgeGraphRunsTable();
+            schemaMapper.createKnowledgeGraphNodesTable();
+            schemaMapper.createKnowledgeGraphEdgesTable();
+            schemaMapper.createKnowledgeGraphEvidenceTable();
+            schemaMapper.createKnowledgeGraphViewsTable();
+            KnowledgeGraphRepository repository = new KnowledgeGraphRepository(graphMapper);
+            long now = 1780000000000L;
+            KnowledgeGraphScope folderScope = new KnowledgeGraphScope(KnowledgeGraphScopeType.KNOWLEDGE_FOLDER, "folder-1", "项目资料");
+
+            graphMapper.insertRun(run("run-1", "folder-1", now));
+            graphMapper.insertNode(node("node-a", "folder-1", "Redis", now));
+            graphMapper.insertNode(node("node-b", "folder-1", "Sentinel", now));
+            graphMapper.insertEdge(edge("edge-1", "folder-1", now));
+            graphMapper.insertEvidence(new KnowledgeGraphEvidence(
+                    "evidence-1",
+                    "run-1",
+                    "node-a",
+                    "edge-1",
+                    "doc-1",
+                    "chunk-1",
+                    "Redis 使用 Sentinel",
+                    0.9,
+                    now
+            ));
+            graphMapper.insertView(view("view-graph", "folder-1", KnowledgeGraphViewType.GRAPH, now));
+
+            repository.deleteGeneratedGraph(folderScope);
+
+            assertThat(graphMapper.countNodesByScope("KNOWLEDGE_FOLDER", "folder-1")).isZero();
+            assertThat(graphMapper.countEdgesByScope("KNOWLEDGE_FOLDER", "folder-1")).isZero();
+            assertThat(graphMapper.findView("KNOWLEDGE_FOLDER", "folder-1", "GRAPH")).isEmpty();
+            assertThat(graphMapper.findRunById("run-1")).isEmpty();
+            assertThat(countRows(sqlSession.getConnection(), "knowledge_graph_evidence")).isZero();
+        }
+    }
+
     private static KnowledgeGraphView view(
             String id,
             String scopeId,
@@ -66,6 +117,70 @@ class KnowledgeGraphMapperTests {
                 updatedAt - 1000,
                 updatedAt
         );
+    }
+
+    private static KnowledgeGraphRun run(String id, String scopeId, long now) {
+        return new KnowledgeGraphRun(
+                id,
+                KnowledgeGraphScopeType.KNOWLEDGE_FOLDER,
+                scopeId,
+                KnowledgeGraphRunStatus.COMPLETED,
+                "chat-config-1",
+                "kg-extract-v2",
+                1,
+                1,
+                0,
+                2,
+                1,
+                0,
+                null,
+                now - 1000,
+                now,
+                now - 1000,
+                now
+        );
+    }
+
+    private static KnowledgeGraphNode node(String id, String scopeId, String displayName, long now) {
+        return new KnowledgeGraphNode(
+                id,
+                KnowledgeGraphScopeType.KNOWLEDGE_FOLDER,
+                scopeId,
+                displayName.toLowerCase(),
+                displayName,
+                "TECHNOLOGY",
+                displayName,
+                0.9,
+                1,
+                now,
+                now
+        );
+    }
+
+    private static KnowledgeGraphEdge edge(String id, String scopeId, long now) {
+        return new KnowledgeGraphEdge(
+                id,
+                KnowledgeGraphScopeType.KNOWLEDGE_FOLDER,
+                scopeId,
+                "node-a",
+                "node-b",
+                "FUNCTIONAL",
+                "使用",
+                "Redis 使用 Sentinel",
+                0.9,
+                1,
+                now,
+                now
+        );
+    }
+
+    private static long countRows(Connection connection, String tableName) {
+        try (Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) FROM " + tableName)) {
+            return resultSet.next() ? resultSet.getLong(1) : 0;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to count rows for " + tableName, ex);
+        }
     }
 
     private static SqlSession sqliteSqlSession() {

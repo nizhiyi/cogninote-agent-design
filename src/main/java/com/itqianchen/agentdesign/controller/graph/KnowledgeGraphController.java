@@ -11,6 +11,7 @@ import com.itqianchen.agentdesign.service.graph.KnowledgeGraphService;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -48,6 +49,24 @@ public class KnowledgeGraphController {
     @GetMapping
     public ApiResponse<List<KnowledgeGraphSummaryResponse>> listGeneratedGraphs() {
         return ApiResponse.ok(knowledgeGraphService.listGeneratedGraphs());
+    }
+
+    /**
+     * 删除指定范围已生成的知识图谱。
+     *
+     * <p>只删除图谱节点、关系、证据、视图和运行历史，不删除用户原始目录、文档或 chunk 抽取缓存。</p>
+     *
+     * @param scopeType 范围类型
+     * @param scopeId 范围 ID；全局范围可为空
+     * @return 删除完成标记
+     */
+    @DeleteMapping
+    public ApiResponse<Boolean> deleteGeneratedGraph(
+            @RequestParam String scopeType,
+            @RequestParam(required = false) String scopeId
+    ) {
+        knowledgeGraphService.deleteGeneratedGraph(scopeType, scopeId);
+        return ApiResponse.ok(true);
     }
 
     /**

@@ -231,6 +231,19 @@ public class KnowledgeGraphRepository {
     }
 
     /**
+     * 删除用户已生成的某个图谱。
+     *
+     * <p>运行历史和派生图一起删除，确保清单、状态和证据抽屉不会继续指向旧 scope；chunk 抽取缓存保留，
+     * 后续重新生成同一 scope 时仍可复用模型抽取结果。</p>
+     *
+     * @param scope 图谱范围
+     */
+    public void deleteGeneratedGraph(KnowledgeGraphScope scope) {
+        deleteScopeDerivedGraph(scope);
+        mapper.deleteRunsByScope(scope.scopeType().name(), scope.normalizedScopeId());
+    }
+
+    /**
      * 按 scope 字段删除派生图谱。
      *
      * <p>删除顺序从 evidence 到 node，兼容未启用 foreign_keys 的 SQLite 连接。</p>

@@ -19,6 +19,11 @@ export function listKnowledgeGraphs() {
   return requestJson('/api/knowledge-graphs')
 }
 
+export function deleteKnowledgeGraph(scope) {
+  const params = scopeParams(scope)
+  return requestJson(`/api/knowledge-graphs?${params}`, { method: 'DELETE' })
+}
+
 export function getKnowledgeGraphStatus(scope) {
   const params = scopeParams(scope)
   return requestJson(`/api/knowledge-graphs/status?${params}`)
