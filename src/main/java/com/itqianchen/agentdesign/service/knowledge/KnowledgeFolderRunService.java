@@ -1,0 +1,254 @@
+package com.itqianchen.agentdesign.service.knowledge;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRun;
+import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunOperation;
+import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunScopeType;
+import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunStatus;
+import com.itqianchen.agentdesign.dto.document.IngestDocumentsResponse;
+import com.itqianchen.agentdesign.dto.document.IngestFailureResponse;
+import com.itqianchen.agentdesign.dto.index.RebuildIndexResponse;
+import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRebuildResponse;
+import com.itqianchen.agentdesign.repository.knowledge.KnowledgeFolderRunRepository;
+import java.util.List;
+import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+
+/**
+ * 维护知识库目录操作历史。
+ *
+ * <p>运行记录用于解释最近一次导入、同步和重建结果，不参与导入事务的正确性判断。</p>
+ */
+@Service
+public class KnowledgeFolderRunService {
+
+    private static final Logger log = LoggerFactory.getLogger(KnowledgeFolderRunService.class);
+
+    private final KnowledgeFolderRunRepository runRepository;
+    private final ObjectMapper objectMapper;
+
+    /**
+     * 注入运行记录依赖。
+     *
+     * @param runRepository 运行记录仓储
+     * @param objectMapper JSON 编码器
+     */
+    public KnowledgeFolderRunService(KnowledgeFolderRunRepository runRepository, ObjectMapper objectMapper) {
+        this.runRepository = runRepository;
+        this.objectMapper = objectMapper;
+    }
+
+    /**
+     * 记录目录导入结果。
+     *
+     * @param folderId 目录 ID
+     * @param response 导入响应
+     * @param startedAt 操作开始时间戳
+     */
+    public void recordImport(String folderId, IngestDocumentsResponse response, long startedAt) {
+        recordIngestRun(KnowledgeFolderRunOperation.IMPORT, folderId, response, startedAt);
+    }
+
+    /**
+     * 记录目录同步结果。
+     *
+     * @param folderId 目录 ID
+     * @param response 同步响应
+     * @param startedAt 操作开始时间戳
+     */
+    public void recordSync(String folderId, IngestDocumentsResponse response, long startedAt) {
+        recordIngestRun(KnowledgeFolderRunOperation.SYNC, folderId, response, startedAt);
+    }
+
+    /**
+     * 记录目录重建结果。
+     *
+     * @param folderId 目录 ID
+     * @param response 重建响应
+     * @param startedAt 操作开始时间戳
+     */
+    public void recordFolderRebuild(String folderId, KnowledgeFolderRebuildResponse response, long startedAt) {
+        long completedAt = System.currentTimeMillis();
+        insert(new KnowledgeFolderRun(
+                UUID.randomUUID().toString(),
+                KnowledgeFolderRunScopeType.KNOWLEDGE_FOLDER,
+                folderId,
+                KnowledgeFolderRunOperation.REBUILD_INDEX,
+                statusFor(response.failedCount(), response.failedDocumentCount()),
+                response.scannedCount(),
+                response.parsedCount(),
+                response.skippedCount(),
+                response.failedCount(),
+                response.indexedDocumentCount(),
+                response.indexedChunkCount(),
+                response.failedDocumentCount(),
+                failuresJson(response.failures()),
+                startedAt,
+                completedAt,
+                completedAt - startedAt,
+                null,
+                completedAt
+        ));
+    }
+
+    /**
+     * 记录全库索引重建结果。
+     *
+     * @param response 重建响应
+     * @param startedAt 操作开始时间戳
+     */
+    public void recordAllIndexRebuild(RebuildIndexResponse response, long startedAt) {
+        long completedAt = System.currentTimeMillis();
+        insert(new KnowledgeFolderRun(
+                UUID.randomUUID().toString(),
+                KnowledgeFolderRunScopeType.ALL,
+                null,
+                KnowledgeFolderRunOperation.REBUILD_INDEX,
+                statusFor(0, response.failedDocumentCount()),
+                0,
+                0,
+                0,
+                0,
+                response.indexedDocumentCount(),
+                response.indexedChunkCount(),
+                response.failedDocumentCount(),
+                null,
+                startedAt,
+                completedAt,
+                completedAt - startedAt,
+                null,
+                completedAt
+        ));
+    }
+
+    /**
+     * 记录目录启用或停用结果。
+     *
+     * @param folderId 目录 ID
+     * @param enabled 是否启用
+     * @param rebuildResponse 启用时的索引重建结果；停用时为空
+     * @param startedAt 操作开始时间戳
+     */
+    public void recordEnabled(String folderId, boolean enabled, RebuildIndexResponse rebuildResponse, long startedAt) {
+        long completedAt = System.currentTimeMillis();
+        long failedDocumentCount = rebuildResponse == null ? 0 : rebuildResponse.failedDocumentCount();
+        insert(new KnowledgeFolderRun(
+                UUID.randomUUID().toString(),
+                KnowledgeFolderRunScopeType.KNOWLEDGE_FOLDER,
+                folderId,
+                enabled ? KnowledgeFolderRunOperation.ENABLE : KnowledgeFolderRunOperation.DISABLE,
+                statusFor(0, failedDocumentCount),
+                0,
+                0,
+                0,
+                0,
+                rebuildResponse == null ? 0 : rebuildResponse.indexedDocumentCount(),
+                rebuildResponse == null ? 0 : rebuildResponse.indexedChunkCount(),
+                failedDocumentCount,
+                null,
+                startedAt,
+                completedAt,
+                completedAt - startedAt,
+                null,
+                completedAt
+        ));
+    }
+
+    /**
+     * 记录目录删除结果。
+     *
+     * @param folderId 目录 ID
+     * @param deletedDocuments 删除的应用内文档数量
+     * @param startedAt 操作开始时间戳
+     */
+    public void recordDelete(String folderId, int deletedDocuments, long startedAt) {
+        long completedAt = System.currentTimeMillis();
+        insert(new KnowledgeFolderRun(
+                UUID.randomUUID().toString(),
+                KnowledgeFolderRunScopeType.KNOWLEDGE_FOLDER,
+                folderId,
+                KnowledgeFolderRunOperation.DELETE,
+                KnowledgeFolderRunStatus.COMPLETED,
+                deletedDocuments,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                null,
+                startedAt,
+                completedAt,
+                completedAt - startedAt,
+                null,
+                completedAt
+        ));
+    }
+
+    private void recordIngestRun(
+            KnowledgeFolderRunOperation operation,
+            String folderId,
+            IngestDocumentsResponse response,
+            long startedAt
+    ) {
+        long completedAt = System.currentTimeMillis();
+        insert(new KnowledgeFolderRun(
+                UUID.randomUUID().toString(),
+                KnowledgeFolderRunScopeType.KNOWLEDGE_FOLDER,
+                folderId,
+                operation,
+                statusFor(response.failedCount(), 0),
+                response.scannedCount(),
+                response.parsedCount(),
+                response.skippedCount(),
+                response.failedCount(),
+                0,
+                0,
+                0,
+                failuresJson(response.failures()),
+                startedAt,
+                completedAt,
+                completedAt - startedAt,
+                null,
+                completedAt
+        ));
+    }
+
+    private void insert(KnowledgeFolderRun run) {
+        try {
+            runRepository.insert(run);
+        } catch (RuntimeException ex) {
+            /*
+             * 运行记录是可丢失的诊断信息。写入失败不能反向破坏已经完成的目录导入、同步或重建。
+             */
+            log.warn("knowledge_folder_run_record_failed operation={} scopeType={} scopeId={}",
+                    run.operation(),
+                    run.scopeType(),
+                    run.scopeId(),
+                    ex
+            );
+        }
+    }
+
+    private String failuresJson(List<IngestFailureResponse> failures) {
+        if (failures == null || failures.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(failures);
+        } catch (JsonProcessingException ex) {
+            log.warn("knowledge_folder_run_failures_json_encode_failed failureCount={}", failures.size(), ex);
+            return null;
+        }
+    }
+
+    private static KnowledgeFolderRunStatus statusFor(long failedCount, long failedDocumentCount) {
+        if (failedCount > 0 || failedDocumentCount > 0) {
+            return KnowledgeFolderRunStatus.COMPLETED_WITH_WARNINGS;
+        }
+        return KnowledgeFolderRunStatus.COMPLETED;
+    }
+}

@@ -43,6 +43,7 @@ public class KnowledgeFolderService {
     private final KnowledgeStore knowledgeStore;
     private final DocumentIdentity documentIdentity;
     private final KnowledgeGraphRepository knowledgeGraphRepository;
+    private final KnowledgeFolderRunService runService;
 
     /**
      * 注入知识库目录编排依赖。
@@ -53,6 +54,7 @@ public class KnowledgeFolderService {
      * @param knowledgeStore 检索索引边界
      * @param documentIdentity 文档 ID 生成器
      * @param knowledgeGraphRepository 图谱仓储
+     * @param runService 知识库维护运行记录服务
      */
     public KnowledgeFolderService(
             KnowledgeFolderRepository knowledgeFolderRepository,
@@ -60,7 +62,8 @@ public class KnowledgeFolderService {
             DocumentIngestionService ingestionService,
             KnowledgeStore knowledgeStore,
             DocumentIdentity documentIdentity,
-            KnowledgeGraphRepository knowledgeGraphRepository
+            KnowledgeGraphRepository knowledgeGraphRepository,
+            KnowledgeFolderRunService runService
     ) {
         this.knowledgeFolderRepository = knowledgeFolderRepository;
         this.documentRepository = documentRepository;
@@ -68,6 +71,7 @@ public class KnowledgeFolderService {
         this.knowledgeStore = knowledgeStore;
         this.documentIdentity = documentIdentity;
         this.knowledgeGraphRepository = knowledgeGraphRepository;
+        this.runService = runService;
     }
 
     /**
@@ -102,6 +106,7 @@ public class KnowledgeFolderService {
      */
     @Transactional
     public IngestDocumentsResponse importFolder(String folderPath, boolean recursive) {
+        long startedAt = System.currentTimeMillis();
         KnowledgeFolder folder = upsertFolder(folderPath, recursive, true);
         IngestDocumentsResponse response = ingestionService.ingestKnowledgeFolder(
                 folder.id(),
@@ -119,6 +124,7 @@ public class KnowledgeFolderService {
                 response.skippedCount(),
                 response.failedCount()
         );
+        runService.recordImport(folder.id(), response, startedAt);
         return response;
     }
 
@@ -159,6 +165,7 @@ public class KnowledgeFolderService {
      */
     @Transactional
     public IngestDocumentsResponse syncFolder(String id) {
+        long startedAt = System.currentTimeMillis();
         KnowledgeFolder folder = requireFolder(id);
         if (!folder.enabled()) {
             throw new DocumentParseException("Knowledge folder is disabled: " + folder.displayName());
@@ -185,6 +192,7 @@ public class KnowledgeFolderService {
                 response.skippedCount(),
                 response.failedCount()
         );
+        runService.recordSync(folder.id(), response, startedAt);
         return response;
     }
 
@@ -196,6 +204,7 @@ public class KnowledgeFolderService {
      */
     @Transactional
     public KnowledgeFolderRebuildResponse rebuildFolder(String id) {
+        long startedAt = System.currentTimeMillis();
         KnowledgeFolder folder = requireFolder(id);
         if (!folder.enabled()) {
             throw new DocumentParseException("Knowledge folder is disabled: " + folder.displayName());
@@ -224,7 +233,9 @@ public class KnowledgeFolderService {
                 rebuildResponse.indexedDocumentCount(),
                 rebuildResponse.failedDocumentCount()
         );
-        return KnowledgeFolderRebuildResponse.from(ingestResponse, rebuildResponse);
+        KnowledgeFolderRebuildResponse response = KnowledgeFolderRebuildResponse.from(ingestResponse, rebuildResponse);
+        runService.recordFolderRebuild(folder.id(), response, startedAt);
+        return response;
     }
 
     /**
@@ -237,6 +248,7 @@ public class KnowledgeFolderService {
      */
     @Transactional
     public void setEnabled(String id, boolean enabled) {
+        long startedAt = System.currentTimeMillis();
         KnowledgeFolder folder = requireFolder(id);
         if (folder.enabled() == enabled) {
             return;
@@ -258,6 +270,7 @@ public class KnowledgeFolderService {
                     response.indexedDocumentCount(),
                     response.failedDocumentCount()
             );
+            runService.recordEnabled(id, true, response, startedAt);
             return;
         }
 
@@ -268,6 +281,7 @@ public class KnowledgeFolderService {
         deleteFolderIndexEntries(id);
         documentRepository.clearIndexedByKnowledgeFolderId(id);
         log.info("knowledge_folder_disabled folderId={}", id);
+        runService.recordEnabled(id, false, null, startedAt);
     }
 
     /**
@@ -279,6 +293,7 @@ public class KnowledgeFolderService {
      */
     @Transactional
     public void deleteFolder(String id) {
+        long startedAt = System.currentTimeMillis();
         requireFolder(id);
         deleteFolderIndexEntries(id);
         knowledgeGraphRepository.deleteByKnowledgeFolderId(id);
@@ -287,6 +302,7 @@ public class KnowledgeFolderService {
             throw new ResourceNotFoundException("Knowledge folder not found: " + id);
         }
         log.info("knowledge_folder_deleted folderId={} deletedDocuments={}", id, deletedDocuments);
+        runService.recordDelete(id, deletedDocuments, startedAt);
     }
 
     /**

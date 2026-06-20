@@ -59,6 +59,11 @@ public interface DatabaseSchemaMapper {
     void createKnowledgeGraphRunsTable();
 
     /**
+     * 创建知识库目录维护运行记录表。
+     */
+    void createKnowledgeFolderRunsTable();
+
+    /**
      * 创建图谱 chunk 抽取缓存表。
      */
     void createKnowledgeGraphChunkExtractionsTable();
@@ -210,6 +215,16 @@ public interface DatabaseSchemaMapper {
      * 创建图谱运行 scope/status 查询索引。
      */
     void createKnowledgeGraphRunsScopeStatusIndex();
+
+    /**
+     * 创建知识库维护运行 scope 查询索引。
+     */
+    void createKnowledgeFolderRunsScopeIndex();
+
+    /**
+     * 创建知识库维护运行 operation 查询索引。
+     */
+    void createKnowledgeFolderRunsOperationIndex();
 
     /**
      * 创建图谱视图 scope 查询索引。

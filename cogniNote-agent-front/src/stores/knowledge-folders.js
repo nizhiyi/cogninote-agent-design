@@ -9,6 +9,7 @@ import {
   setKnowledgeFolderEnabled,
   syncKnowledgeFolder
 } from '../api/knowledge-folders-api'
+import { useKnowledgeHealthStore } from './knowledge-health'
 import { useSearchStore } from './search'
 
 /**
@@ -215,8 +216,12 @@ export const useKnowledgeFoldersStore = defineStore('knowledgeFolders', () => {
 
   async function refreshKnowledgeState(searchStore) {
     // 目录操作会同时影响目录列表和索引统计，两者必须一起刷新才能保持页面摘要一致。
-    await fetchFolders()
-    await searchStore.fetchIndexStatus()
+    const healthStore = useKnowledgeHealthStore()
+    await Promise.all([
+      fetchFolders(),
+      searchStore.fetchIndexStatus(),
+      healthStore.fetchHealth()
+    ])
   }
 
   return {

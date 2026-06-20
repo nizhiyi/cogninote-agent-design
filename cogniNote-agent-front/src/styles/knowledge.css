@@ -226,6 +226,151 @@
   line-height: 1.5;
 }
 
+.knowledge-health-overview {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(260px, auto) auto;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid #dfe8ee;
+  border-radius: 8px;
+  background: #f8fbfc;
+}
+
+.knowledge-health-overview__main {
+  display: flex;
+  min-width: 0;
+  gap: 10px;
+  align-items: center;
+}
+
+.knowledge-health-overview__main strong {
+  display: block;
+  color: #101828;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.knowledge-health-overview__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  color: #526071;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.knowledge-health-drawer__folder {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid #dfe8ee;
+  border-radius: 8px;
+  background: #f8fbfc;
+}
+
+.knowledge-health-drawer__folder strong {
+  color: #101828;
+  font-size: 16px;
+}
+
+.knowledge-health-drawer__folder span {
+  color: #526071;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.knowledge-health-drawer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.knowledge-health-drawer svg,
+.knowledge-health-overview svg,
+.knowledge-problem-item svg {
+  width: 16px;
+  height: 16px;
+}
+
+.knowledge-issue-list,
+.knowledge-problem-section,
+.knowledge-run-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.knowledge-issue-list {
+  margin-bottom: 4px;
+}
+
+.knowledge-problem-section h4,
+.knowledge-run-list h4 {
+  margin: 0;
+  color: #101828;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.knowledge-problem-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e1e7ef;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.knowledge-issue-item {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #f6d7a9;
+  border-radius: 8px;
+  color: #7a4a08;
+  background: #fff8e8;
+}
+
+.knowledge-problem-item strong,
+.knowledge-issue-item strong,
+.knowledge-run-item strong {
+  display: block;
+  color: #101828;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.knowledge-problem-item span,
+.knowledge-problem-item em,
+.knowledge-issue-item span,
+.knowledge-run-item span,
+.knowledge-run-item em {
+  display: block;
+  margin-top: 5px;
+  color: #526071;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.knowledge-run-item {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid #e1e7ef;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
 .search-hit {
   padding: 16px;
 }
@@ -366,5 +511,27 @@
 .status-chip--skipped {
   color: #715300;
   background: #fff2bf;
+}
+
+.status-chip--health-healthy {
+  color: #0f513f;
+  background: #d7f4e8;
+}
+
+.status-chip--health-warning {
+  color: #7a4a08;
+  background: #fff2bf;
+}
+
+.status-chip--health-error {
+  color: #842029;
+  background: #f8d7da;
+}
+
+.status-chip--health-disabled,
+.status-chip--health-empty,
+.status-chip--health-unknown {
+  color: #475467;
+  background: #eef2f6;
 }
 

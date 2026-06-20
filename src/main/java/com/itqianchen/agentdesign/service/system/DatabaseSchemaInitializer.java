@@ -87,6 +87,7 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
          * 使用独立 key-value 表，避免把非模型参数塞进 model_configs。
          */
         databaseSchemaMapper.createAppSettingsTable();
+        databaseSchemaMapper.createKnowledgeFolderRunsTable();
         databaseSchemaMapper.createKnowledgeGraphRunsTable();
         databaseSchemaMapper.createKnowledgeGraphChunkExtractionsTable();
         databaseSchemaMapper.createKnowledgeGraphNodesTable();
@@ -120,6 +121,8 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
         databaseSchemaMapper.createKnowledgeGraphEvidenceNodeIndex();
         databaseSchemaMapper.createKnowledgeGraphEvidenceEdgeIndex();
         databaseSchemaMapper.createKnowledgeGraphEvidenceChunkIndex();
+        databaseSchemaMapper.createKnowledgeFolderRunsScopeIndex();
+        databaseSchemaMapper.createKnowledgeFolderRunsOperationIndex();
         databaseSchemaMapper.createKnowledgeGraphRunsScopeStatusIndex();
         databaseSchemaMapper.createKnowledgeGraphViewsScopeIndex();
         cleanupSoftDeletedChatSessions();

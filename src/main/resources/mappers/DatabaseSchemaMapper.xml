@@ -150,6 +150,29 @@
         )
     </update>
 
+    <update id="createKnowledgeFolderRunsTable">
+        CREATE TABLE IF NOT EXISTS knowledge_folder_runs (
+            id TEXT PRIMARY KEY,
+            scope_type TEXT NOT NULL,
+            scope_id TEXT,
+            operation TEXT NOT NULL,
+            status TEXT NOT NULL,
+            scanned_count INTEGER NOT NULL DEFAULT 0,
+            parsed_count INTEGER NOT NULL DEFAULT 0,
+            skipped_count INTEGER NOT NULL DEFAULT 0,
+            failed_count INTEGER NOT NULL DEFAULT 0,
+            indexed_document_count INTEGER NOT NULL DEFAULT 0,
+            indexed_chunk_count INTEGER NOT NULL DEFAULT 0,
+            failed_document_count INTEGER NOT NULL DEFAULT 0,
+            failures_json TEXT,
+            started_at INTEGER NOT NULL,
+            completed_at INTEGER NOT NULL,
+            duration_ms INTEGER NOT NULL DEFAULT 0,
+            error_message TEXT,
+            created_at INTEGER NOT NULL
+        )
+    </update>
+
     <update id="createKnowledgeGraphChunkExtractionsTable">
         CREATE TABLE IF NOT EXISTS knowledge_graph_chunk_extractions (
             chunk_id TEXT PRIMARY KEY,
@@ -317,6 +340,16 @@
     <update id="createKnowledgeGraphRunsScopeStatusIndex">
         CREATE INDEX IF NOT EXISTS idx_kg_runs_scope_status
         ON knowledge_graph_runs(scope_type, scope_id, status)
+    </update>
+
+    <update id="createKnowledgeFolderRunsScopeIndex">
+        CREATE INDEX IF NOT EXISTS idx_kf_runs_scope
+        ON knowledge_folder_runs(scope_type, scope_id, created_at DESC)
+    </update>
+
+    <update id="createKnowledgeFolderRunsOperationIndex">
+        CREATE INDEX IF NOT EXISTS idx_kf_runs_operation
+        ON knowledge_folder_runs(operation, created_at DESC)
     </update>
 
     <update id="createKnowledgeGraphViewsScopeIndex">

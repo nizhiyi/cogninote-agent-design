@@ -36,6 +36,8 @@ public interface TestDatabaseMapper {
 
     void deleteDocuments();
 
+    void deleteKnowledgeFolderRuns();
+
     void deleteKnowledgeFolders();
 
     void deleteModelConfigs();

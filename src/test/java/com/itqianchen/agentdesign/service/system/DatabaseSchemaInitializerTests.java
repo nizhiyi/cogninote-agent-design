@@ -25,6 +25,13 @@ class DatabaseSchemaInitializerTests {
             createLegacyKnowledgeGraphEdgesTable(sqlSession);
             new DatabaseSchemaInitializer(mapper).initialize();
 
+            assertThat(columnNames(mapper.tableInfo("knowledge_folder_runs"))).contains(
+                    "id",
+                    "scope_type",
+                    "operation",
+                    "status",
+                    "failures_json"
+            );
             assertThat(columnNames(mapper.tableInfo("knowledge_graph_edges"))).contains("display_label");
             assertThat(indexColumnNames(sqlSession, "idx_kg_edges_scope_triple")).containsExactly(
                     "scope_type",

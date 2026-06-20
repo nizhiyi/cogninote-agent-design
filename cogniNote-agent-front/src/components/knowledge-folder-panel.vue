@@ -1,21 +1,53 @@
 <script setup>
 // knowledge-folder-panel 负责知识库目录导入、状态管理和目录级操作。
 import { computed, ref } from 'vue'
-import { ChevronDown, ChevronRight, FolderOpen, FolderPlus, FolderSync, RefreshCw, RotateCcw, Trash2 } from 'lucide-vue-next'
+import { ElMessageBox } from 'element-plus'
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronRight,
+  FolderOpen,
+  FolderPlus,
+  FolderSync,
+  RefreshCw,
+  RotateCcw,
+  Trash2
+} from 'lucide-vue-next'
 import { isTauriRuntime } from '../api/desktop-api'
+import KnowledgeHealthDrawer from './knowledge-health-drawer.vue'
 import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
+import { useKnowledgeHealthStore } from '../stores/knowledge-health'
 import { useSearchStore } from '../stores/search'
 import { formatFileSize, formatTime } from '../utils/formatters'
 
 const knowledgeStore = useKnowledgeFoldersStore()
+const knowledgeHealthStore = useKnowledgeHealthStore()
 const searchStore = useSearchStore()
 const isImportFormCollapsed = ref(true)
+
+const HEALTH_STATUS_LABELS = {
+  HEALTHY: '可信',
+  WARNING: '需关注',
+  ERROR: '需修复',
+  DISABLED: '已停用',
+  EMPTY: '空目录'
+}
+
+const RUN_OPERATION_LABELS = {
+  IMPORT: '导入',
+  SYNC: '同步',
+  REBUILD_INDEX: '重建',
+  ENABLE: '启用',
+  DISABLE: '停用',
+  DELETE: '删除'
+}
 
 const hasKnowledgeEntries = computed(() =>
   knowledgeStore.folders.length > 0 || knowledgeStore.unassignedDocuments.length > 0
 )
 const showImportForm = computed(() => !hasKnowledgeEntries.value || !isImportFormCollapsed.value)
 const canPickKnowledgeFolder = computed(() => isTauriRuntime())
+const healthSummary = computed(() => knowledgeHealthStore.health?.summary || null)
 
 /**
  * 全量重建是高成本操作，保留在资料管理页显式触发，避免刷新时产生副作用。
@@ -23,12 +55,68 @@ const canPickKnowledgeFolder = computed(() => isTauriRuntime())
 async function rebuildAllIndexes() {
   await searchStore.rebuildIndex()
   if (!searchStore.indexError) {
-    await knowledgeStore.fetchFolders()
+    await Promise.all([
+      knowledgeStore.fetchFolders(),
+      knowledgeHealthStore.fetchHealth()
+    ])
   }
 }
 
 function toggleImportForm() {
   isImportFormCollapsed.value = !isImportFormCollapsed.value
+}
+
+function folderHealth(folder) {
+  return knowledgeHealthStore.folderHealthById.get(folder.id) || null
+}
+
+function healthStatusLabel(status) {
+  return HEALTH_STATUS_LABELS[status] || status || '未知'
+}
+
+function healthStatusClass(status) {
+  return `status-chip--health-${String(status || 'unknown').toLowerCase()}`
+}
+
+function folderIssueCount(folder) {
+  const health = folderHealth(folder)
+  if (!health) {
+    return 0
+  }
+  const structuralIssue = ['DISABLED', 'EMPTY'].includes(health.status) ? 1 : 0
+  return structuralIssue
+    + health.failedCount
+    + health.unindexedCount
+    + health.missingLocalFileCount
+    + health.staleLocalFileCount
+}
+
+function runOperationLabel(run) {
+  return RUN_OPERATION_LABELS[run?.operation] || run?.operation || ''
+}
+
+async function confirmDeleteFolder(folder) {
+  if (!folder || knowledgeStore.isFolderBusy(folder.id)) {
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定删除“${folder.displayName}”这个知识库目录记录吗？本地原始文件不会被删除。`,
+      '删除知识库目录',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger'
+      }
+    )
+    await knowledgeStore.deleteFolder(folder.id)
+  } catch (err) {
+    if (err !== 'cancel' && err !== 'close') {
+      throw err
+    }
+  }
 }
 </script>
 
@@ -51,6 +139,30 @@ function toggleImportForm() {
         </el-button>
       </div>
     </header>
+
+    <section v-if="knowledgeHealthStore.health" class="knowledge-health-overview">
+      <div class="knowledge-health-overview__main">
+        <span :class="['status-chip', healthStatusClass(knowledgeHealthStore.health.status)]">
+          {{ healthStatusLabel(knowledgeHealthStore.health.status) }}
+        </span>
+        <div>
+          <strong>知识库可信状态</strong>
+          <p class="muted-text">
+            {{ healthSummary?.enabledFolderCount || 0 }} 个启用目录 · {{ healthSummary?.documentCount || 0 }} 个文档
+          </p>
+        </div>
+      </div>
+      <div class="knowledge-health-overview__stats">
+        <span>失败 {{ healthSummary?.failedCount || 0 }}</span>
+        <span>未索引 {{ healthSummary?.unindexedCount || 0 }}</span>
+        <span>缺失 {{ healthSummary?.missingLocalFileCount || 0 }}</span>
+        <span>变化 {{ healthSummary?.staleLocalFileCount || 0 }}</span>
+      </div>
+      <el-button :loading="knowledgeHealthStore.isLoading" @click="knowledgeHealthStore.fetchHealth">
+        <RefreshCw aria-hidden="true" />
+        <span>刷新诊断</span>
+      </el-button>
+    </section>
 
     <form
       v-if="showImportForm"
@@ -89,6 +201,15 @@ function toggleImportForm() {
       class="settings-inline-alert"
       type="error"
       :title="knowledgeStore.error"
+      :closable="false"
+      show-icon
+    />
+
+    <el-alert
+      v-if="knowledgeHealthStore.error"
+      class="settings-inline-alert"
+      type="error"
+      :title="knowledgeHealthStore.error"
       :closable="false"
       show-icon
     />
@@ -148,6 +269,14 @@ function toggleImportForm() {
 
           <div class="folder-actions">
             <el-button
+              v-if="folderHealth(folder) && folderHealth(folder).status !== 'HEALTHY'"
+              :disabled="!folderHealth(folder)"
+              @click="knowledgeHealthStore.openFolderIssues(folder.id)"
+            >
+              <AlertTriangle aria-hidden="true" />
+              <span>查看问题</span>
+            </el-button>
+            <el-button
               :disabled="knowledgeStore.isFolderBusy(folder.id)"
               @click="knowledgeStore.toggleFolderEnabled(folder)"
             >
@@ -171,35 +300,39 @@ function toggleImportForm() {
               <RotateCcw aria-hidden="true" />
               <span>重建索引</span>
             </el-button>
-            <el-popconfirm
-              title="删除该知识库目录记录？本地原始文件不会被删除。"
-              confirm-button-text="删除"
-              cancel-button-text="取消"
-              @confirm="knowledgeStore.deleteFolder(folder.id)"
+            <el-button
+              type="danger"
+              plain
+              :disabled="knowledgeStore.isFolderBusy(folder.id)"
+              @click="confirmDeleteFolder(folder)"
             >
-              <template #reference>
-                <el-button
-                  type="danger"
-                  plain
-                  :disabled="knowledgeStore.isFolderBusy(folder.id)"
-                >
-                  <Trash2 aria-hidden="true" />
-                  <span>删除</span>
-                </el-button>
-              </template>
-            </el-popconfirm>
+              <Trash2 aria-hidden="true" />
+              <span>删除</span>
+            </el-button>
           </div>
         </header>
 
         <p class="path-text">{{ folder.folderPath }}</p>
 
         <div class="folder-meta">
+          <span
+            v-if="folderHealth(folder)"
+            :class="['status-chip', healthStatusClass(folderHealth(folder).status)]"
+          >
+            {{ healthStatusLabel(folderHealth(folder).status) }}
+          </span>
           <span :class="['status-chip', folder.enabled ? 'status-chip--parsed' : 'status-chip--skipped']">
             {{ folder.enabled ? '已启用' : '已停用' }}
           </span>
           <span>{{ folder.documentCount }} 文档</span>
           <span>{{ folder.chunkCount }} chunks</span>
           <span>{{ folder.unindexedCount }} 未索引</span>
+          <span v-if="folderHealth(folder)?.missingLocalFileCount">缺失 {{ folderHealth(folder).missingLocalFileCount }}</span>
+          <span v-if="folderHealth(folder)?.staleLocalFileCount">变化 {{ folderHealth(folder).staleLocalFileCount }}</span>
+          <span v-if="folderIssueCount(folder)">问题 {{ folderIssueCount(folder) }}</span>
+          <span v-if="folderHealth(folder)?.lastRun">
+            最近{{ runOperationLabel(folderHealth(folder).lastRun) }} {{ formatTime(folderHealth(folder).lastRun.completedAt) }}
+          </span>
           <span>导入 {{ formatTime(folder.lastIngestedAt) }}</span>
           <span>索引 {{ formatTime(folder.lastIndexedAt) }}</span>
         </div>
@@ -258,5 +391,7 @@ function toggleImportForm() {
         </div>
       </article>
     </section>
+
+    <KnowledgeHealthDrawer />
   </section>
 </template>

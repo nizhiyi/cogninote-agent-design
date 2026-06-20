@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.itqianchen.agentdesign.mapper.knowledge.KnowledgeFolderRunMapper">
+
+    <resultMap id="KnowledgeFolderRunMap" type="com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRun">
+        <constructor>
+            <arg column="id" javaType="java.lang.String"/>
+            <arg column="scope_type" javaType="com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunScopeType"/>
+            <arg column="scope_id" javaType="java.lang.String"/>
+            <arg column="operation" javaType="com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunOperation"/>
+            <arg column="status" javaType="com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunStatus"/>
+            <arg column="scanned_count" javaType="_int"/>
+            <arg column="parsed_count" javaType="_int"/>
+            <arg column="skipped_count" javaType="_int"/>
+            <arg column="failed_count" javaType="_int"/>
+            <arg column="indexed_document_count" javaType="_long"/>
+            <arg column="indexed_chunk_count" javaType="_long"/>
+            <arg column="failed_document_count" javaType="_long"/>
+            <arg column="failures_json" javaType="java.lang.String"/>
+            <arg column="started_at" javaType="_long"/>
+            <arg column="completed_at" javaType="_long"/>
+            <arg column="duration_ms" javaType="_long"/>
+            <arg column="error_message" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="_long"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="RunColumns">
+        id,
+        scope_type,
+        scope_id,
+        operation,
+        status,
+        scanned_count,
+        parsed_count,
+        skipped_count,
+        failed_count,
+        indexed_document_count,
+        indexed_chunk_count,
+        failed_document_count,
+        failures_json,
+        started_at,
+        completed_at,
+        duration_ms,
+        error_message,
+        created_at
+    </sql>
+
+    <insert id="insertRun">
+        INSERT INTO knowledge_folder_runs (
+            id, scope_type, scope_id, operation, status,
+            scanned_count, parsed_count, skipped_count, failed_count,
+            indexed_document_count, indexed_chunk_count, failed_document_count,
+            failures_json, started_at, completed_at, duration_ms, error_message, created_at
+        )
+        VALUES (
+            #{id}, #{scopeType}, #{scopeId}, #{operation}, #{status},
+            #{scannedCount}, #{parsedCount}, #{skippedCount}, #{failedCount},
+            #{indexedDocumentCount}, #{indexedChunkCount}, #{failedDocumentCount},
+            #{failuresJson}, #{startedAt}, #{completedAt}, #{durationMs}, #{errorMessage}, #{createdAt}
+        )
+    </insert>
+
+    <select id="findRuns" resultMap="KnowledgeFolderRunMap">
+        SELECT <include refid="RunColumns"/>
+        FROM knowledge_folder_runs
+        WHERE (#{scopeType} IS NULL OR scope_type = #{scopeType})
+          AND (#{scopeId} IS NULL OR scope_id = #{scopeId})
+        ORDER BY created_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="findLatestRunsByScope" resultMap="KnowledgeFolderRunMap">
+        SELECT <include refid="RunColumns"/>
+        FROM knowledge_folder_runs run
+        WHERE created_at = (
+            SELECT MAX(inner_run.created_at)
+            FROM knowledge_folder_runs inner_run
+            WHERE inner_run.scope_type = run.scope_type
+              AND ((inner_run.scope_id IS NULL AND run.scope_id IS NULL) OR inner_run.scope_id = run.scope_id)
+        )
+        ORDER BY created_at DESC
+    </select>
+</mapper>

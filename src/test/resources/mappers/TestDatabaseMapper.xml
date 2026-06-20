@@ -54,6 +54,10 @@
         DELETE FROM knowledge_folders
     </delete>
 
+    <delete id="deleteKnowledgeFolderRuns">
+        DELETE FROM knowledge_folder_runs
+    </delete>
+
     <delete id="deleteModelConfigs">
         DELETE FROM model_configs
     </delete>

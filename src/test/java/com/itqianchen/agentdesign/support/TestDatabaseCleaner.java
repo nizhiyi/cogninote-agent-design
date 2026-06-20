@@ -34,6 +34,7 @@ public class TestDatabaseCleaner {
     }
 
     public void clearKnowledgeFolders() {
+        testDatabaseMapper.deleteKnowledgeFolderRuns();
         testDatabaseMapper.deleteKnowledgeFolders();
     }
 

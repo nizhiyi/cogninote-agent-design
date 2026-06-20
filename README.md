@@ -31,8 +31,9 @@
 1. 下载并安装对应平台的桌面包。
 2. 打开应用，在“设置”页选择 Provider，填写 API Key，并分别配置 Chat / Embedding 模型。
 3. 在“知识库”区域导入本地文档目录。
-4. 使用搜索面板验证索引命中结果。
-5. 回到“对话”页提问，查看带引用来源的流式回答；需要追问某段助手回复时，选中文本并点击“添加到对话”。
+4. 在资料管理页查看知识库健康状态，必要时同步目录或重建索引。
+5. 使用搜索面板验证索引命中结果。
+6. 回到“对话”页提问，查看带引用来源的流式回答；需要追问某段助手回复时，选中文本并点击“添加到对话”。
 
 模型配置细节见 [模型配置指南](docs/model-configuration-guide.md)。
 
@@ -57,7 +58,8 @@
 
 - 本地文档导入：支持 Markdown、TXT、DOCX、文本型 PDF。
 - 知识库目录管理：支持导入本地目录、文件同步、启用/停用、删除目录、局部重建索引和按目录展开文档。
-- 本地数据存储：SQLite 保存文档元数据、chunk 内容、模型配置、聊天会话、消息和用户引用的助手回复片段。
+- 知识库健康诊断：资料管理页展示全库和目录级可信状态，聚合解析失败、未索引、缺失文件、疑似变化和停用目录，并通过问题抽屉提供同步目录、重建索引、复制路径等修复入口。
+- 本地数据存储：SQLite 保存文档元数据、chunk 内容、知识库维护运行记录、模型配置、聊天会话、消息和用户引用的助手回复片段。
 - 本地搜索索引：Lucene 提供 BM25 关键词检索、向量检索和混合检索；支持中文正文、代码标识符、路径片段和流程图节点检索，向量检索会使用 active Embedding 模型生成查询向量。
 - RAG 对话：通过 Spring AI ChatClient + Advisor 注入会话记忆和知识库片段；知识库模式可按 `AUTO/ALWAYS/OFF` 策略补全省略、指代、动作型和领域切换追问的检索 query，并保留空白的 SSE 流式输出答案、展示引用来源；模型截断、异常或流提前断开时会标记“未完成”，避免半截回答伪装成完成。
 - 知识图谱：基于已导入 chunks 调用 active Chat 模型抽取实体、中文关系谓词、关系描述和证据，写入 SQLite 图谱缓存与派生视图；进入图谱页先展示可搜索、可筛选的已有全库/目录/文件图谱清单，点击“查看”后才按需加载完整视图；已有图谱可重新生成或删除，删除只清理图谱节点、关系、证据、视图和运行记录，不删除原始目录、文件、chunks 或 chunk 抽取缓存；关系 `type` 只做内部粗分类，画布、邻接表、Inspector 和证据抽屉直接展示后端校验后的中文 `displayLabel` 与 `description`。
@@ -199,7 +201,7 @@ macOS 桌面版默认写入：
   logs/desktop-backend.log
 ```
 
-SQLite 是业务事实来源，Lucene 是可重建索引。应用不会复制用户原始文件，只保存解析后的 chunk 文本、文档元数据、聊天记录、知识图谱事实与视图缓存、图谱运行记录、索引数据和模型配置。用户删除某个已有知识图谱时，只删除该 scope 的图谱派生数据和运行记录，不触碰原始资料或可复用的 chunk 抽取缓存。
+SQLite 是业务事实来源，Lucene 是可重建索引。应用不会复制用户原始文件，只保存解析后的 chunk 文本、文档元数据、知识库维护运行记录、聊天记录、知识图谱事实与视图缓存、图谱运行记录、索引数据和模型配置。健康状态由 SQLite 当前事实和轻量文件系统探针即时计算，不额外保存一份容易过期的健康表。用户删除某个已有知识图谱时，只删除该 scope 的图谱派生数据和运行记录，不触碰原始资料或可复用的 chunk 抽取缓存。
 
 `app.log` 是 Spring Boot 业务日志，`desktop-backend.log` 是桌面壳启动后端时的 stdout/stderr 日志。定位桌面启动、模型连接、RAG 对话和索引问题时优先查看这两个文件。
 
@@ -220,6 +222,7 @@ Spring Boot Backend
   ├─ Document Ingestion
   ├─ Repository + MyBatis Mapper
   ├─ Lucene Knowledge Store
+  ├─ Knowledge Health Diagnostics
   ├─ Model Configuration
   ├─ AI Runtime
   ├─ Chat Memory
@@ -230,6 +233,7 @@ Vue Frontend
   ├─ Chat Shell
   ├─ Persistent Sessions
   ├─ Knowledge Workbench
+  ├─ Knowledge Health Drawer
   ├─ AI Streaming Markdown Renderer
   └─ Settings Center
       ├─ System & Theme
@@ -278,9 +282,10 @@ bash ./scripts/build-desktop-app-macos.sh --skip-tests
 
 ## 开发状态
 
-当前项目已完成文档摄入、代码友好的 Lucene 混合检索、模型驱动追问补全 Agent、追问补全自动触发与知识库设置页配置、知识图谱与思维导图、已有知识图谱清单按需加载和删除、知识图谱探索器重设计、图谱关系中文谓词直出与描述可读化、Prompt 专用配置文件、模型配置、对话上下文窗口配置与 Token 估算优化、RAG 对话、路由式多智能体对话、模式隔离聊天记忆、聊天回复片段引用、智能体模型运行时重构、AI 流式 Markdown 与 Mermaid 渲染、SQLite 聊天记忆、纯模型对话、空白保真的 SSE 流式输出、流式截断识别与错误状态同步、MyBatis 统一数据访问层、Windows 桌面打包、macOS Apple Silicon 独立打包链路、`0.1.36` 双平台 unsigned/signed CI 打包链路、桌面安装/卸载/升级可靠性修复、桌面会话令牌保护、stable/preview 通道自动更新，以及中性主题与蓝色动作色的应用主题方案主要闭环。仍需重点补齐：
+当前项目已完成文档摄入、知识库目录管理与健康诊断、代码友好的 Lucene 混合检索、模型驱动追问补全 Agent、追问补全自动触发与知识库设置页配置、知识图谱与思维导图、已有知识图谱清单按需加载和删除、知识图谱探索器重设计、图谱关系中文谓词直出与描述可读化、Prompt 专用配置文件、模型配置、对话上下文窗口配置与 Token 估算优化、RAG 对话、路由式多智能体对话、模式隔离聊天记忆、聊天回复片段引用、智能体模型运行时重构、AI 流式 Markdown 与 Mermaid 渲染、SQLite 聊天记忆、纯模型对话、空白保真的 SSE 流式输出、流式截断识别与错误状态同步、MyBatis 统一数据访问层、Windows 桌面打包、macOS Apple Silicon 独立打包链路、`0.1.36` 双平台 unsigned/signed CI 打包链路、桌面安装/卸载/升级可靠性修复、桌面会话令牌保护、stable/preview 通道自动更新，以及中性主题与蓝色动作色的应用主题方案主要闭环。仍需重点补齐：
 
 - API Key 本地加密或凭据管理。
+- 知识库维护操作的进度展示、失败重试和脚本化 smoke test。
 - 更完整的发布验收和安装包测试。
 - 托盘、Universal Binary、Intel Mac 支持等桌面增强能力。
 

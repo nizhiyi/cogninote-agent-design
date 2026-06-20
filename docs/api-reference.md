@@ -215,6 +215,96 @@ DELETE /api/knowledge-folders/{id}
 
 删除目录记录、关联文档、chunks 和 Lucene 条目。不会删除用户本机原始文件。
 
+## 知识库健康
+
+知识库健康接口只做诊断，不会自动同步、重建、启停或删除。状态由 SQLite 文档记录、目录配置、索引字段和本地文件元数据即时派生；维护运行记录保存在 `knowledge_folder_runs` 中。
+
+### 查询全库健康
+
+```text
+GET /api/knowledge-health
+```
+
+返回全库状态、聚合问题和目录健康摘要：
+
+```json
+{
+  "status": "WARNING",
+  "summary": {
+    "folderCount": 2,
+    "enabledFolderCount": 1,
+    "documentCount": 42,
+    "parsedCount": 40,
+    "failedCount": 1,
+    "unindexedCount": 1,
+    "missingLocalFileCount": 0,
+    "staleLocalFileCount": 2,
+    "chunkCount": 560,
+    "lastIngestedAt": 1780000000000,
+    "lastIndexedAt": 1780000005000
+  },
+  "issues": [],
+  "folders": []
+}
+```
+
+`status` 支持 `HEALTHY`、`WARNING`、`ERROR`、`DISABLED`、`EMPTY`。`issues[].action` 是建议动作，例如 `SYNC_FOLDER`、`REBUILD_INDEX`、`ENABLE`、`DELETE_FOLDER`，前端仍需调用对应目录或索引接口执行。
+
+当前问题代码：
+
+| code | severity | 含义 | 建议动作 |
+| --- | --- | --- | --- |
+| `FOLDER_NOT_FOUND` | `ERROR` | 目录路径当前不可访问 | 删除目录记录或重新导入正确目录 |
+| `NO_DOCUMENTS` | `WARNING` | 启用目录没有文档记录 | 同步目录或检查递归扫描 |
+| `PARSE_FAILED` | `WARNING` | 存在解析失败文档 | 修复源文件后同步目录 |
+| `UNINDEXED_DOCUMENTS` | `ERROR` | 已解析文档尚未进入 Lucene | 重建目录索引或全库索引 |
+| `STALE_LOCAL_FILES` | `WARNING` | 本地文件大小或修改时间已变化 | 同步目录 |
+| `MISSING_LOCAL_FILES` | `WARNING` | 已记录文件在本地不存在 | 同步目录清理应用内记录 |
+| `DISABLED_FOLDER` | `WARNING` | 目录已停用 | 启用目录 |
+
+### 查询目录健康详情
+
+```text
+GET /api/knowledge-health/folders/{id}
+```
+
+返回该目录的问题清单、失败/未索引/缺失/疑似变化文件和最近维护记录：
+
+```json
+{
+  "folderId": "folder-xxx",
+  "status": "WARNING",
+  "issues": [
+    {
+      "code": "MISSING_LOCAL_FILES",
+      "severity": "WARNING",
+      "message": "有 1 个已记录文件在本地不存在。",
+      "action": "SYNC_FOLDER",
+      "scopeType": "KNOWLEDGE_FOLDER",
+      "scopeId": "folder-xxx",
+      "count": 1
+    }
+  ],
+  "failedDocuments": [],
+  "unindexedDocuments": [],
+  "missingLocalFiles": [],
+  "staleLocalFiles": [],
+  "runs": []
+}
+```
+
+第一版健康诊断只比较本地文件是否存在、文件大小和修改时间，不重新计算内容 hash；真正的新增、修改、删除收敛仍由“同步目录”完成。
+
+### 查询维护运行记录
+
+```text
+GET /api/knowledge-health/runs?scopeType=KNOWLEDGE_FOLDER&scopeId=folder-xxx&limit=20
+```
+
+`scopeType` 可省略；支持 `ALL`、`KNOWLEDGE_FOLDER`、`UNASSIGNED`。返回导入、同步、重建索引、启停和删除的最近记录。
+
+运行记录 `operation` 支持 `IMPORT`、`SYNC`、`REBUILD_INDEX`、`ENABLE`、`DISABLE`、`DELETE`；`status` 支持 `COMPLETED`、`COMPLETED_WITH_WARNINGS`、`FAILED`。记录写入失败只会写 warning 日志，不影响原导入、同步或重建操作的主流程。
+
 ## 检索与索引
 
 ### 索引状态

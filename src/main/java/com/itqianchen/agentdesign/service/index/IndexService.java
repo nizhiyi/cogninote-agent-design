@@ -3,6 +3,7 @@ package com.itqianchen.agentdesign.service.index;
 import com.itqianchen.agentdesign.domain.search.KnowledgeStore;
 import com.itqianchen.agentdesign.dto.index.IndexStatusResponse;
 import com.itqianchen.agentdesign.dto.index.RebuildIndexResponse;
+import com.itqianchen.agentdesign.service.knowledge.KnowledgeFolderRunService;
 import org.springframework.stereotype.Service;
 
 /**
@@ -14,14 +15,16 @@ import org.springframework.stereotype.Service;
 public class IndexService {
 
     private final KnowledgeStore knowledgeStore;
+    private final KnowledgeFolderRunService runService;
 
     /**
      * 注入检索索引边界。
      *
      * @param knowledgeStore 检索索引实现
      */
-    public IndexService(KnowledgeStore knowledgeStore) {
+    public IndexService(KnowledgeStore knowledgeStore, KnowledgeFolderRunService runService) {
         this.knowledgeStore = knowledgeStore;
+        this.runService = runService;
     }
 
     /**
@@ -39,6 +42,9 @@ public class IndexService {
      * @return 重建统计
      */
     public RebuildIndexResponse rebuild() {
-        return knowledgeStore.rebuildAll();
+        long startedAt = System.currentTimeMillis();
+        RebuildIndexResponse response = knowledgeStore.rebuildAll();
+        runService.recordAllIndexRebuild(response, startedAt);
+        return response;
     }
 }

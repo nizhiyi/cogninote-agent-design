@@ -8,11 +8,11 @@
 
 ```text
 src/
-  ├─ api/          # 统一 JSON API client 和 SSE chat stream parser
-  ├─ components/   # 应用壳、来源列表、Markdown 渲染、知识库面板等复用组件
+  ├─ api/          # 统一 JSON API client、知识库健康 API 和 SSE chat stream parser
+  ├─ components/   # 应用壳、来源列表、Markdown 渲染、知识库面板/健康抽屉等复用组件
   ├─ router/       # /chat、/settings、/knowledge、/model-config
-  ├─ stores/       # Pinia 状态：system、documents、search、modelConfig、chat、theme
-  ├─ styles/       # 基础、控件、桌面对话、Markdown、主题、响应式样式
+  ├─ stores/       # Pinia 状态：system、documents、search、knowledgeHealth、modelConfig、chat、theme
+  ├─ styles/       # 基础、控件、知识库、桌面对话、Markdown、主题、响应式样式
   └─ views/        # 页面级组件
 ```
 
@@ -21,6 +21,8 @@ src/
 - Assistant 消息通过 `markdown-renderer.vue` 渲染 Markdown，禁用原始 HTML。
 - RAG 引用来源由 `source-list.vue` 自己维护折叠状态，避免消息组件膨胀。
 - 用户引用助手回复片段由 `chat` store 的 `pendingReferences` 管理；发送区只显示独立引用标签，不把标签嵌入 textarea。发送后 user 消息的 `references` 字段负责刷新恢复和悬停预览。
+- 知识库健康快照由 `knowledge-health` store 管理；首屏只加载全库轻量快照，目录级失败文件、缺失文件和维护记录只在打开问题抽屉时读取。
+- 目录同步、重建、启停和删除后必须同时刷新目录列表、索引状态和健康快照，避免资料管理页出现“目录已变但健康状态没变”的分叉。
 - 主题偏好由 `theme` store 写入 `localStorage`，通过 `html.theme-dark` / `html.theme-light` 控制样式。
 - Element Plus 只用于设置中心的标准控件、提示和确认操作；聊天主界面继续保持自定义 UI。
 - 设置中心不显示左侧对话栏，避免非聊天能力继续占用聊天布局。

@@ -6,6 +6,7 @@
   .chat-layout,
   .module-nav,
   .knowledge-split,
+  .knowledge-health-overview,
   .ingest-form,
   .knowledge-folder-import,
   .search-form,
@@ -44,9 +45,18 @@
   }
 
   .knowledge-folder-import__actions,
+  .knowledge-health-drawer__actions,
   .search-form__controls {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .knowledge-health-overview__stats {
+    justify-content: flex-start;
+  }
+
+  .knowledge-problem-item {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .folder-actions {
