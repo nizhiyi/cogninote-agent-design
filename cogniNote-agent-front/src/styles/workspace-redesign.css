@@ -497,6 +497,11 @@
   grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
 }
 
+.message-stream-shell {
+  min-width: 0;
+  min-height: 0;
+}
+
 .message-stream {
   min-height: 0;
   padding: 28px clamp(18px, 5vw, 72px) 28px;

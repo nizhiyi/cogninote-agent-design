@@ -2,6 +2,7 @@
 // 聊天页保留滚动、输入框尺寸和来源抽屉这类 UI 状态；流式消息和会话持久化由 chat store 管理。
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
+  ArrowDown,
   ChevronLeft,
   ChevronRight,
   LoaderCircle,
@@ -29,6 +30,7 @@ const composerSettingsPopoverRef = ref(null)
 const messageStreamRef = ref(null)
 const isRestoringScroll = ref(false)
 const shouldFollowBottom = ref(true)
+const showScrollToBottomButton = ref(false)
 const BOTTOM_THRESHOLD_PX = 80
 const ANCHOR_VIEWPORT_RATIO = 0.35
 const DEFAULT_CONTEXT_WINDOW_TOKENS = 128000
@@ -400,6 +402,7 @@ function applyMessageScrollBottom(saveAfterScroll = false) {
   if (stream) {
     stream.scrollTop = Math.max(0, stream.scrollHeight - stream.clientHeight)
     shouldFollowBottom.value = true
+    showScrollToBottomButton.value = false
     if (saveAfterScroll) {
       saveCurrentSessionScrollPosition()
     }
@@ -412,6 +415,18 @@ function distanceFromBottom(stream) {
 
 function isNearBottom(stream) {
   return distanceFromBottom(stream) <= BOTTOM_THRESHOLD_PX
+}
+
+function updateScrollToBottomButton(stream = messageStreamRef.value) {
+  showScrollToBottomButton.value = Boolean(
+    chatStore.hasMessages
+      && stream
+      && distanceFromBottom(stream) > BOTTOM_THRESHOLD_PX
+  )
+}
+
+function handleScrollToBottomClick() {
+  scrollMessagesToBottom()
 }
 
 function saveCurrentSessionScrollPosition(sessionId = chatStore.activeSessionId) {
@@ -492,6 +507,7 @@ function handleMessageStreamScroll() {
   }
   const stream = messageStreamRef.value
   shouldFollowBottom.value = stream ? isNearBottom(stream) : true
+  updateScrollToBottomButton(stream)
   saveCurrentSessionScrollPosition()
 }
 
@@ -579,6 +595,7 @@ async function restoreSessionScroll(sessionId) {
       const restored = applyRestore()
       if (restored && messageStreamRef.value) {
         shouldFollowBottom.value = isNearBottom(messageStreamRef.value)
+        updateScrollToBottomButton(messageStreamRef.value)
         saveCurrentSessionScrollPosition(sessionId)
       }
       if (runId === restoreRunId) {
@@ -608,6 +625,7 @@ watch(
       saveCurrentSessionScrollPosition(previousSessionId)
     }
     shouldFollowBottom.value = true
+    showScrollToBottomButton.value = false
   }
 )
 
@@ -645,6 +663,7 @@ watch(
     }
 
     if (hasLastMessageChanged) {
+      updateScrollToBottomButton()
       saveCurrentSessionScrollPosition(current.sessionId)
     }
   },
@@ -726,78 +745,91 @@ onBeforeUnmount(() => {
     </button>
 
     <div class="conversation-body">
-      <section
-        ref="messageStreamRef"
-        class="message-stream"
-        aria-live="polite"
-        @scroll.passive="handleMessageStreamScroll"
-        @pointerup="handleDocumentSelectionChange"
-      >
-        <div v-if="!chatStore.hasMessages" class="empty-chat">
-          <p class="eyebrow">开始一次对话</p>
-          <h3>可以直接问，也可以带知识库问。</h3>
-          <p>会话和消息会保存到本地 SQLite。开启知识库时，回答会附带检索来源；关闭后就是纯模型对话。</p>
-        </div>
-
-        <article
-          v-for="message in chatStore.activeMessages"
-          :key="message.id"
-          :data-message-id="message.id"
-          class="message-bubble"
-          :class="[`message-bubble--${message.role}`, `message-bubble--${message.status}`]"
+      <div class="message-stream-shell">
+        <section
+          ref="messageStreamRef"
+          class="message-stream"
+          aria-live="polite"
+          @scroll.passive="handleMessageStreamScroll"
+          @pointerup="handleDocumentSelectionChange"
         >
-          <div class="message-label">
-            <span>{{ message.role === 'user' ? '你' : APP_DISPLAY_NAME }}</span>
-            <em v-if="message.retrievalMode">{{ formatRetrievalModeLabel(message.retrievalMode) }}</em>
-            <em v-else-if="message.status === 'streaming'">生成中</em>
-            <em v-else-if="message.status === 'error'">未完成</em>
-            <em v-else-if="message.status === 'stopped'">已停止</em>
+          <div v-if="!chatStore.hasMessages" class="empty-chat">
+            <p class="eyebrow">开始一次对话</p>
+            <h3>可以直接问，也可以带知识库问。</h3>
+            <p>会话和消息会保存到本地 SQLite。开启知识库时，回答会附带检索来源；关闭后就是纯模型对话。</p>
           </div>
-          <AiMarkdownRenderer
-            v-if="message.role === 'assistant'"
-            class="message-content"
-            :content="message.content"
-            empty-text="正在等待模型返回..."
-            :final="message.status !== 'streaming'"
-          />
-          <template v-else>
-            <div
-              v-if="message.references?.length"
-              class="reference-chip reference-chip--message"
-              tabindex="0"
-              :aria-label="referenceCountLabel(message.references)"
-            >
-              <MessageSquareQuote aria-hidden="true" />
-              <span>{{ referenceCountLabel(message.references) }}</span>
-              <div class="reference-preview" role="tooltip">
-                <strong>{{ referenceCountLabel(message.references) }}</strong>
-                <ol>
-                  <li v-for="reference in message.references" :key="reference.id">
-                    {{ compactReferenceSnippet(reference.snippet) }}
-                  </li>
-                </ol>
-              </div>
-            </div>
-            <p class="message-content">{{ message.content || '正在等待模型返回...' }}</p>
-          </template>
 
-          <div v-if="message.sources?.length" class="message-source-strip" aria-label="回答来源">
-            <button class="message-source-summary" type="button" @click="openMessageSources(message)">
-              {{ message.sources.length }} 个来源
-            </button>
-            <button
-              v-for="source in message.sources.slice(0, 3)"
-              :key="source.chunkId"
-              class="message-source-chip"
-              type="button"
-              :title="source.fileName"
-              @click="openMessageSources(message, source)"
-            >
-              [{{ source.index }}] {{ source.fileName }}
-            </button>
-          </div>
-        </article>
-      </section>
+          <article
+            v-for="message in chatStore.activeMessages"
+            :key="message.id"
+            :data-message-id="message.id"
+            class="message-bubble"
+            :class="[`message-bubble--${message.role}`, `message-bubble--${message.status}`]"
+          >
+            <div class="message-label">
+              <span>{{ message.role === 'user' ? '你' : APP_DISPLAY_NAME }}</span>
+              <em v-if="message.retrievalMode">{{ formatRetrievalModeLabel(message.retrievalMode) }}</em>
+              <em v-else-if="message.status === 'streaming'">生成中</em>
+              <em v-else-if="message.status === 'error'">未完成</em>
+              <em v-else-if="message.status === 'stopped'">已停止</em>
+            </div>
+            <AiMarkdownRenderer
+              v-if="message.role === 'assistant'"
+              class="message-content"
+              :content="message.content"
+              empty-text="正在等待模型返回..."
+              :final="message.status !== 'streaming'"
+            />
+            <template v-else>
+              <div
+                v-if="message.references?.length"
+                class="reference-chip reference-chip--message"
+                tabindex="0"
+                :aria-label="referenceCountLabel(message.references)"
+              >
+                <MessageSquareQuote aria-hidden="true" />
+                <span>{{ referenceCountLabel(message.references) }}</span>
+                <div class="reference-preview" role="tooltip">
+                  <strong>{{ referenceCountLabel(message.references) }}</strong>
+                  <ol>
+                    <li v-for="reference in message.references" :key="reference.id">
+                      {{ compactReferenceSnippet(reference.snippet) }}
+                    </li>
+                  </ol>
+                </div>
+              </div>
+              <p class="message-content">{{ message.content || '正在等待模型返回...' }}</p>
+            </template>
+
+            <div v-if="message.sources?.length" class="message-source-strip" aria-label="回答来源">
+              <button class="message-source-summary" type="button" @click="openMessageSources(message)">
+                {{ message.sources.length }} 个来源
+              </button>
+              <button
+                v-for="source in message.sources.slice(0, 3)"
+                :key="source.chunkId"
+                class="message-source-chip"
+                type="button"
+                :title="source.fileName"
+                @click="openMessageSources(message, source)"
+              >
+                [{{ source.index }}] {{ source.fileName }}
+              </button>
+            </div>
+          </article>
+        </section>
+
+        <button
+          v-if="showScrollToBottomButton"
+          class="scroll-to-bottom-button"
+          type="button"
+          title="回到最新消息"
+          aria-label="回到最新消息"
+          @click="handleScrollToBottomClick"
+        >
+          <ArrowDown aria-hidden="true" />
+        </button>
+      </div>
 
       <SourceInspector
         v-if="layoutStore.isSourceInspectorOpen"

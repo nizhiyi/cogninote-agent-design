@@ -854,6 +854,7 @@ textarea:focus-visible,
 .knowledge-switch:focus-visible,
 .composer-settings-button:focus-visible,
 .composer-icon-button:focus-visible,
+.scroll-to-bottom-button:focus-visible,
 .back-link:focus-visible {
   outline: 0;
   box-shadow: var(--shadow-focus);

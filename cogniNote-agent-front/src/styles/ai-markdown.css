@@ -324,6 +324,30 @@
   opacity: 1 !important;
 }
 
+.ai-markdown-content .cogninote-mermaid-fit-action,
+.mermaid-modal-overlay .cogninote-mermaid-fit-action {
+  display: inline-flex !important;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding-inline: 8px !important;
+  white-space: nowrap;
+}
+
+.ai-markdown-content .cogninote-mermaid-fit-label,
+.mermaid-modal-overlay .cogninote-mermaid-fit-label {
+  color: currentColor;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.ai-markdown-content .mermaid-block-container:not([data-markstream-mode='preview']) .cogninote-mermaid-fit-action,
+.ai-markdown-content .mermaid-block-container[data-markstream-pending='true'] .cogninote-mermaid-fit-action {
+  display: none !important;
+}
+
 .ai-markdown-content .mermaid-mode-btn svg,
 .ai-markdown-content .mermaid-action-btn svg {
   color: currentColor !important;
