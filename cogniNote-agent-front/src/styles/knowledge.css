@@ -104,16 +104,33 @@
   margin-top: 22px;
 }
 
+.knowledge-import-dialog .el-dialog__body {
+  padding-top: 8px;
+}
+
 .knowledge-folder-import {
+  display: grid;
   grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
   margin-top: 0;
 }
 
-.knowledge-folder-import__actions,
+.knowledge-folder-import__controls,
 .search-form__controls {
   display: flex;
   gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.search-form__controls {
   align-items: end;
+  justify-content: flex-end;
+}
+
+.knowledge-import-dialog__footer {
+  display: flex;
+  gap: 10px;
   justify-content: flex-end;
 }
 

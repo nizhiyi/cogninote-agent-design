@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronRight,
+  FolderInput,
   FolderOpen,
   FolderPlus,
   FolderSync,
@@ -23,7 +24,7 @@ import { formatFileSize, formatTime } from '../utils/formatters'
 const knowledgeStore = useKnowledgeFoldersStore()
 const knowledgeHealthStore = useKnowledgeHealthStore()
 const searchStore = useSearchStore()
-const isImportFormCollapsed = ref(true)
+const isImportDialogOpen = ref(false)
 
 const HEALTH_STATUS_LABELS = {
   HEALTHY: '可信',
@@ -42,10 +43,6 @@ const RUN_OPERATION_LABELS = {
   DELETE: '删除'
 }
 
-const hasKnowledgeEntries = computed(() =>
-  knowledgeStore.folders.length > 0 || knowledgeStore.unassignedDocuments.length > 0
-)
-const showImportForm = computed(() => !hasKnowledgeEntries.value || !isImportFormCollapsed.value)
 const canPickKnowledgeFolder = computed(() => isTauriRuntime())
 const healthSummary = computed(() => knowledgeHealthStore.health?.summary || null)
 
@@ -62,8 +59,16 @@ async function rebuildAllIndexes() {
   }
 }
 
-function toggleImportForm() {
-  isImportFormCollapsed.value = !isImportFormCollapsed.value
+function openImportDialog() {
+  knowledgeStore.error = ''
+  isImportDialogOpen.value = true
+}
+
+async function submitImportFolder() {
+  await knowledgeStore.importFolder()
+  if (!knowledgeStore.error) {
+    isImportDialogOpen.value = false
+  }
 }
 
 function folderHealth(folder) {
@@ -129,9 +134,9 @@ async function confirmDeleteFolder(folder) {
         <p class="muted-text">导入本地文件夹，查看目录状态。</p>
       </div>
       <div class="header-actions">
-        <el-button v-if="hasKnowledgeEntries" @click="toggleImportForm">
+        <el-button @click="openImportDialog">
           <FolderPlus aria-hidden="true" />
-          <span>{{ showImportForm ? '收起导入' : '导入目录' }}</span>
+          <span>导入目录</span>
         </el-button>
         <el-button :loading="searchStore.isRebuildingIndex" @click="rebuildAllIndexes">
           <RefreshCw aria-hidden="true" />
@@ -164,40 +169,58 @@ async function confirmDeleteFolder(folder) {
       </el-button>
     </section>
 
-    <form
-      v-if="showImportForm"
-      class="ingest-form knowledge-folder-import"
-      @submit.prevent="knowledgeStore.importFolder"
+    <el-dialog
+      v-model="isImportDialogOpen"
+      class="knowledge-import-dialog"
+      title="导入本地目录"
+      width="min(560px, calc(100vw - 32px))"
+      align-center
     >
-      <label class="field field--full">
-        <span>本地目录</span>
-        <el-input
-          v-model="knowledgeStore.folderPath"
-          placeholder="点击选择文件夹，或手动输入 D:/notes"
-          autocomplete="off"
+      <form class="knowledge-folder-import" @submit.prevent="submitImportFolder">
+        <label class="field field--full">
+          <span>本地目录</span>
+          <el-input
+            v-model="knowledgeStore.folderPath"
+            placeholder="点击选择文件夹，或手动输入 D:/notes"
+            autocomplete="off"
+          />
+        </label>
+
+        <div class="knowledge-folder-import__controls">
+          <el-button
+            :disabled="!canPickKnowledgeFolder"
+            title="系统文件夹选择器仅在桌面版可用，浏览器开发模式请手动输入路径"
+            @click="knowledgeStore.chooseFolder"
+          >
+            <FolderInput aria-hidden="true" />
+            <span>选择文件夹</span>
+          </el-button>
+
+          <el-checkbox v-model="knowledgeStore.recursive">递归扫描</el-checkbox>
+        </div>
+
+        <el-alert
+          v-if="knowledgeStore.error"
+          class="settings-inline-alert"
+          type="error"
+          :title="knowledgeStore.error"
+          :closable="false"
+          show-icon
         />
-      </label>
+      </form>
 
-      <div class="knowledge-folder-import__actions">
-        <el-button
-          :disabled="!canPickKnowledgeFolder"
-          title="系统文件夹选择器仅在桌面版可用，浏览器开发模式请手动输入路径"
-          @click="knowledgeStore.chooseFolder"
-        >
-          <FolderPlus aria-hidden="true" />
-          <span>选择文件夹</span>
-        </el-button>
-
-        <el-checkbox v-model="knowledgeStore.recursive">递归扫描</el-checkbox>
-
-        <el-button type="primary" native-type="submit" :loading="knowledgeStore.isImporting">
-          导入目录
-        </el-button>
-      </div>
-    </form>
+      <template #footer>
+        <div class="knowledge-import-dialog__footer">
+          <el-button @click="isImportDialogOpen = false">取消</el-button>
+          <el-button type="primary" :loading="knowledgeStore.isImporting" @click="submitImportFolder">
+            导入目录
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
 
     <el-alert
-      v-if="knowledgeStore.error"
+      v-if="knowledgeStore.error && !isImportDialogOpen"
       class="settings-inline-alert"
       type="error"
       :title="knowledgeStore.error"

@@ -44,7 +44,7 @@
     overflow-y: visible;
   }
 
-  .knowledge-folder-import__actions,
+  .knowledge-folder-import__controls,
   .knowledge-health-drawer__actions,
   .search-form__controls {
     align-items: stretch;
