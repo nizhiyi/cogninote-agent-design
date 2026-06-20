@@ -59,6 +59,10 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .knowledge-health-issue-folder {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .folder-actions {
     justify-content: flex-start;
   }

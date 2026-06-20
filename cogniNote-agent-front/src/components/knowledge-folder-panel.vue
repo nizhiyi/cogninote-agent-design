@@ -25,6 +25,7 @@ const knowledgeStore = useKnowledgeFoldersStore()
 const knowledgeHealthStore = useKnowledgeHealthStore()
 const searchStore = useSearchStore()
 const isImportDialogOpen = ref(false)
+const isHealthIssuesDialogOpen = ref(false)
 
 const HEALTH_STATUS_LABELS = {
   HEALTHY: '可信',
@@ -45,6 +46,9 @@ const RUN_OPERATION_LABELS = {
 
 const canPickKnowledgeFolder = computed(() => isTauriRuntime())
 const healthSummary = computed(() => knowledgeHealthStore.health?.summary || null)
+const issueFolders = computed(() =>
+  (knowledgeHealthStore.health?.folders || []).filter((folder) => folderIssueCount(folder))
+)
 
 /**
  * 全量重建是高成本操作，保留在资料管理页显式触发，避免刷新时产生副作用。
@@ -71,6 +75,15 @@ async function submitImportFolder() {
   }
 }
 
+function openHealthIssuesDialog() {
+  isHealthIssuesDialogOpen.value = true
+}
+
+async function openFolderIssueDetail(folderId) {
+  isHealthIssuesDialogOpen.value = false
+  await knowledgeHealthStore.openFolderIssues(folderId)
+}
+
 function folderHealth(folder) {
   return knowledgeHealthStore.folderHealthById.get(folder.id) || null
 }
@@ -85,15 +98,14 @@ function healthStatusClass(status) {
 
 function folderIssueCount(folder) {
   const health = folderHealth(folder)
-  if (!health) {
+  if (!health || !folder.enabled || health.status === 'DISABLED') {
     return 0
   }
-  const structuralIssue = ['DISABLED', 'EMPTY'].includes(health.status) ? 1 : 0
-  return structuralIssue
-    + health.failedCount
+  const fileIssueCount = health.failedCount
     + health.unindexedCount
     + health.missingLocalFileCount
     + health.staleLocalFileCount
+  return health.status === 'HEALTHY' ? 0 : Math.max(1, fileIssueCount)
 }
 
 function runOperationLabel(run) {
@@ -163,10 +175,19 @@ async function confirmDeleteFolder(folder) {
         <span>缺失 {{ healthSummary?.missingLocalFileCount || 0 }}</span>
         <span>变化 {{ healthSummary?.staleLocalFileCount || 0 }}</span>
       </div>
-      <el-button :loading="knowledgeHealthStore.isLoading" @click="knowledgeHealthStore.fetchHealth">
-        <RefreshCw aria-hidden="true" />
-        <span>刷新诊断</span>
-      </el-button>
+      <div class="knowledge-health-overview__actions">
+        <el-button
+          :disabled="issueFolders.length === 0"
+          @click="openHealthIssuesDialog"
+        >
+          <AlertTriangle aria-hidden="true" />
+          <span>查看问题</span>
+        </el-button>
+        <el-button :loading="knowledgeHealthStore.isLoading" @click="knowledgeHealthStore.fetchHealth">
+          <RefreshCw aria-hidden="true" />
+          <span>刷新诊断</span>
+        </el-button>
+      </div>
     </section>
 
     <el-dialog
@@ -217,6 +238,43 @@ async function confirmDeleteFolder(folder) {
           </el-button>
         </div>
       </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="isHealthIssuesDialogOpen"
+      class="knowledge-health-issues-dialog"
+      body-class="knowledge-health-issues-dialog__body"
+      title="知识库问题目录"
+      width="min(720px, calc(100vw - 32px))"
+      align-center
+    >
+      <p v-if="issueFolders.length === 0" class="panel-message">当前没有需要处理的问题目录。</p>
+      <section v-else class="knowledge-health-issue-folders">
+        <article
+          v-for="folder in issueFolders"
+          :key="folder.id"
+          class="knowledge-health-issue-folder"
+        >
+          <div>
+            <strong>{{ folder.displayName }}</strong>
+            <p class="path-text">{{ folder.folderPath }}</p>
+            <div class="folder-meta">
+              <span :class="['status-chip', healthStatusClass(folder.status)]">
+                {{ healthStatusLabel(folder.status) }}
+              </span>
+              <span>{{ folderIssueCount(folder) }} 个问题</span>
+              <span v-if="folder.failedCount">失败 {{ folder.failedCount }}</span>
+              <span v-if="folder.unindexedCount">未索引 {{ folder.unindexedCount }}</span>
+              <span v-if="folder.missingLocalFileCount">缺失 {{ folder.missingLocalFileCount }}</span>
+              <span v-if="folder.staleLocalFileCount">变化 {{ folder.staleLocalFileCount }}</span>
+            </div>
+          </div>
+          <el-button @click="openFolderIssueDetail(folder.id)">
+            <AlertTriangle aria-hidden="true" />
+            <span>问题详情</span>
+          </el-button>
+        </article>
+      </section>
     </el-dialog>
 
     <el-alert
@@ -292,7 +350,7 @@ async function confirmDeleteFolder(folder) {
 
           <div class="folder-actions">
             <el-button
-              v-if="folderHealth(folder) && folderHealth(folder).status !== 'HEALTHY'"
+              v-if="folderIssueCount(folder)"
               :disabled="!folderHealth(folder)"
               @click="knowledgeHealthStore.openFolderIssues(folder.id)"
             >
@@ -349,7 +407,7 @@ async function confirmDeleteFolder(folder) {
           </span>
           <span>{{ folder.documentCount }} 文档</span>
           <span>{{ folder.chunkCount }} chunks</span>
-          <span>{{ folder.unindexedCount }} 未索引</span>
+          <span v-if="folder.enabled">{{ folder.unindexedCount }} 未索引</span>
           <span v-if="folderHealth(folder)?.missingLocalFileCount">缺失 {{ folderHealth(folder).missingLocalFileCount }}</span>
           <span v-if="folderHealth(folder)?.staleLocalFileCount">变化 {{ folderHealth(folder).staleLocalFileCount }}</span>
           <span v-if="folderIssueCount(folder)">问题 {{ folderIssueCount(folder) }}</span>

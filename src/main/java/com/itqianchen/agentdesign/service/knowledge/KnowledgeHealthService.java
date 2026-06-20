@@ -102,6 +102,10 @@ public class KnowledgeHealthService {
                 .findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException("Knowledge folder not found: " + folderId));
 
+        if (!summary.folder().enabled()) {
+            return disabledFolderHealth(folderId);
+        }
+
         List<KnowledgeDocument> documents = documentRepository.findByKnowledgeFolderIdOrderByUpdatedAtDesc(folderId);
         FolderHealthProbe probe = probeDocuments(documents);
         List<KnowledgeHealthIssueResponse> issues = folderIssues(summary, probe);
@@ -123,6 +127,37 @@ public class KnowledgeHealthService {
                 unindexedDocuments(documents),
                 probe.missingLocalFiles(),
                 probe.staleLocalFiles(),
+                runs
+        );
+    }
+
+    /**
+     * 返回停用目录的状态快照。
+     *
+     * <p>停用是用户主动把目录排除出检索范围，不代表知识库需要修复；因此不继续展开解析、索引和
+     * 本地文件探针问题，避免旧文档状态污染全库健康判断。</p>
+     *
+     * @param folderId 知识库目录 ID
+     * @return 停用目录健康响应
+     */
+    private KnowledgeFolderHealthResponse disabledFolderHealth(String folderId) {
+        List<KnowledgeFolderRunResponse> runs = runRepository.findRuns(
+                        KnowledgeFolderRunScopeType.KNOWLEDGE_FOLDER,
+                        folderId,
+                        DETAIL_RUN_LIMIT
+                )
+                .stream()
+                .map(KnowledgeFolderRunResponse::from)
+                .toList();
+
+        return new KnowledgeFolderHealthResponse(
+                folderId,
+                KnowledgeHealthStatus.DISABLED,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
                 runs
         );
     }
@@ -170,6 +205,17 @@ public class KnowledgeHealthService {
      * @return 目录健康快照
      */
     private FolderHealthSnapshot folderSnapshot(KnowledgeFolderSummary summary, KnowledgeFolderRun latestRun) {
+        if (!summary.folder().enabled()) {
+            return new FolderHealthSnapshot(
+                    summary,
+                    KnowledgeHealthStatus.DISABLED,
+                    0,
+                    0,
+                    latestRun == null ? null : KnowledgeFolderRunResponse.from(latestRun),
+                    List.of()
+            );
+        }
+
         List<KnowledgeDocument> documents = documentRepository.findByKnowledgeFolderIdOrderByUpdatedAtDesc(
                 summary.folder().id()
         );
@@ -266,14 +312,7 @@ public class KnowledgeHealthService {
         KnowledgeFolder folder = summary.folder();
         String folderId = folder.id();
         if (!folder.enabled()) {
-            issues.add(issue(
-                    KnowledgeHealthIssueCode.DISABLED_FOLDER,
-                    "WARNING",
-                    "目录已停用，不会参与搜索和 RAG。",
-                    "ENABLE",
-                    folderId,
-                    1
-            ));
+            return List.of();
         }
         if (!Files.isDirectory(Path.of(folder.folderPath()))) {
             issues.add(issue(
@@ -341,7 +380,7 @@ public class KnowledgeHealthService {
     /**
      * 计算单个目录的最终健康状态。
      *
-     * <p>DISABLED 优先级最高，因为停用目录即使有旧文档也不参与搜索；ERROR 表示需要修复才能恢复可信检索；
+     * <p>DISABLED 是用户主动排除目录的状态，不作为健康问题升级；ERROR 表示需要修复才能恢复可信检索；
      * EMPTY 只在启用且没有文档时出现。</p>
      *
      * @param summary 目录统计摘要
@@ -392,9 +431,13 @@ public class KnowledgeHealthService {
 
         for (FolderHealthSnapshot snapshot : snapshots) {
             KnowledgeFolderSummary summary = snapshot.summary();
-            if (summary.folder().enabled()) {
-                enabledFolderCount++;
+            if (!summary.folder().enabled()) {
+                lastIngestedAt = maxNullable(lastIngestedAt, summary.folder().lastIngestedAt());
+                lastIndexedAt = maxNullable(lastIndexedAt, summary.folder().lastIndexedAt());
+                continue;
             }
+
+            enabledFolderCount++;
             documentCount += summary.documentCount();
             parsedCount += summary.parsedCount();
             failedCount += summary.failedCount();
@@ -446,8 +489,7 @@ public class KnowledgeHealthService {
     /**
      * 计算全库最终健康状态。
      *
-     * <p>空库优先返回 EMPTY；只要存在 ERROR 问题就升级为 ERROR；停用目录不会让全库 ERROR，
-     * 但会让全库进入 WARNING，提醒用户搜索范围被主动缩小。</p>
+     * <p>全库状态只评价启用目录的可检索语料；停用目录是用户主动排除的范围，不参与 WARNING/ERROR 升级。</p>
      *
      * @param snapshots 目录健康快照列表
      * @param summary 全库统计摘要
@@ -468,8 +510,7 @@ public class KnowledgeHealthService {
         if (hasSeverity(issues, "ERROR")) {
             return KnowledgeHealthStatus.ERROR;
         }
-        if (hasSeverity(issues, "WARNING")
-                || snapshots.stream().anyMatch(snapshot -> snapshot.status() == KnowledgeHealthStatus.DISABLED)) {
+        if (hasSeverity(issues, "WARNING")) {
             return KnowledgeHealthStatus.WARNING;
         }
         return KnowledgeHealthStatus.HEALTHY;

@@ -279,6 +279,61 @@
   font-weight: 750;
 }
 
+.knowledge-health-overview__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.knowledge-health-issues-dialog {
+  display: flex;
+  flex-direction: column;
+  max-height: min(760px, calc(100vh - 48px));
+  max-height: min(760px, calc(100dvh - 48px));
+}
+
+.knowledge-health-issues-dialog__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding-top: 8px;
+}
+
+.knowledge-health-issue-folders {
+  display: grid;
+  gap: 10px;
+  max-height: min(560px, calc(100vh - 220px));
+  max-height: min(560px, calc(100dvh - 220px));
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.knowledge-health-issue-folder {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e1e7ef;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.knowledge-health-issue-folder strong {
+  display: block;
+  color: #101828;
+  font-size: 14px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.knowledge-health-issue-folder svg {
+  width: 16px;
+  height: 16px;
+}
+
 .knowledge-health-drawer__folder {
   display: grid;
   gap: 6px;

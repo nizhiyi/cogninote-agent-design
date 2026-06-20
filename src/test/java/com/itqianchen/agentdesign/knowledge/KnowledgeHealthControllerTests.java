@@ -2,6 +2,7 @@ package com.itqianchen.agentdesign.knowledge;
 
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -135,6 +136,37 @@ class KnowledgeHealthControllerTests {
                 .andExpect(jsonPath("$.data.missingLocalFiles.length()").value(1))
                 .andExpect(jsonPath("$.data.missingLocalFiles[0].fileName").value("bad-path.txt"))
                 .andExpect(jsonPath("$.data.missingLocalFiles[0].message").value(startsWith("无法访问本地文件：")));
+    }
+
+    @Test
+    void disabledFolderDoesNotDegradeOverallHealth() throws Exception {
+        Path disabledFile = tempDir.resolve("disabled.md");
+        Files.writeString(disabledFile, "# Disabled\n\ninactive folder content");
+        String disabledFolderId = importFolder(tempDir);
+
+        mockMvc.perform(patch("/api/knowledge-folders/{id}/enabled", disabledFolderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("enabled", false))))
+                .andExpect(status().isNoContent());
+
+        Path enabledFolder = Files.createDirectory(tempDir.resolve("enabled"));
+        Files.writeString(enabledFolder.resolve("healthy.md"), "# Healthy\n\nactive folder content");
+        importFolder(enabledFolder);
+
+        mockMvc.perform(get("/api/knowledge-health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("HEALTHY"))
+                .andExpect(jsonPath("$.data.summary.folderCount").value(2))
+                .andExpect(jsonPath("$.data.summary.enabledFolderCount").value(1))
+                .andExpect(jsonPath("$.data.summary.documentCount").value(1))
+                .andExpect(jsonPath("$.data.summary.unindexedCount").value(0))
+                .andExpect(jsonPath("$.data.issues.length()").value(0));
+
+        mockMvc.perform(get("/api/knowledge-health/folders/{id}", disabledFolderId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("DISABLED"))
+                .andExpect(jsonPath("$.data.issues.length()").value(0))
+                .andExpect(jsonPath("$.data.unindexedDocuments.length()").value(0));
     }
 
     @Test
