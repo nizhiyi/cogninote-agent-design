@@ -34,11 +34,11 @@
         )
     </insert>
 
-    <select id="countChatSessionsById" resultType="_int">
+    <select id="countChatSessionsById" resultType="int">
         SELECT COUNT(*) FROM chat_sessions WHERE id = #{id}
     </select>
 
-    <select id="countChatMessagesByConversationId" resultType="_int">
+    <select id="countChatMessagesByConversationId" resultType="int">
         SELECT COUNT(*) FROM chat_messages WHERE conversation_id = #{conversationId}
     </select>
 
