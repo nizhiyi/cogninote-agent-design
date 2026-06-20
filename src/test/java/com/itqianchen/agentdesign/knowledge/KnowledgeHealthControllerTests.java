@@ -1,12 +1,19 @@
 package com.itqianchen.agentdesign.knowledge;
 
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.itqianchen.agentdesign.domain.document.DocumentStatus;
+import com.itqianchen.agentdesign.domain.document.FileType;
+import com.itqianchen.agentdesign.domain.document.KnowledgeDocument;
+import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolder;
 import com.itqianchen.agentdesign.domain.search.KnowledgeStore;
+import com.itqianchen.agentdesign.repository.document.DocumentRepository;
+import com.itqianchen.agentdesign.repository.knowledge.KnowledgeFolderRepository;
 import com.itqianchen.agentdesign.support.TestDatabaseCleaner;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -41,6 +48,12 @@ class KnowledgeHealthControllerTests {
 
     @Autowired
     private KnowledgeStore knowledgeStore;
+
+    @Autowired
+    private KnowledgeFolderRepository folderRepository;
+
+    @Autowired
+    private DocumentRepository documentRepository;
 
     @TempDir
     private Path tempDir;
@@ -82,6 +95,46 @@ class KnowledgeHealthControllerTests {
                 .andExpect(jsonPath("$.data.issues[0].code").value("MISSING_LOCAL_FILES"))
                 .andExpect(jsonPath("$.data.missingLocalFiles.length()").value(1))
                 .andExpect(jsonPath("$.data.missingLocalFiles[0].fileName").value("missing-after-import.txt"));
+    }
+
+    @Test
+    void folderHealthTreatsInvalidStoredPathAsMissingLocalFile() throws Exception {
+        long now = System.currentTimeMillis();
+        String folderId = "folder-invalid-path";
+        folderRepository.upsert(new KnowledgeFolder(
+                folderId,
+                tempDir.toAbsolutePath().normalize().toString(),
+                "Invalid Path Folder",
+                true,
+                true,
+                now,
+                now,
+                now,
+                now
+        ));
+        documentRepository.upsertDocument(new KnowledgeDocument(
+                "document-invalid-path",
+                folderId,
+                "bad" + '\0' + "path.txt",
+                "bad-path.txt",
+                FileType.TEXT,
+                1,
+                now,
+                "hash-invalid-path",
+                DocumentStatus.PARSED,
+                now,
+                now,
+                now,
+                1
+        ));
+
+        mockMvc.perform(get("/api/knowledge-health/folders/{id}", folderId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("WARNING"))
+                .andExpect(jsonPath("$.data.issues[0].code").value("MISSING_LOCAL_FILES"))
+                .andExpect(jsonPath("$.data.missingLocalFiles.length()").value(1))
+                .andExpect(jsonPath("$.data.missingLocalFiles[0].fileName").value("bad-path.txt"))
+                .andExpect(jsonPath("$.data.missingLocalFiles[0].message").value(startsWith("无法访问本地文件：")));
     }
 
     @Test

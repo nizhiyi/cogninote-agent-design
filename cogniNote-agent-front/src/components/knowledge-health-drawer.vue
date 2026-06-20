@@ -14,6 +14,7 @@ const currentFolder = computed(() =>
 )
 const drawerTitle = computed(() => currentFolder.value?.displayName || '知识库问题')
 const folderHealth = computed(() => healthStore.folderHealth)
+// 后端按问题来源拆分文档列表，前端只负责分区展示，不在这里重新推导健康状态。
 const problemSections = computed(() => [
   {
     key: 'failed',
@@ -39,6 +40,7 @@ const problemSections = computed(() => [
 const issueCount = computed(() => folderHealth.value?.issues?.reduce((total, issue) => total + issue.count, 0) || 0)
 const canRepairFolder = computed(() => Boolean(currentFolder.value?.enabled && healthStore.selectedFolderId))
 
+// issue.action 是后端建议，不在抽屉中自动执行；删除、启停等破坏性动作仍交给目录面板显式确认。
 async function syncSelectedFolder() {
   if (!healthStore.selectedFolderId) {
     return
@@ -60,6 +62,7 @@ async function copyPath(path) {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(path)
     } else {
+      // Tauri WebView 或旧浏览器可能没有 Clipboard API，保留 DOM fallback 保证本地路径可复制。
       fallbackCopy(path)
     }
     ElMessage.success('路径已复制')

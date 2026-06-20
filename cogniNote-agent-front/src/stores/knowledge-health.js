@@ -22,6 +22,7 @@ export const useKnowledgeHealthStore = defineStore('knowledgeHealth', () => {
   const isLoadingRuns = ref(false)
   const error = ref('')
 
+  // 将全库快照中的目录摘要建索引，问题抽屉可直接复用，避免为标题再发一次目录请求。
   const folderHealthById = computed(() => new Map(
     (health.value?.folders || []).map((folder) => [folder.id, folder])
   ))
@@ -64,6 +65,7 @@ export const useKnowledgeHealthStore = defineStore('knowledgeHealth', () => {
   async function openFolderIssues(folderId) {
     selectedFolderId.value = folderId
     isDrawerOpen.value = true
+    // 抽屉先打开再加载详情，用户能立即看到上下文和 loading，慢文件系统探针不会卡住点击反馈。
     await fetchFolderHealth(folderId)
   }
 

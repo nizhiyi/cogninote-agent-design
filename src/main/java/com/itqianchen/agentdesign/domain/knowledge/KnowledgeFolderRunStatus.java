@@ -2,6 +2,9 @@ package com.itqianchen.agentdesign.domain.knowledge;
 
 /**
  * 知识库维护运行结果。
+ *
+ * <p>状态表示一次维护动作是否完成，不等同于目录健康状态；有失败项但主流程完成时应使用
+ * COMPLETED_WITH_WARNINGS。</p>
  */
 public enum KnowledgeFolderRunStatus {
     /** 操作完成且没有报告失败项。 */

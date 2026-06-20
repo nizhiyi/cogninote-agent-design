@@ -2,6 +2,8 @@ package com.itqianchen.agentdesign.domain.knowledge;
 
 /**
  * 知识库健康诊断问题类型。
+ *
+ * <p>枚举名是前后端识别问题类型的稳定协议，新增类型时需要同步前端展示和推荐动作映射。</p>
  */
 public enum KnowledgeHealthIssueCode {
     /** 知识库目录路径当前不可访问。 */

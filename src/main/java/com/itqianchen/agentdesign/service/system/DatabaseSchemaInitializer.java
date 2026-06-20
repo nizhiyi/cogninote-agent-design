@@ -87,6 +87,10 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
          * 使用独立 key-value 表，避免把非模型参数塞进 model_configs。
          */
         databaseSchemaMapper.createAppSettingsTable();
+        /*
+         * 维护运行记录是健康面板的诊断辅助数据，建表失败应在启动期暴露；
+         * 但运行时写入失败由 KnowledgeFolderRunService 降级处理，不反向影响核心操作。
+         */
         databaseSchemaMapper.createKnowledgeFolderRunsTable();
         databaseSchemaMapper.createKnowledgeGraphRunsTable();
         databaseSchemaMapper.createKnowledgeGraphChunkExtractionsTable();

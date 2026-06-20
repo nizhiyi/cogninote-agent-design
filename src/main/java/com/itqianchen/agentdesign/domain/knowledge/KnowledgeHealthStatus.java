@@ -2,6 +2,8 @@ package com.itqianchen.agentdesign.domain.knowledge;
 
 /**
  * 知识库当前可信状态。
+ *
+ * <p>状态由健康诊断即时派生，不持久化；排序和样式由前端按这些枚举名映射。</p>
  */
 public enum KnowledgeHealthStatus {
     /** 当前没有发现影响搜索或 RAG 完整性的已知问题。 */

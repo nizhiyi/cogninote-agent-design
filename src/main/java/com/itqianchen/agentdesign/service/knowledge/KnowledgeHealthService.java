@@ -28,6 +28,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +40,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class KnowledgeHealthService {
+
+    private static final Logger log = LoggerFactory.getLogger(KnowledgeHealthService.class);
 
     private static final int DETAIL_RUN_LIMIT = 20;
 
@@ -139,6 +143,13 @@ public class KnowledgeHealthService {
                 .toList();
     }
 
+    /**
+     * 读取每个目录最近一次维护记录。
+     *
+     * <p>全库运行记录不直接挂到目录卡片上；目录卡片只展示自身 scope 的最近维护结果。</p>
+     *
+     * @return 以 scopeKey 为键的最近运行记录
+     */
     private Map<String, KnowledgeFolderRun> latestRunsByScope() {
         Map<String, KnowledgeFolderRun> runs = new LinkedHashMap<>();
         for (KnowledgeFolderRun run : runRepository.findLatestRunsByScope()) {
@@ -149,6 +160,15 @@ public class KnowledgeHealthService {
         return runs;
     }
 
+    /**
+     * 计算目录在全库列表中的轻量健康快照。
+     *
+     * <p>快照只保留计数和最近运行记录，不携带完整问题文档列表，避免全库健康接口返回过大的响应。</p>
+     *
+     * @param summary 目录统计摘要
+     * @param latestRun 目录最近一次维护记录；没有记录时为空
+     * @return 目录健康快照
+     */
     private FolderHealthSnapshot folderSnapshot(KnowledgeFolderSummary summary, KnowledgeFolderRun latestRun) {
         List<KnowledgeDocument> documents = documentRepository.findByKnowledgeFolderIdOrderByUpdatedAtDesc(
                 summary.folder().id()
@@ -165,31 +185,82 @@ public class KnowledgeHealthService {
         );
     }
 
+    /**
+     * 探测 SQLite 文档记录对应的本地文件状态。
+     *
+     * <p>健康诊断是只读、尽力而为的入口。单个文档路径损坏、权限异常或外置盘不可用时，
+     * 应把该文档报告为不可访问，而不是让整个健康面板返回 500。</p>
+     *
+     * @param documents 目录下的文档记录
+     * @return 文件缺失和疑似变化的探针结果
+     */
     private FolderHealthProbe probeDocuments(List<KnowledgeDocument> documents) {
         List<KnowledgeProblemDocumentResponse> missingLocalFiles = new ArrayList<>();
         List<KnowledgeProblemDocumentResponse> staleLocalFiles = new ArrayList<>();
         for (KnowledgeDocument document : documents) {
-            Path path = Path.of(document.sourcePath());
-            if (!Files.exists(path) || !Files.isRegularFile(path)) {
-                missingLocalFiles.add(KnowledgeProblemDocumentResponse.from(document, "本地文件不存在，点击同步可清理应用内记录。"));
-                continue;
-            }
-            if (isStale(document, path)) {
-                staleLocalFiles.add(KnowledgeProblemDocumentResponse.from(document, "本地文件大小或修改时间已变化，建议同步目录。"));
+            try {
+                Path path = Path.of(document.sourcePath());
+                if (!Files.exists(path) || !Files.isRegularFile(path)) {
+                    missingLocalFiles.add(KnowledgeProblemDocumentResponse.from(document, "本地文件不存在，点击同步可清理应用内记录。"));
+                    continue;
+                }
+                if (isStale(document, path)) {
+                    staleLocalFiles.add(KnowledgeProblemDocumentResponse.from(document, "本地文件大小或修改时间已变化，建议同步目录。"));
+                }
+            } catch (RuntimeException ex) {
+                log.warn("knowledge_health_file_probe_failed documentId={} path={}",
+                        document.id(),
+                        document.sourcePath(),
+                        ex
+                );
+                missingLocalFiles.add(KnowledgeProblemDocumentResponse.from(document, probeFailureMessage(ex)));
             }
         }
         return new FolderHealthProbe(List.copyOf(missingLocalFiles), List.copyOf(staleLocalFiles));
     }
 
+    /**
+     * 判断本地文件是否与上次解析记录不一致。
+     *
+     * <p>仅比较大小和修改时间，避免在健康查询里重新读取全文或计算 hash；需要精确收敛时由同步流程处理。</p>
+     *
+     * @param document SQLite 中保存的文档元数据
+     * @param path 当前本地文件路径
+     * @return 是否疑似变化
+     */
     private boolean isStale(KnowledgeDocument document, Path path) {
         try {
             return Files.size(path) != document.fileSize()
                     || Files.getLastModifiedTime(path).toMillis() != document.lastModified();
         } catch (IOException ex) {
+            // 无法读取文件元数据时按“疑似变化”处理，让用户通过同步重新收敛 SQLite 记录。
             return true;
         }
     }
 
+    /**
+     * 将文件探针异常转换为用户可读的问题说明。
+     *
+     * @param ex 路径解析或文件系统访问异常
+     * @return 问题文档展示消息
+     */
+    private static String probeFailureMessage(RuntimeException ex) {
+        String detail = ex.getMessage();
+        if (detail == null || detail.isBlank()) {
+            return "无法访问本地文件，请检查路径格式或文件权限。";
+        }
+        return "无法访问本地文件：" + detail;
+    }
+
+    /**
+     * 根据目录统计和文件探针结果生成目录级问题列表。
+     *
+     * <p>每个问题都携带建议动作，前端只展示或映射到用户显式操作，不由健康查询自动修复。</p>
+     *
+     * @param summary 目录统计摘要
+     * @param probe 文件系统探针结果
+     * @return 目录级健康问题
+     */
     private List<KnowledgeHealthIssueResponse> folderIssues(KnowledgeFolderSummary summary, FolderHealthProbe probe) {
         List<KnowledgeHealthIssueResponse> issues = new ArrayList<>();
         KnowledgeFolder folder = summary.folder();
@@ -267,6 +338,17 @@ public class KnowledgeHealthService {
         return List.copyOf(issues);
     }
 
+    /**
+     * 计算单个目录的最终健康状态。
+     *
+     * <p>DISABLED 优先级最高，因为停用目录即使有旧文档也不参与搜索；ERROR 表示需要修复才能恢复可信检索；
+     * EMPTY 只在启用且没有文档时出现。</p>
+     *
+     * @param summary 目录统计摘要
+     * @param probe 文件系统探针结果
+     * @param issues 已生成的问题列表
+     * @return 目录健康状态
+     */
     private KnowledgeHealthStatus folderStatus(
             KnowledgeFolderSummary summary,
             FolderHealthProbe probe,
@@ -287,6 +369,14 @@ public class KnowledgeHealthService {
         return KnowledgeHealthStatus.HEALTHY;
     }
 
+    /**
+     * 汇总全库健康统计。
+     *
+     * <p>lastIngestedAt 和 lastIndexedAt 使用所有目录中的最大值，表达“全库最近一次发生过的维护时间”。</p>
+     *
+     * @param snapshots 目录健康快照列表
+     * @return 全库统计摘要
+     */
     private KnowledgeHealthSummaryResponse totalSummary(List<FolderHealthSnapshot> snapshots) {
         int folderCount = snapshots.size();
         int enabledFolderCount = 0;
@@ -331,6 +421,14 @@ public class KnowledgeHealthService {
         );
     }
 
+    /**
+     * 将目录级问题按问题类型聚合为全库问题。
+     *
+     * <p>聚合后 scopeType 变为 ALL，scopeId 为空；具体目录仍可通过 folders 或目录详情查看。</p>
+     *
+     * @param snapshots 目录健康快照列表
+     * @return 全库聚合问题列表
+     */
     private List<KnowledgeHealthIssueResponse> aggregateIssues(List<FolderHealthSnapshot> snapshots) {
         Map<KnowledgeHealthIssueCode, IssueAggregate> aggregates = new LinkedHashMap<>();
         for (FolderHealthSnapshot snapshot : snapshots) {
@@ -345,6 +443,17 @@ public class KnowledgeHealthService {
                 .toList();
     }
 
+    /**
+     * 计算全库最终健康状态。
+     *
+     * <p>空库优先返回 EMPTY；只要存在 ERROR 问题就升级为 ERROR；停用目录不会让全库 ERROR，
+     * 但会让全库进入 WARNING，提醒用户搜索范围被主动缩小。</p>
+     *
+     * @param snapshots 目录健康快照列表
+     * @param summary 全库统计摘要
+     * @param issues 全库聚合问题
+     * @return 全库健康状态
+     */
     private KnowledgeHealthStatus overallStatus(
             List<FolderHealthSnapshot> snapshots,
             KnowledgeHealthSummaryResponse summary,
@@ -366,6 +475,14 @@ public class KnowledgeHealthService {
         return KnowledgeHealthStatus.HEALTHY;
     }
 
+    /**
+     * 按文档解析状态筛选问题文档。
+     *
+     * @param documents 目录下的文档记录
+     * @param status 需要筛选的文档状态
+     * @param message 展示给用户的处理建议
+     * @return 问题文档列表
+     */
     private List<KnowledgeProblemDocumentResponse> problemDocuments(
             List<KnowledgeDocument> documents,
             DocumentStatus status,
@@ -377,6 +494,14 @@ public class KnowledgeHealthService {
                 .toList();
     }
 
+    /**
+     * 找出已经解析但尚未写入检索索引的文档。
+     *
+     * <p>只有 PARSED 文档才应进入索引，FAILED 文档会由解析失败问题单独展示。</p>
+     *
+     * @param documents 目录下的文档记录
+     * @return 未索引文档列表
+     */
     private List<KnowledgeProblemDocumentResponse> unindexedDocuments(List<KnowledgeDocument> documents) {
         return documents.stream()
                 .filter(document -> document.status() == DocumentStatus.PARSED)
@@ -385,6 +510,17 @@ public class KnowledgeHealthService {
                 .toList();
     }
 
+    /**
+     * 构造目录范围的问题响应。
+     *
+     * @param code 问题类型
+     * @param severity 严重级别，当前使用 ERROR/WARNING
+     * @param message 用户可读说明
+     * @param action 推荐维护动作
+     * @param scopeId 目录 ID
+     * @param count 受影响对象数量
+     * @return 健康问题响应
+     */
     private static KnowledgeHealthIssueResponse issue(
             KnowledgeHealthIssueCode code,
             String severity,
@@ -404,10 +540,24 @@ public class KnowledgeHealthService {
         );
     }
 
+    /**
+     * 判断问题列表是否包含指定严重级别。
+     *
+     * @param issues 问题列表
+     * @param severity 严重级别
+     * @return 是否存在该级别问题
+     */
     private static boolean hasSeverity(List<KnowledgeHealthIssueResponse> issues, String severity) {
         return issues.stream().anyMatch(issue -> severity.equals(issue.severity()));
     }
 
+    /**
+     * 取两个可空时间戳中的较大值。
+     *
+     * @param left 左侧时间戳
+     * @param right 右侧时间戳
+     * @return 两者最大值；两者都为空时返回空
+     */
     private static Long maxNullable(Long left, Long right) {
         if (left == null) {
             return right;
@@ -418,16 +568,32 @@ public class KnowledgeHealthService {
         return Math.max(left, right);
     }
 
+    /**
+     * 构造运行记录 scope 查找键。
+     *
+     * @param folderId 目录 ID
+     * @return scopeType 和 scopeId 组合键
+     */
     private static String scopeKey(String folderId) {
         return KnowledgeFolderRunScopeType.KNOWLEDGE_FOLDER.name() + ":" + folderId;
     }
 
+    /**
+     * 文件系统探针结果。
+     *
+     * <p>这里保存完整问题文档，目录详情直接展示；全库快照只取其中计数，避免响应过大。</p>
+     */
     private record FolderHealthProbe(
             List<KnowledgeProblemDocumentResponse> missingLocalFiles,
             List<KnowledgeProblemDocumentResponse> staleLocalFiles
     ) {
     }
 
+    /**
+     * 单个目录的全库列表快照。
+     *
+     * <p>该快照位于领域统计和 API 响应之间，用于复用目录状态、计数、最近运行记录和问题聚合。</p>
+     */
     private record FolderHealthSnapshot(
             KnowledgeFolderSummary summary,
             KnowledgeHealthStatus status,
@@ -436,6 +602,11 @@ public class KnowledgeHealthService {
             KnowledgeFolderRunResponse lastRun,
             List<KnowledgeHealthIssueResponse> issues
     ) {
+        /**
+         * 转换为全库健康列表中的目录摘要响应。
+         *
+         * @return 目录健康摘要
+         */
         private KnowledgeFolderHealthSummaryResponse toSummaryResponse() {
             return new KnowledgeFolderHealthSummaryResponse(
                     summary.folder().id(),
@@ -457,6 +628,12 @@ public class KnowledgeHealthService {
         }
     }
 
+    /**
+     * 全库问题聚合器。
+     *
+     * <p>同一问题类型在多个目录出现时，只保留一条全库问题并累加 count；严重级别、动作和兜底文案
+     * 取首个目录问题，要求同一 code 在 folderIssues 中保持一致配置。</p>
+     */
     private static final class IssueAggregate {
         private final KnowledgeHealthIssueCode code;
         private final String severity;
@@ -464,6 +641,11 @@ public class KnowledgeHealthService {
         private final String action;
         private int count;
 
+        /**
+         * 创建聚合器并继承单目录问题的展示配置。
+         *
+         * @param issue 单目录问题
+         */
         private IssueAggregate(KnowledgeHealthIssueResponse issue) {
             this.code = issue.code();
             this.severity = issue.severity();
@@ -472,10 +654,20 @@ public class KnowledgeHealthService {
             this.count = 0;
         }
 
+        /**
+         * 累加同类问题的影响数量。
+         *
+         * @param issue 同一问题类型的目录问题
+         */
         private void add(KnowledgeHealthIssueResponse issue) {
             this.count += issue.count();
         }
 
+        /**
+         * 转换为全库问题响应。
+         *
+         * @return 全库聚合问题
+         */
         private KnowledgeHealthIssueResponse toResponse() {
             return new KnowledgeHealthIssueResponse(
                     code,
@@ -488,6 +680,14 @@ public class KnowledgeHealthService {
             );
         }
 
+        /**
+         * 生成全库聚合文案。
+         *
+         * @param code 问题类型
+         * @param count 汇总数量
+         * @param fallback 未覆盖问题类型时使用的单目录文案
+         * @return 全库问题文案
+         */
         private static String aggregateMessage(KnowledgeHealthIssueCode code, int count, String fallback) {
             return switch (code) {
                 case FOLDER_NOT_FOUND -> "有 " + count + " 个目录当前不可访问。";

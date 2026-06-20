@@ -39,6 +39,8 @@ public class IndexService {
     /**
      * 全量重建索引。
      *
+     * <p>虽然入口属于索引服务，但它会影响整个知识库的可检索状态，因此也写入知识库维护运行记录。</p>
+     *
      * @return 重建统计
      */
     public RebuildIndexResponse rebuild() {

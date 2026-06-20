@@ -2,6 +2,8 @@ package com.itqianchen.agentdesign.domain.knowledge;
 
 /**
  * 知识库维护动作类型。
+ *
+ * <p>枚举名会持久化到 knowledge_folder_runs.operation，并直接返回给前端展示；改名需要兼容旧库数据。</p>
  */
 public enum KnowledgeFolderRunOperation {
     /** 导入本地目录。 */

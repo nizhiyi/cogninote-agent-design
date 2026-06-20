@@ -10,6 +10,7 @@ export function getKnowledgeFolderHealth(id) {
 
 export function listKnowledgeHealthRuns({ scopeType, scopeId, limit } = {}) {
   const params = new URLSearchParams()
+  // 只发送有值的过滤条件，避免后端把空字符串误判为某个具体 scope。
   if (scopeType) {
     params.set('scopeType', scopeType)
   }
