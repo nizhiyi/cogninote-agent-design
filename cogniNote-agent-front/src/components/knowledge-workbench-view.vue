@@ -2,6 +2,7 @@
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { RefreshCw, Settings2 } from 'lucide-vue-next'
+import KnowledgeDirectoryManagerPanel from './knowledge-directory-manager-panel.vue'
 import KnowledgeFolderPanel from './knowledge-folder-panel.vue'
 import KnowledgeGraphPanel from './knowledge-graph-panel.vue'
 import KnowledgeSearchPanel from './knowledge-search-panel.vue'
@@ -56,8 +57,11 @@ async function refreshWorkbench() {
 </script>
 
 <template>
-  <section class="knowledge-workbench">
-    <header class="knowledge-workbench__header">
+  <section
+    class="knowledge-workbench"
+    :class="{ 'knowledge-workbench--directory-manager': activePanel === 'directories' }"
+  >
+    <header v-if="activePanel !== 'directories'" class="knowledge-workbench__header">
       <div>
         <p class="eyebrow">知识库工作区</p>
         <h2>知识库</h2>
@@ -93,6 +97,7 @@ async function refreshWorkbench() {
 
     <div class="knowledge-workbench__panel">
       <KnowledgeFolderPanel v-if="activePanel === 'folders'" />
+      <KnowledgeDirectoryManagerPanel v-else-if="activePanel === 'directories'" />
       <KnowledgeSearchPanel v-else-if="activePanel === 'search'" />
       <KnowledgeGraphPanel v-else />
     </div>

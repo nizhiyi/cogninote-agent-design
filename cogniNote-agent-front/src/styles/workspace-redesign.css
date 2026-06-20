@@ -826,6 +826,19 @@
   background: transparent;
 }
 
+.knowledge-workbench--directory-manager {
+  gap: 10px;
+  padding: 16px 20px;
+}
+
+.knowledge-workbench--directory-manager .knowledge-workbench__panel {
+  overflow: hidden;
+}
+
+.knowledge-workbench--directory-manager .knowledge-pane {
+  overflow: hidden;
+}
+
 .knowledge-split {
   height: auto;
   min-height: 0;
@@ -2008,6 +2021,11 @@
 
   .knowledge-workbench .knowledge-pane {
     overflow: visible;
+  }
+
+  .knowledge-workbench--directory-manager .knowledge-workbench__panel,
+  .knowledge-workbench--directory-manager .knowledge-pane {
+    overflow: hidden;
   }
 
   .graph-generate-panel__body {

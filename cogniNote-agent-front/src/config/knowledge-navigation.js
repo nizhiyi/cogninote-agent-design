@@ -2,6 +2,7 @@ export const DEFAULT_KNOWLEDGE_PANEL = 'folders'
 
 export const KNOWLEDGE_PANEL_OPTIONS = [
   { id: 'folders', label: '资料管理' },
+  { id: 'directories', label: '目录管理' },
   { id: 'search', label: '检索测试' },
   { id: 'graph', label: '知识图谱' }
 ]

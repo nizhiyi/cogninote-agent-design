@@ -192,6 +192,13 @@ body {
 .document-row,
 .knowledge-pane,
 .knowledge-folder-card,
+.knowledge-directory-list,
+.knowledge-directory-row,
+.knowledge-directory-toolbar,
+.knowledge-directory-summary article,
+.knowledge-overview-grid article,
+.knowledge-directory-entry,
+.knowledge-folder-snapshot,
 .source-row,
 .index-toolbar,
 .model-config-list,
@@ -514,7 +521,10 @@ body {
 
 .index-toolbar,
 .index-path-panel > span,
-.folder-toggle-button {
+.folder-toggle-button,
+.knowledge-directory-entry h4,
+.knowledge-folder-snapshot h4,
+.knowledge-folder-snapshot__item strong {
   color: var(--color-text-strong);
 }
 
@@ -534,7 +544,8 @@ body {
   background: color-mix(in srgb, var(--color-surface-muted) 48%, transparent);
 }
 
-.knowledge-folder-card {
+.knowledge-folder-card,
+.knowledge-directory-row {
   color: var(--color-text);
 }
 

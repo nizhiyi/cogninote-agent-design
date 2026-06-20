@@ -7,6 +7,10 @@
   .module-nav,
   .knowledge-split,
   .knowledge-health-overview,
+  .knowledge-overview-grid,
+  .knowledge-directory-summary,
+  .knowledge-directory-entry,
+  .knowledge-directory-toolbar,
   .ingest-form,
   .knowledge-folder-import,
   .search-form,
@@ -17,6 +21,15 @@
     grid-template-columns: 1fr;
   }
 
+  .knowledge-directory-list__head {
+    display: none;
+  }
+
+  .knowledge-directory-row__grid,
+  .knowledge-folder-snapshot__item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .field--full,
   .model-form__actions {
     grid-column: auto;
@@ -24,7 +37,6 @@
 
   .source-row,
   .document-row,
-  .knowledge-folder-header,
   .index-toolbar {
     align-items: stretch;
     flex-direction: column;
@@ -44,8 +56,13 @@
     overflow-y: visible;
   }
 
+  .knowledge-pane--directories {
+    overflow: hidden;
+  }
+
   .knowledge-folder-import__controls,
   .knowledge-health-drawer__actions,
+  .knowledge-directory-toolbar__actions,
   .search-form__controls {
     align-items: stretch;
     flex-direction: column;
@@ -53,6 +70,22 @@
 
   .knowledge-health-overview__stats {
     justify-content: flex-start;
+  }
+
+  .knowledge-directory-toolbar__meta,
+  .knowledge-directory-toolbar__actions,
+  .knowledge-directory-footer,
+  .knowledge-directory-row__actions {
+    justify-content: flex-start;
+  }
+
+  .knowledge-directory-row__grid {
+    gap: 10px;
+  }
+
+  .folder-documents {
+    margin-right: 14px;
+    margin-left: 14px;
   }
 
   .knowledge-problem-item {
