@@ -248,7 +248,7 @@ GET /api/knowledge-health
 }
 ```
 
-`status` 支持 `HEALTHY`、`WARNING`、`ERROR`、`DISABLED`、`EMPTY`。`issues[].action` 是建议动作，例如 `SYNC_FOLDER`、`REBUILD_INDEX`、`ENABLE`、`DELETE_FOLDER`，前端仍需调用对应目录或索引接口执行。
+`status` 支持 `HEALTHY`、`WARNING`、`ERROR`、`DISABLED`、`EMPTY`。`issues[].action` 是建议动作，例如 `SYNC_FOLDER`、`REBUILD_INDEX`、`DELETE_FOLDER`，前端仍需调用对应目录或索引接口执行。停用目录返回 `DISABLED`，作为用户主动排除检索范围的维护状态，不计入全库问题数量或 `WARNING/ERROR`。
 
 当前问题代码：
 
@@ -260,7 +260,7 @@ GET /api/knowledge-health
 | `UNINDEXED_DOCUMENTS` | `ERROR` | 已解析文档尚未进入 Lucene | 重建目录索引或全库索引 |
 | `STALE_LOCAL_FILES` | `WARNING` | 本地文件大小或修改时间已变化 | 同步目录 |
 | `MISSING_LOCAL_FILES` | `WARNING` | 已记录文件在本地不存在 | 同步目录清理应用内记录 |
-| `DISABLED_FOLDER` | `WARNING` | 目录已停用 | 启用目录 |
+| `DISABLED_FOLDER` | `INFO` | 目录已停用；当前实现仅作为状态语义保留，不进入问题列表 | 在目录管理列表中启用目录 |
 
 ### 查询目录健康详情
 
@@ -293,7 +293,7 @@ GET /api/knowledge-health/folders/{id}
 }
 ```
 
-第一版健康诊断只比较本地文件是否存在、文件大小和修改时间，不重新计算内容 hash；真正的新增、修改、删除收敛仍由“同步目录”完成。
+第一版健康诊断只比较本地文件是否存在、文件大小和修改时间，不重新计算内容 hash；真正的新增、修改、删除收敛仍由“同步目录”完成。单个文件访问异常会转成文件不可访问问题，不会让整个健康接口失败。
 
 ### 查询维护运行记录
 

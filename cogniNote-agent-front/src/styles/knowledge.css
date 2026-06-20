@@ -54,6 +54,41 @@
   line-height: 1.25;
 }
 
+.knowledge-header-link {
+  display: inline-flex;
+  min-height: 38px;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--color-text-muted, #5d6b82);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 750;
+  text-decoration: none;
+  transition:
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.knowledge-header-link:hover,
+.knowledge-header-link:focus-visible {
+  color: var(--color-action-strong, #125f7a);
+  background: color-mix(in srgb, var(--color-action-soft) 66%, transparent);
+  outline: 0;
+}
+
+.knowledge-header-link:focus-visible {
+  box-shadow: var(--shadow-focus);
+}
+
+.knowledge-header-link svg {
+  width: 16px;
+  height: 16px;
+}
+
 .stat-grid div {
   min-width: 0;
   padding: 16px;
@@ -517,10 +552,49 @@
 
 .knowledge-directory-entry {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
-  align-items: center;
+  align-items: start;
   padding: 14px;
+}
+
+.knowledge-directory-entry__link {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 30px;
+  gap: 4px;
+  align-items: center;
+  color: var(--color-action-strong, #125f7a);
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  transition:
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.knowledge-directory-entry__link:hover,
+.knowledge-directory-entry__link:focus-visible {
+  color: var(--color-text-strong, #101828);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  outline: 0;
+}
+
+.knowledge-directory-entry__link:focus-visible {
+  border-radius: 6px;
+  box-shadow: var(--shadow-focus);
+}
+
+.knowledge-directory-entry__link svg {
+  width: 15px;
+  height: 15px;
+  transition: transform 160ms ease;
+}
+
+.knowledge-directory-entry__link:hover svg,
+.knowledge-directory-entry__link:focus-visible svg {
+  transform: translateX(2px);
 }
 
 .knowledge-directory-entry h4,

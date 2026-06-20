@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import {
   AlertTriangle,
+  ChevronRight,
   FolderPlus,
   ListTree,
   RefreshCw,
@@ -39,7 +40,7 @@ const RUN_OPERATION_LABELS = {
 
 const healthSummary = computed(() => knowledgeHealthStore.health?.summary || null)
 const issueFolders = computed(() =>
-  (knowledgeHealthStore.health?.folders || []).filter((folder) => folderIssueCount(folder))
+  (knowledgeHealthStore.health?.folders || []).filter((folderHealthSummary) => folderHealthIssueCount(folderHealthSummary))
 )
 const recentFolders = computed(() => knowledgeStore.folders.slice(0, 4))
 
@@ -83,8 +84,11 @@ function healthStatusClass(status) {
 }
 
 function folderIssueCount(folder) {
-  const health = folder.status ? folder : folderHealth(folder)
-  if (!health || !folder.enabled || health.status === 'DISABLED') {
+  return folderHealthIssueCount(folderHealth(folder))
+}
+
+function folderHealthIssueCount(health) {
+  if (!health || !health.enabled || health.status === 'DISABLED') {
     return 0
   }
   const fileIssueCount = health.failedCount
@@ -112,10 +116,13 @@ function runOperationLabel(run) {
           <FolderPlus aria-hidden="true" />
           <span>导入目录</span>
         </el-button>
-        <RouterLink class="secondary-button" :to="{ name: 'knowledge', query: { panel: 'directories' } }">
-          <ListTree aria-hidden="true" />
-          <span>目录管理</span>
-        </RouterLink>
+<!--        <RouterLink-->
+<!--          class="knowledge-header-link"-->
+<!--          :to="{ name: 'knowledge', query: { panel: 'directories' } }"-->
+<!--        >-->
+<!--          <ListTree aria-hidden="true" />-->
+<!--          <span>目录管理</span>-->
+<!--        </RouterLink>-->
         <el-button :loading="searchStore.isRebuildingIndex" @click="rebuildAllIndexes">
           <RotateCcw aria-hidden="true" />
           <span>重建索引</span>
@@ -185,9 +192,9 @@ function runOperationLabel(run) {
         <h4>用列表管理目录</h4>
         <p class="muted-text">搜索、分页、同步、启停和删除目录都在这里处理，避免总览页被操作细节挤满。</p>
       </div>
-      <RouterLink class="secondary-button" :to="{ name: 'knowledge', query: { panel: 'directories' } }">
-        <ListTree aria-hidden="true" />
+      <RouterLink class="knowledge-directory-entry__link" :to="{ name: 'knowledge', query: { panel: 'directories' } }">
         <span>打开目录管理</span>
+        <ChevronRight aria-hidden="true" />
       </RouterLink>
     </section>
 
@@ -303,7 +310,7 @@ function runOperationLabel(run) {
               <span :class="['status-chip', healthStatusClass(folder.status)]">
                 {{ healthStatusLabel(folder.status) }}
               </span>
-              <span>{{ folderIssueCount(folder) }} 个问题</span>
+              <span>{{ folderHealthIssueCount(folder) }} 个问题</span>
               <span v-if="folder.failedCount">失败 {{ folder.failedCount }}</span>
               <span v-if="folder.unindexedCount">未索引 {{ folder.unindexedCount }}</span>
               <span v-if="folder.missingLocalFileCount">缺失 {{ folder.missingLocalFileCount }}</span>

@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import zhCn from 'element-plus/es/locale/lang/zh-cn.mjs'
 import AppShell from './components/app-shell.vue'
 import { useChatStore } from './stores/chat'
 import { useDesktopUpdateStore } from './stores/desktop-update'
@@ -18,6 +19,7 @@ const searchStore = useSearchStore()
 const modelConfigStore = useModelConfigStore()
 const themeStore = useThemeStore()
 const desktopUpdateStore = useDesktopUpdateStore()
+const elementLocale = zhCn
 
 /**
  * 应用启动时拉取首屏共享快照。
@@ -64,7 +66,9 @@ async function initializeDesktopUpdateCheck() {
 </script>
 
 <template>
-  <AppShell>
-    <RouterView />
-  </AppShell>
+  <el-config-provider :locale="elementLocale">
+    <AppShell>
+      <RouterView />
+    </AppShell>
+  </el-config-provider>
 </template>
