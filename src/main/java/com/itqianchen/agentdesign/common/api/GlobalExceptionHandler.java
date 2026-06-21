@@ -14,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -156,6 +157,20 @@ public class GlobalExceptionHandler {
         // SSE 响应头可能已经是 text/event-stream，不能再用 ApiResponse 写 JSON。
         // 返回空响应可以避免二次 HttpMessageConverter 报错污染日志。
         log.warn("async_request_timeout");
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * 浏览器刷新、路由切换或关闭页面时，SSE 输出流可能已经不可写。
+     *
+     * <p>这类断开不是服务端业务失败，降为 debug，避免掩盖真正需要处理的数据库或索引错误。</p>
+     *
+     * @param ex 异步响应不可写异常
+     * @return 空响应
+     */
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public ResponseEntity<Void> handleAsyncRequestNotUsable(AsyncRequestNotUsableException ex) {
+        log.debug("async_request_not_usable", ex);
         return ResponseEntity.noContent().build();
     }
 

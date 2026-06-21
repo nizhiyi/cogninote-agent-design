@@ -9,6 +9,7 @@ import {
   enqueueRebuildIndex,
   enqueueSyncFolder,
   getMaintenanceQueue,
+  getMaintenanceRun,
   streamMaintenanceRun
 } from '../api/knowledge-maintenance-api'
 
@@ -32,13 +33,14 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
   const isEnqueueing = ref(false)
   const cancellingRunIds = ref(new Set())
   const completionNoticeRunIds = ref(new Set())
-  const completionNoticeRun = ref(null)
+  const completionNoticeRuns = ref([])
   let runAbortController = null
   let subscribedRunId = null
   let snapshotRefreshPromise = null
 
   const currentRun = computed(() => currentRuns.value[0] || null)
   const hasActiveRun = computed(() => Boolean(currentRun.value || queuedRuns.value.length))
+  const completionNoticeRun = computed(() => completionNoticeRuns.value[0] || null)
 
   async function fetchQueue() {
     isLoadingQueue.value = true
@@ -46,6 +48,7 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
     try {
       applyQueue(await getMaintenanceQueue())
       subscribeToMostRelevantRun()
+      void syncPendingCompletionNotices()
     } catch (err) {
       error.value = `维护队列读取失败：${err.message}`
     } finally {
@@ -108,7 +111,12 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
   }
 
   function clearCompletionNotice() {
-    completionNoticeRun.value = null
+    acknowledgeCompletionNotice()
+  }
+
+  function acknowledgeCompletionNotice() {
+    const [, ...remainingRuns] = completionNoticeRuns.value
+    completionNoticeRuns.value = remainingRuns
   }
 
   async function cancelRun(runId) {
@@ -312,10 +320,32 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
     if (!run?.id || !completionNoticeRunIds.value.has(run.id)) {
       return
     }
-    trackCompletionNotice(run.id, false)
     if (COMPLETION_NOTICE_STATUSES.has(run.status)) {
-      completionNoticeRun.value = run
+      trackCompletionNotice(run.id, false)
+      addCompletionNotice(run)
     }
+  }
+
+  async function syncPendingCompletionNotices() {
+    const pendingIds = [...completionNoticeRunIds.value]
+    await Promise.all(pendingIds.map(async (runId) => {
+      try {
+        maybePublishCompletionNotice(await getMaintenanceRun(runId))
+      } catch (err) {
+        // runId 兜底查询失败不应打断队列刷新；下一次刷新或 SSE 事件仍可补偿。
+      }
+    }))
+  }
+
+  function addCompletionNotice(run) {
+    const existingIndex = completionNoticeRuns.value.findIndex((item) => item.id === run.id)
+    if (existingIndex >= 0) {
+      const next = [...completionNoticeRuns.value]
+      next[existingIndex] = run
+      completionNoticeRuns.value = next
+      return
+    }
+    completionNoticeRuns.value = [...completionNoticeRuns.value, run]
   }
 
   function uniqueRuns(runs) {
@@ -341,12 +371,14 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
     isLoadingQueue,
     isEnqueueing,
     completionNoticeRun,
+    completionNoticeRuns,
     currentRun,
     hasActiveRun,
     fetchQueue,
     ensureQueueLoaded,
     refreshKnowledgeSnapshots,
     clearCompletionNotice,
+    acknowledgeCompletionNotice,
     importFolder,
     rebuildAllIndex,
     syncFolder,

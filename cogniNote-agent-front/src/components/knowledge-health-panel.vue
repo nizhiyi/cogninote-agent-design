@@ -314,6 +314,10 @@ function uniqueRuns(runs) {
   })
   return [...byId.values()]
 }
+
+defineExpose({
+  openRunsDialog
+})
 </script>
 
 <template>

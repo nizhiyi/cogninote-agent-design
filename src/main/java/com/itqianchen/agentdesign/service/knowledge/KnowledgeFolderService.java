@@ -31,6 +31,9 @@ import org.springframework.transaction.annotation.Transactional;
  * 知识库目录的导入、同步、重建、启停和删除编排服务。
  *
  * <p>该服务会同时触碰 SQLite、Lucene 和知识图谱缓存；任何目录级状态变化都必须让三者最终收敛。</p>
+ *
+ * <p>导入、同步和重建包含文件系统扫描、解析和 Lucene 写入，不应包在一个外层数据库事务里。
+ * 文档/chunk 替换由 DocumentIngestionPersistence 控制短事务，避免维护任务长时间占用 SQLite 连接。</p>
  */
 @Service
 public class KnowledgeFolderService {
@@ -104,7 +107,6 @@ public class KnowledgeFolderService {
      * @param recursive 是否递归扫描
      * @return 导入统计
      */
-    @Transactional
     public IngestDocumentsResponse importFolder(String folderPath, boolean recursive) {
         long startedAt = System.currentTimeMillis();
         KnowledgeFolder folder = upsertFolder(folderPath, recursive, true);
@@ -163,7 +165,6 @@ public class KnowledgeFolderService {
      * @param id 知识库目录 ID
      * @return 同步扫描统计
      */
-    @Transactional
     public IngestDocumentsResponse syncFolder(String id) {
         long startedAt = System.currentTimeMillis();
         KnowledgeFolder folder = requireFolder(id);
@@ -202,7 +203,6 @@ public class KnowledgeFolderService {
      * @param id 知识库目录 ID
      * @return 重建响应
      */
-    @Transactional
     public KnowledgeFolderRebuildResponse rebuildFolder(String id) {
         long startedAt = System.currentTimeMillis();
         KnowledgeFolder folder = requireFolder(id);
@@ -246,7 +246,6 @@ public class KnowledgeFolderService {
      * @param id 知识库目录 ID
      * @param enabled 是否启用
      */
-    @Transactional
     public void setEnabled(String id, boolean enabled) {
         long startedAt = System.currentTimeMillis();
         KnowledgeFolder folder = requireFolder(id);
@@ -291,7 +290,6 @@ public class KnowledgeFolderService {
      *
      * @param id 知识库目录 ID
      */
-    @Transactional
     public void deleteFolder(String id) {
         requireFolder(id);
         deleteFolderIndexEntries(id);

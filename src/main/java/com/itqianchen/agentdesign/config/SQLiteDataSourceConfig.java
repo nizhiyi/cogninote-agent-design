@@ -3,6 +3,7 @@ package com.itqianchen.agentdesign.config;
 import com.itqianchen.agentdesign.service.system.AppStorageInitializer;
 import com.zaxxer.hikari.HikariDataSource;
 import javax.sql.DataSource;
+import org.sqlite.SQLiteConfig;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -13,7 +14,9 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class SQLiteDataSourceConfig {
 
-    private static final int SQLITE_POOL_SIZE = 1;
+    private static final int SQLITE_POOL_SIZE = 4;
+    private static final int SQLITE_MIN_IDLE = 1;
+    private static final int SQLITE_BUSY_TIMEOUT_MS = 30_000;
 
     private final AppStorageInitializer storageInitializer;
 
@@ -40,10 +43,22 @@ public class SQLiteDataSourceConfig {
         HikariDataSource dataSource = new HikariDataSource();
         dataSource.setJdbcUrl("jdbc:sqlite:" + storageInitializer.appStorage().databasePath());
         dataSource.setDriverClassName("org.sqlite.JDBC");
+        dataSource.setDataSourceProperties(sqliteProperties());
         dataSource.setMaximumPoolSize(SQLITE_POOL_SIZE);
-        dataSource.setMinimumIdle(SQLITE_POOL_SIZE);
+        dataSource.setMinimumIdle(SQLITE_MIN_IDLE);
         dataSource.setPoolName("CogniNoteSQLitePool");
         return dataSource;
+    }
+
+    private static java.util.Properties sqliteProperties() {
+        SQLiteConfig config = new SQLiteConfig();
+        /*
+         * 维护任务会串行写 SQLite，但健康页、队列页和 SSE 快照会并发读。
+         * WAL + busy_timeout 让短读请求不再因为后台短写入瞬间失败或长期等待连接。
+         */
+        config.setJournalMode(SQLiteConfig.JournalMode.WAL);
+        config.setBusyTimeout(SQLITE_BUSY_TIMEOUT_MS);
+        return config.toProperties();
     }
 }
 

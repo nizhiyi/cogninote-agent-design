@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AlertTriangle, CheckCircle2, RefreshCw, Settings2, XCircle } from 'lucide-vue-next'
 import KnowledgeDirectoryManagerPanel from './knowledge-directory-manager-panel.vue'
@@ -21,6 +21,7 @@ const knowledgeHealthStore = useKnowledgeHealthStore()
 const maintenanceStore = useKnowledgeMaintenanceStore()
 const searchStore = useSearchStore()
 const modelConfigStore = useModelConfigStore()
+const healthPanelRef = ref(null)
 
 /**
  * 知识库工作区的面板编排组件。
@@ -40,11 +41,12 @@ const completionDialogOpen = computed({
   get: () => Boolean(maintenanceStore.completionNoticeRun),
   set: (value) => {
     if (!value) {
-      maintenanceStore.clearCompletionNotice()
+      maintenanceStore.acknowledgeCompletionNotice()
     }
   }
 })
 const completionRun = computed(() => maintenanceStore.completionNoticeRun)
+const completionNoticeCount = computed(() => maintenanceStore.completionNoticeRuns.length)
 const completionFailed = computed(() => completionRun.value?.status === 'FAILED')
 const completionWarning = computed(() => completionRun.value?.status === 'COMPLETED_WITH_WARNINGS')
 const completionIcon = computed(() => {
@@ -188,9 +190,13 @@ function formatDuration(durationMs) {
   return `${(durationMs / 1000).toFixed(1)} s`
 }
 
-async function openHealthPanel() {
-  maintenanceStore.clearCompletionNotice()
-  await router.push({ name: 'knowledge', query: { panel: 'health' } })
+async function openMaintenanceRuns() {
+  maintenanceStore.acknowledgeCompletionNotice()
+  if (activePanel.value !== 'health') {
+    await router.push({ name: 'knowledge', query: { panel: 'health' } })
+    await nextTick()
+  }
+  await healthPanelRef.value?.openRunsDialog()
 }
 </script>
 
@@ -232,7 +238,7 @@ async function openHealthPanel() {
 
     <div class="knowledge-workbench__panel">
       <KnowledgeFolderPanel v-if="activePanel === 'folders'" />
-      <KnowledgeHealthPanel v-else-if="activePanel === 'health'" />
+      <KnowledgeHealthPanel v-else-if="activePanel === 'health'" ref="healthPanelRef" />
       <KnowledgeDirectoryManagerPanel v-else-if="activePanel === 'directories'" />
       <KnowledgeSearchPanel v-else-if="activePanel === 'search'" />
       <KnowledgeGraphPanel v-else />
@@ -244,6 +250,9 @@ async function openHealthPanel() {
       :title="completionDialogTitle"
       width="min(620px, calc(100vw - 32px))"
       align-center
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+      :show-close="false"
     >
       <section
         v-if="completionRun"
@@ -262,6 +271,9 @@ async function openHealthPanel() {
           <p v-if="completionRun.errorMessage" class="knowledge-maintenance-completion__message">
             {{ completionRun.errorMessage }}
           </p>
+          <p v-if="completionNoticeCount > 1" class="knowledge-maintenance-completion__message">
+            还有 {{ completionNoticeCount - 1 }} 条维护完成信息等待确认。
+          </p>
           <dl class="knowledge-maintenance-completion__metrics">
             <div
               v-for="metric in completionMetrics"
@@ -276,8 +288,8 @@ async function openHealthPanel() {
       </section>
 
       <template #footer>
-        <el-button @click="maintenanceStore.clearCompletionNotice">知道了</el-button>
-        <el-button type="primary" @click="openHealthPanel">查看维护记录</el-button>
+        <el-button @click="maintenanceStore.acknowledgeCompletionNotice">知道了</el-button>
+        <el-button type="primary" @click="openMaintenanceRuns">查看维护记录</el-button>
       </template>
     </el-dialog>
   </section>
