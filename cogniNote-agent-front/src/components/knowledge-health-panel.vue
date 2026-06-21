@@ -82,6 +82,7 @@ const primaryActionLabel = computed(() => {
   }
   return '刷新诊断'
 })
+const showSecondaryRefresh = computed(() => hasIndexIssue.value || totalIssueEntries.value > 0)
 const statusIcon = computed(() => (healthStore.health?.status === 'HEALTHY' ? ShieldCheck : ShieldAlert))
 const summaryText = computed(() => {
   const summary = healthSummary.value
@@ -290,7 +291,11 @@ function runCountSummary(run) {
           <RefreshCw v-else aria-hidden="true" />
           <span>{{ primaryActionLabel }}</span>
         </el-button>
-        <el-button :loading="healthStore.isLoading || healthStore.isLoadingRuns" @click="refreshHealthPanel">
+        <el-button
+          v-if="showSecondaryRefresh"
+          :loading="healthStore.isLoading || healthStore.isLoadingRuns"
+          @click="refreshHealthPanel"
+        >
           <RefreshCw aria-hidden="true" />
           <span>刷新</span>
         </el-button>
