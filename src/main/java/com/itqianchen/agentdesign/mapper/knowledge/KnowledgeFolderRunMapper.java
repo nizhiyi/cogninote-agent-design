@@ -16,6 +16,20 @@ public interface KnowledgeFolderRunMapper {
      */
     void insertRun(KnowledgeFolderRun run);
 
+    KnowledgeFolderRun findById(@Param("id") String id);
+
+    KnowledgeFolderRun findActiveByScopeAndOperation(
+            @Param("scopeType") String scopeType,
+            @Param("scopeId") String scopeId,
+            @Param("operation") String operation
+    );
+
+    List<KnowledgeFolderRun> findActiveRuns();
+
+    List<KnowledgeFolderRun> findQueuedRuns();
+
+    List<KnowledgeFolderRun> findQueueRuns();
+
     /**
      * 查询指定范围最近的维护运行记录。
      *
@@ -64,6 +78,64 @@ public interface KnowledgeFolderRunMapper {
      * @return 每个 scope 的最近维护记录
      */
     List<KnowledgeFolderRun> findLatestRunsByScope();
+
+    KnowledgeFolderRun findLatestRun();
+
+    int markStarted(
+            @Param("id") String id,
+            @Param("phase") String phase,
+            @Param("progressTotal") long progressTotal,
+            @Param("currentItem") String currentItem,
+            @Param("startedAt") long startedAt
+    );
+
+    int updateProgress(
+            @Param("id") String id,
+            @Param("phase") String phase,
+            @Param("progressCurrent") long progressCurrent,
+            @Param("progressTotal") long progressTotal,
+            @Param("currentItem") String currentItem,
+            @Param("updatedAt") long updatedAt
+    );
+
+    int markCancelling(
+            @Param("id") String id,
+            @Param("updatedAt") long updatedAt
+    );
+
+    int markCancelled(
+            @Param("id") String id,
+            @Param("message") String message,
+            @Param("completedAt") long completedAt
+    );
+
+    int markCompleted(
+            @Param("id") String id,
+            @Param("status") String status,
+            @Param("scannedCount") int scannedCount,
+            @Param("parsedCount") int parsedCount,
+            @Param("skippedCount") int skippedCount,
+            @Param("failedCount") int failedCount,
+            @Param("indexedDocumentCount") long indexedDocumentCount,
+            @Param("indexedChunkCount") long indexedChunkCount,
+            @Param("failedDocumentCount") long failedDocumentCount,
+            @Param("failuresJson") String failuresJson,
+            @Param("progressCurrent") long progressCurrent,
+            @Param("progressTotal") long progressTotal,
+            @Param("completedAt") long completedAt
+    );
+
+    int markFailed(
+            @Param("id") String id,
+            @Param("message") String message,
+            @Param("completedAt") long completedAt
+    );
+
+    int cleanupInterruptedRuns(
+            @Param("completedAt") long completedAt,
+            @Param("queuedMessage") String queuedMessage,
+            @Param("runningMessage") String runningMessage
+    );
 
     /**
      * 删除指定 scope 的维护运行记录。

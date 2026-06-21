@@ -9,11 +9,13 @@ import {
 import KnowledgeFolderImportDialog from './knowledge-folder-import-dialog.vue'
 import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
 import { useKnowledgeHealthStore } from '../stores/knowledge-health'
+import { useKnowledgeMaintenanceStore } from '../stores/knowledge-maintenance'
 import { useSearchStore } from '../stores/search'
 import { formatTime } from '../utils/formatters'
 
 const knowledgeStore = useKnowledgeFoldersStore()
 const knowledgeHealthStore = useKnowledgeHealthStore()
+const maintenanceStore = useKnowledgeMaintenanceStore()
 const searchStore = useSearchStore()
 const isImportDialogOpen = ref(false)
 
@@ -54,12 +56,6 @@ const overviewStats = computed(() => [
  */
 async function rebuildAllIndexes() {
   await searchStore.rebuildIndex()
-  if (!searchStore.indexError) {
-    await Promise.all([
-      knowledgeStore.fetchFolders(),
-      knowledgeHealthStore.fetchHealth()
-    ])
-  }
 }
 
 function openImportDialog() {
@@ -112,7 +108,11 @@ function runOperationLabel(run) {
           <FolderPlus aria-hidden="true" />
           <span>导入目录</span>
         </el-button>
-        <el-button :loading="searchStore.isRebuildingIndex" @click="rebuildAllIndexes">
+        <el-button
+          :disabled="maintenanceStore.hasActiveRun"
+          :loading="searchStore.isRebuildingIndex"
+          @click="rebuildAllIndexes"
+        >
           <RotateCcw aria-hidden="true" />
           <span>重建索引</span>
         </el-button>

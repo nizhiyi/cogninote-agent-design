@@ -17,11 +17,13 @@ import {
 import KnowledgeHealthDrawer from './knowledge-health-drawer.vue'
 import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
 import { useKnowledgeHealthStore } from '../stores/knowledge-health'
+import { useKnowledgeMaintenanceStore } from '../stores/knowledge-maintenance'
 import { useSearchStore } from '../stores/search'
 import { formatTime } from '../utils/formatters'
 
 const knowledgeStore = useKnowledgeFoldersStore()
 const healthStore = useKnowledgeHealthStore()
+const maintenanceStore = useKnowledgeMaintenanceStore()
 const searchStore = useSearchStore()
 const isRunsDialogOpen = ref(false)
 const runPage = ref(1)
@@ -45,7 +47,10 @@ const RUN_OPERATION_LABELS = {
 }
 
 const RUN_STATUS_LABELS = {
+  QUEUED: '等待中',
   RUNNING: '运行中',
+  CANCELLING: '取消中',
+  CANCELLED: '已取消',
   COMPLETED: '完成',
   COMPLETED_WITH_WARNINGS: '有失败项',
   FAILED: '失败'
@@ -57,10 +62,13 @@ const globalIssues = computed(() => healthIssues.value.filter((issue) => issue.s
 const folderIssues = computed(() =>
   (healthStore.health?.folders || []).filter((folder) => folderHealthIssueCount(folder))
 )
-const runningRuns = computed(() =>
-  (healthStore.health?.folders || [])
-    .map((folder) => ({ folder, run: folder.lastRun }))
-    .filter((entry) => entry.run?.status === 'RUNNING')
+const currentRuns = computed(() => maintenanceStore.currentRuns.length
+  ? maintenanceStore.currentRuns
+  : healthStore.health?.currentRuns || []
+)
+const queuedRuns = computed(() => maintenanceStore.queuedRuns.length
+  ? maintenanceStore.queuedRuns
+  : healthStore.health?.queuedRuns || []
 )
 const hasIndexIssue = computed(() => globalIssues.value.some((issue) => issue.code === 'INDEX_INCONSISTENT'))
 const hasEmbeddingIssue = computed(() => globalIssues.value.some((issue) => issue.code === 'EMBEDDING_UNCONFIGURED'))
@@ -129,19 +137,14 @@ const systemSignals = computed(() => [
     key: 'running',
     icon: Activity,
     label: '当前维护任务',
-    value: runningRuns.value.length ? `${runningRuns.value.length} 个运行中` : '空闲',
-    state: runningRuns.value.length ? 'warning' : 'ok',
-    detail: runningRuns.value.length
-      ? runningRuns.value.map((entry) => `${entry.folder.displayName} ${runOperationLabel(entry.run)}`).join('、')
-      : '没有正在执行的目录任务'
+    value: currentRuns.value.length ? `${currentRuns.value.length} 个运行中` : '空闲',
+    state: currentRuns.value.length ? 'warning' : 'ok',
+    detail: currentRuns.value.length
+      ? currentRuns.value.map((run) => `${runScopeLabel(run)} ${runOperationLabel(run)}`).join('、')
+      : '没有正在执行的维护任务'
   }
 ])
-const latestRun = computed(() =>
-  (healthStore.health?.folders || [])
-    .map((folder) => folder.lastRun)
-    .filter(Boolean)
-    .sort((left, right) => (right.createdAt || 0) - (left.createdAt || 0))[0] || null
-)
+const latestRun = computed(() => maintenanceStore.latestRun || healthStore.health?.latestRun || null)
 
 function healthStatusLabel(status) {
   return HEALTH_STATUS_LABELS[status] || status || '未知'
@@ -180,10 +183,6 @@ async function refreshHealthPanel() {
 
 async function rebuildAllIndexes() {
   await searchStore.rebuildIndex()
-  await Promise.all([
-    knowledgeStore.fetchFolders(),
-    healthStore.fetchHealth()
-  ])
 }
 
 async function handlePrimaryAction() {
@@ -238,6 +237,13 @@ function runScopeLabel(run) {
   return run.scopeId ? `目录 · ${run.scopeId}` : '目录'
 }
 
+function runProgressPercentage(run) {
+  if (!run?.progressTotal) {
+    return 0
+  }
+  return Math.min(100, Math.round((run.progressCurrent / run.progressTotal) * 100))
+}
+
 function runCountSummary(run) {
   const pieces = []
   if (run?.scannedCount != null) {
@@ -268,7 +274,7 @@ function runCountSummary(run) {
       <div class="header-actions">
         <el-button
           type="primary"
-          :disabled="healthStore.isLoading || searchStore.isRebuildingIndex"
+          :disabled="healthStore.isLoading || searchStore.isRebuildingIndex || maintenanceStore.isEnqueueing"
           :loading="searchStore.isRebuildingIndex"
           @click="handlePrimaryAction"
         >
@@ -293,6 +299,15 @@ function runCountSummary(run) {
       show-icon
     />
 
+    <el-alert
+      v-if="maintenanceStore.error"
+      class="settings-inline-alert"
+      type="error"
+      :title="maintenanceStore.error"
+      :closable="false"
+      show-icon
+    />
+
     <section class="knowledge-health-command-center" aria-label="可信状态摘要">
       <div class="knowledge-health-command-card">
         <span :class="['knowledge-health-command-card__icon', healthStatusClass(healthStore.health?.status)]">
@@ -307,7 +322,7 @@ function runCountSummary(run) {
           <div class="knowledge-health-command-card__signals">
             <span>Lucene {{ healthSummary?.indexConsistent ? '一致' : '不一致' }}</span>
             <span>Embedding {{ healthSummary?.embeddingConfigured ? '可用' : '未配置' }}</span>
-            <span>{{ runningRuns.length ? `${runningRuns.length} 个任务运行中` : '维护空闲' }}</span>
+            <span>{{ currentRuns.length ? `${currentRuns.length} 个任务运行中` : '维护空闲' }}</span>
           </div>
         </div>
       </div>
@@ -366,6 +381,7 @@ function runCountSummary(run) {
           <el-button
             v-if="issue.code === 'INDEX_INCONSISTENT'"
             :loading="searchStore.isRebuildingIndex"
+            :disabled="maintenanceStore.hasActiveRun"
             @click="rebuildAllIndexes"
           >
             <Wrench aria-hidden="true" />
@@ -421,6 +437,66 @@ function runCountSummary(run) {
           <el-button @click="healthStore.openFolderIssues(folder.id)">
             <AlertTriangle aria-hidden="true" />
             <span>诊断详情</span>
+          </el-button>
+        </article>
+      </section>
+    </section>
+
+    <section class="knowledge-health-section knowledge-health-section--queue" aria-label="维护队列">
+      <header>
+        <div>
+          <p class="eyebrow">维护队列</p>
+          <h4>当前任务与等待队列</h4>
+        </div>
+        <el-button :loading="maintenanceStore.isLoadingQueue" @click="maintenanceStore.fetchQueue">
+          <RefreshCw aria-hidden="true" />
+          <span>刷新队列</span>
+        </el-button>
+      </header>
+
+      <article v-if="currentRuns.length" class="knowledge-maintenance-task knowledge-maintenance-task--running">
+        <div>
+          <strong>{{ runScopeLabel(currentRuns[0]) }} · {{ runOperationLabel(currentRuns[0]) }}</strong>
+          <span :class="['knowledge-run-status', runStatusClass(currentRuns[0])]">
+            <Activity aria-hidden="true" />
+            <span>{{ runStatusLabel(currentRuns[0]) }}</span>
+          </span>
+        </div>
+        <p>{{ currentRuns[0].phase || 'RUNNING' }} · {{ currentRuns[0].currentItem || '处理中' }}</p>
+        <el-progress
+          :percentage="runProgressPercentage(currentRuns[0])"
+          :indeterminate="!currentRuns[0].progressTotal"
+          :show-text="Boolean(currentRuns[0].progressTotal)"
+        />
+        <el-button
+          :disabled="currentRuns[0].status === 'CANCELLING'"
+          :loading="maintenanceStore.isRunCancelling(currentRuns[0].id)"
+          @click="maintenanceStore.cancelRun(currentRuns[0].id)"
+        >
+          取消任务
+        </el-button>
+      </article>
+
+      <p v-else class="knowledge-health-empty">
+        <CheckCircle2 aria-hidden="true" />
+        <span>当前没有运行中的维护任务。</span>
+      </p>
+
+      <section v-if="queuedRuns.length" class="knowledge-maintenance-queue-list" aria-label="等待队列">
+        <article v-for="run in queuedRuns" :key="run.id" class="knowledge-maintenance-task">
+          <div>
+            <strong>#{{ run.queuePosition || '-' }} {{ runScopeLabel(run) }} · {{ runOperationLabel(run) }}</strong>
+            <span :class="['knowledge-run-status', runStatusClass(run)]">
+              <Activity aria-hidden="true" />
+              <span>{{ runStatusLabel(run) }}</span>
+            </span>
+          </div>
+          <p>{{ run.currentItem || '等待执行' }} · 排队 {{ formatTime(run.queuedAt || run.createdAt) }}</p>
+          <el-button
+            :loading="maintenanceStore.isRunCancelling(run.id)"
+            @click="maintenanceStore.cancelRun(run.id)"
+          >
+            取消排队
           </el-button>
         </article>
       </section>

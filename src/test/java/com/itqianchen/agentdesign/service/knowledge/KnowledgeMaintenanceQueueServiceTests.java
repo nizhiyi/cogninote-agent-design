@@ -1,0 +1,126 @@
+package com.itqianchen.agentdesign.service.knowledge;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+import com.itqianchen.agentdesign.domain.ingestion.DocumentIdentity;
+import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRun;
+import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunOperation;
+import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunScopeType;
+import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunStatus;
+import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunResponse;
+import com.itqianchen.agentdesign.repository.knowledge.KnowledgeFolderRunRepository;
+import com.itqianchen.agentdesign.service.index.IndexService;
+import java.util.Optional;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+
+class KnowledgeMaintenanceQueueServiceTests {
+
+    private final KnowledgeFolderRunRepository runRepository = mock(KnowledgeFolderRunRepository.class);
+    private final KnowledgeFolderService folderService = mock(KnowledgeFolderService.class);
+    private final IndexService indexService = mock(IndexService.class);
+    private final KnowledgeFolderRunService runService = mock(KnowledgeFolderRunService.class);
+    private final KnowledgeMaintenanceRunPublisher publisher = mock(KnowledgeMaintenanceRunPublisher.class);
+    private final DocumentIdentity documentIdentity = mock(DocumentIdentity.class);
+    private final KnowledgeMaintenanceQueueService service = new KnowledgeMaintenanceQueueService(
+            runRepository,
+            folderService,
+            indexService,
+            runService,
+            publisher,
+            documentIdentity,
+            Runnable::run
+    );
+
+    @Test
+    void enqueueFolderSyncReusesActiveRunForSameScopeAndOperation() {
+        KnowledgeFolderRun activeRun = run(
+                "run-active",
+                KnowledgeFolderRunStatus.RUNNING,
+                KnowledgeFolderRunOperation.SYNC,
+                KnowledgeFolderRunScopeType.KNOWLEDGE_FOLDER,
+                "folder-1"
+        );
+        when(runRepository.findActiveByScopeAndOperation(
+                KnowledgeFolderRunScopeType.KNOWLEDGE_FOLDER,
+                "folder-1",
+                KnowledgeFolderRunOperation.SYNC
+        )).thenReturn(Optional.of(activeRun));
+
+        KnowledgeFolderRunResponse response = service.enqueueFolderSync("folder-1");
+
+        assertThat(response.id()).isEqualTo("run-active");
+        assertThat(response.status()).isEqualTo(KnowledgeFolderRunStatus.RUNNING);
+        verifyNoInteractions(folderService, indexService);
+    }
+
+    @Test
+    void cancelQueuedRunMarksCancelledAndPublishesTerminalEvent() {
+        KnowledgeFolderRun queuedRun = run(
+                "run-queued",
+                KnowledgeFolderRunStatus.QUEUED,
+                KnowledgeFolderRunOperation.REBUILD_INDEX,
+                KnowledgeFolderRunScopeType.ALL,
+                null
+        );
+        KnowledgeFolderRun cancelledRun = run(
+                "run-queued",
+                KnowledgeFolderRunStatus.CANCELLED,
+                KnowledgeFolderRunOperation.REBUILD_INDEX,
+                KnowledgeFolderRunScopeType.ALL,
+                null
+        );
+        when(runRepository.findById("run-queued"))
+                .thenReturn(Optional.of(queuedRun))
+                .thenReturn(Optional.of(cancelledRun));
+        when(runRepository.findActiveRuns()).thenReturn(List.of());
+        when(runRepository.findQueuedRuns()).thenReturn(List.of());
+        when(runRepository.findLatestRun()).thenReturn(Optional.of(cancelledRun));
+
+        boolean accepted = service.cancel("run-queued");
+
+        assertThat(accepted).isTrue();
+        verify(runRepository).markCancelled("run-queued", "用户取消排队中的维护任务。");
+        verify(publisher).publishCancelled("run-queued", KnowledgeFolderRunResponse.from(cancelledRun));
+    }
+
+    private static KnowledgeFolderRun run(
+            String id,
+            KnowledgeFolderRunStatus status,
+            KnowledgeFolderRunOperation operation,
+            KnowledgeFolderRunScopeType scopeType,
+            String scopeId
+    ) {
+        long now = 1780000000000L;
+        return new KnowledgeFolderRun(
+                id,
+                scopeType,
+                scopeId,
+                operation,
+                status,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                null,
+                status.name(),
+                0,
+                0,
+                null,
+                now,
+                status == KnowledgeFolderRunStatus.QUEUED ? null : now,
+                status == KnowledgeFolderRunStatus.QUEUED ? null : now + 100,
+                status == KnowledgeFolderRunStatus.QUEUED ? null : 100L,
+                null,
+                now,
+                now
+        );
+    }
+}

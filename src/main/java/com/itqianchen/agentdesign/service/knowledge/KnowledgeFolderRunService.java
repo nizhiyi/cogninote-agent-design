@@ -13,6 +13,7 @@ import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRebuildResponse;
 import com.itqianchen.agentdesign.repository.knowledge.KnowledgeFolderRunRepository;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,7 @@ import org.springframework.stereotype.Service;
 public class KnowledgeFolderRunService {
 
     private static final Logger log = LoggerFactory.getLogger(KnowledgeFolderRunService.class);
+    private static final ThreadLocal<Boolean> RECORDING_SUPPRESSED = ThreadLocal.withInitial(() -> false);
 
     private final KnowledgeFolderRunRepository runRepository;
     private final ObjectMapper objectMapper;
@@ -42,6 +44,33 @@ public class KnowledgeFolderRunService {
     }
 
     /**
+     * 在维护队列接管任务生命周期时临时抑制旧入口的完成日志写入。
+     *
+     * <p>旧 API 仍需要同步记录完成历史；新队列执行时已有 QUEUED/RUNNING run，底层服务不能再插入
+     * 第二条完成记录，否则前端历史和当前任务会再次分裂。</p>
+     *
+     * @param action 需要执行的旧维护动作
+     * @return 动作返回值
+     * @param <T> 返回值类型
+     */
+    public <T> T withoutRecording(Supplier<T> action) {
+        boolean previous = RECORDING_SUPPRESSED.get();
+        RECORDING_SUPPRESSED.set(true);
+        try {
+            return action.get();
+        } finally {
+            RECORDING_SUPPRESSED.set(previous);
+        }
+    }
+
+    public void withoutRecording(Runnable action) {
+        withoutRecording(() -> {
+            action.run();
+            return null;
+        });
+    }
+
+    /**
      * 记录目录导入结果。
      *
      * @param folderId 目录 ID
@@ -49,6 +78,9 @@ public class KnowledgeFolderRunService {
      * @param startedAt 操作开始时间戳
      */
     public void recordImport(String folderId, IngestDocumentsResponse response, long startedAt) {
+        if (isRecordingSuppressed()) {
+            return;
+        }
         recordIngestRun(KnowledgeFolderRunOperation.IMPORT, folderId, response, startedAt);
     }
 
@@ -60,6 +92,9 @@ public class KnowledgeFolderRunService {
      * @param startedAt 操作开始时间戳
      */
     public void recordSync(String folderId, IngestDocumentsResponse response, long startedAt) {
+        if (isRecordingSuppressed()) {
+            return;
+        }
         recordIngestRun(KnowledgeFolderRunOperation.SYNC, folderId, response, startedAt);
     }
 
@@ -71,6 +106,9 @@ public class KnowledgeFolderRunService {
      * @param startedAt 操作开始时间戳
      */
     public void recordFolderRebuild(String folderId, KnowledgeFolderRebuildResponse response, long startedAt) {
+        if (isRecordingSuppressed()) {
+            return;
+        }
         long completedAt = System.currentTimeMillis();
         insert(new KnowledgeFolderRun(
                 UUID.randomUUID().toString(),
@@ -86,10 +124,16 @@ public class KnowledgeFolderRunService {
                 response.indexedChunkCount(),
                 response.failedDocumentCount(),
                 failuresJson(response.failures()),
+                "COMPLETED",
+                response.indexedDocumentCount(),
+                response.indexedDocumentCount(),
+                null,
+                startedAt,
                 startedAt,
                 completedAt,
                 completedAt - startedAt,
                 null,
+                completedAt,
                 completedAt
         ));
     }
@@ -101,6 +145,9 @@ public class KnowledgeFolderRunService {
      * @param startedAt 操作开始时间戳
      */
     public void recordAllIndexRebuild(RebuildIndexResponse response, long startedAt) {
+        if (isRecordingSuppressed()) {
+            return;
+        }
         long completedAt = System.currentTimeMillis();
         insert(new KnowledgeFolderRun(
                 UUID.randomUUID().toString(),
@@ -116,10 +163,16 @@ public class KnowledgeFolderRunService {
                 response.indexedChunkCount(),
                 response.failedDocumentCount(),
                 null,
+                "COMPLETED",
+                response.indexedDocumentCount(),
+                response.indexedDocumentCount(),
+                null,
+                startedAt,
                 startedAt,
                 completedAt,
                 completedAt - startedAt,
                 null,
+                completedAt,
                 completedAt
         ));
     }
@@ -133,6 +186,9 @@ public class KnowledgeFolderRunService {
      * @param startedAt 操作开始时间戳
      */
     public void recordEnabled(String folderId, boolean enabled, RebuildIndexResponse rebuildResponse, long startedAt) {
+        if (isRecordingSuppressed()) {
+            return;
+        }
         long completedAt = System.currentTimeMillis();
         long failedDocumentCount = rebuildResponse == null ? 0 : rebuildResponse.failedDocumentCount();
         insert(new KnowledgeFolderRun(
@@ -149,10 +205,16 @@ public class KnowledgeFolderRunService {
                 rebuildResponse == null ? 0 : rebuildResponse.indexedChunkCount(),
                 failedDocumentCount,
                 null,
+                "COMPLETED",
+                rebuildResponse == null ? 0 : rebuildResponse.indexedDocumentCount(),
+                rebuildResponse == null ? 0 : rebuildResponse.indexedDocumentCount(),
+                null,
+                startedAt,
                 startedAt,
                 completedAt,
                 completedAt - startedAt,
                 null,
+                completedAt,
                 completedAt
         ));
     }
@@ -165,6 +227,9 @@ public class KnowledgeFolderRunService {
      * @param startedAt 操作开始时间戳
      */
     public void recordDelete(String folderId, int deletedDocuments, long startedAt) {
+        if (isRecordingSuppressed()) {
+            return;
+        }
         long completedAt = System.currentTimeMillis();
         insert(new KnowledgeFolderRun(
                 UUID.randomUUID().toString(),
@@ -180,10 +245,16 @@ public class KnowledgeFolderRunService {
                 0,
                 0,
                 null,
+                "COMPLETED",
+                deletedDocuments,
+                deletedDocuments,
+                null,
+                startedAt,
                 startedAt,
                 completedAt,
                 completedAt - startedAt,
                 null,
+                completedAt,
                 completedAt
         ));
     }
@@ -225,12 +296,22 @@ public class KnowledgeFolderRunService {
                 0,
                 0,
                 failuresJson(response.failures()),
+                "COMPLETED",
+                response.scannedCount(),
+                response.scannedCount(),
+                null,
+                startedAt,
                 startedAt,
                 completedAt,
                 completedAt - startedAt,
                 null,
+                completedAt,
                 completedAt
         ));
+    }
+
+    private static boolean isRecordingSuppressed() {
+        return Boolean.TRUE.equals(RECORDING_SUPPRESSED.get());
     }
 
     private void insert(KnowledgeFolderRun run) {

@@ -88,10 +88,12 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
          */
         databaseSchemaMapper.createAppSettingsTable();
         /*
-         * 维护运行记录是健康面板的诊断辅助数据，建表失败应在启动期暴露；
-         * 但运行时写入失败由 KnowledgeFolderRunService 降级处理，不反向影响核心操作。
+         * 第 33 阶段开始，维护运行记录同时承担任务队列事实源。
+         * 旧表把 completed_at/duration_ms 设为 NOT NULL，只适合完成后日志；这里在建表后显式迁移，
+         * 让未完成任务可以保留空完成时间，而不是用 0 这类会污染时间语义的哨兵值。
          */
         databaseSchemaMapper.createKnowledgeFolderRunsTable();
+        migrateKnowledgeFolderRunsQueueSchemaIfNeeded();
         databaseSchemaMapper.createKnowledgeGraphRunsTable();
         databaseSchemaMapper.createKnowledgeGraphChunkExtractionsTable();
         databaseSchemaMapper.createKnowledgeGraphNodesTable();
@@ -127,6 +129,7 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
         databaseSchemaMapper.createKnowledgeGraphEvidenceChunkIndex();
         databaseSchemaMapper.createKnowledgeFolderRunsScopeIndex();
         databaseSchemaMapper.createKnowledgeFolderRunsOperationIndex();
+        databaseSchemaMapper.createKnowledgeFolderRunsStatusIndex();
         databaseSchemaMapper.createKnowledgeGraphRunsScopeStatusIndex();
         databaseSchemaMapper.createKnowledgeGraphViewsScopeIndex();
         cleanupSoftDeletedChatSessions();
@@ -166,6 +169,61 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
         if (!exists) {
             databaseSchemaMapper.addColumn(tableName, columnName, definition);
         }
+    }
+
+    /**
+     * 将旧版维护历史表升级为维护任务队列表。
+     */
+    private void migrateKnowledgeFolderRunsQueueSchemaIfNeeded() {
+        List<Map<String, Object>> columns = databaseSchemaMapper.tableInfo("knowledge_folder_runs");
+        if (!needsKnowledgeFolderRunsQueueMigration(columns)) {
+            return;
+        }
+
+        /*
+         * SQLite 不支持直接删除 NOT NULL 约束；维护队列需要 queued/running 任务没有完成时间，
+         * 因此必须用临时表复制数据再替换正式表。复制 SQL 只读取旧表稳定字段，新增队列字段给默认值。
+         */
+        databaseSchemaMapper.dropKnowledgeFolderRunsMigrationTable();
+        databaseSchemaMapper.createKnowledgeFolderRunsMigrationTable();
+        databaseSchemaMapper.copyKnowledgeFolderRunsToMigrationTable();
+        databaseSchemaMapper.dropKnowledgeFolderRunsTable();
+        databaseSchemaMapper.renameKnowledgeFolderRunsMigrationTable();
+    }
+
+    private static boolean needsKnowledgeFolderRunsQueueMigration(List<Map<String, Object>> columns) {
+        Map<String, Map<String, Object>> byName = columns.stream()
+                .filter(column -> sqliteColumnName(column) != null)
+                .collect(java.util.stream.Collectors.toMap(
+                        column -> sqliteColumnName(column).toLowerCase(java.util.Locale.ROOT),
+                        column -> column
+                ));
+        if (!byName.containsKey("phase")
+                || !byName.containsKey("progress_current")
+                || !byName.containsKey("progress_total")
+                || !byName.containsKey("current_item")
+                || !byName.containsKey("queued_at")
+                || !byName.containsKey("updated_at")) {
+            return true;
+        }
+        return sqliteNotNull(byName.get("started_at"))
+                || sqliteNotNull(byName.get("completed_at"))
+                || sqliteNotNull(byName.get("duration_ms"));
+    }
+
+    private static boolean sqliteNotNull(Map<String, Object> column) {
+        if (column == null) {
+            return false;
+        }
+        for (Map.Entry<String, Object> entry : column.entrySet()) {
+            if ("notnull".equalsIgnoreCase(entry.getKey())) {
+                Object value = entry.getValue();
+                return value instanceof Number number
+                        ? number.intValue() != 0
+                        : "1".equals(String.valueOf(value));
+            }
+        }
+        return false;
     }
 
     /**

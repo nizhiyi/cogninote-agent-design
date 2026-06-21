@@ -165,12 +165,86 @@
             indexed_chunk_count INTEGER NOT NULL DEFAULT 0,
             failed_document_count INTEGER NOT NULL DEFAULT 0,
             failures_json TEXT,
-            started_at INTEGER NOT NULL,
-            completed_at INTEGER NOT NULL,
-            duration_ms INTEGER NOT NULL DEFAULT 0,
+            phase TEXT,
+            progress_current INTEGER NOT NULL DEFAULT 0,
+            progress_total INTEGER NOT NULL DEFAULT 0,
+            current_item TEXT,
+            queued_at INTEGER,
+            started_at INTEGER,
+            completed_at INTEGER,
+            duration_ms INTEGER,
             error_message TEXT,
-            created_at INTEGER NOT NULL
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
         )
+    </update>
+
+    <update id="dropKnowledgeFolderRunsMigrationTable">
+        DROP TABLE IF EXISTS knowledge_folder_runs_migration
+    </update>
+
+    <update id="createKnowledgeFolderRunsMigrationTable">
+        CREATE TABLE knowledge_folder_runs_migration (
+            id TEXT PRIMARY KEY,
+            scope_type TEXT NOT NULL,
+            scope_id TEXT,
+            operation TEXT NOT NULL,
+            status TEXT NOT NULL,
+            scanned_count INTEGER NOT NULL DEFAULT 0,
+            parsed_count INTEGER NOT NULL DEFAULT 0,
+            skipped_count INTEGER NOT NULL DEFAULT 0,
+            failed_count INTEGER NOT NULL DEFAULT 0,
+            indexed_document_count INTEGER NOT NULL DEFAULT 0,
+            indexed_chunk_count INTEGER NOT NULL DEFAULT 0,
+            failed_document_count INTEGER NOT NULL DEFAULT 0,
+            failures_json TEXT,
+            phase TEXT,
+            progress_current INTEGER NOT NULL DEFAULT 0,
+            progress_total INTEGER NOT NULL DEFAULT 0,
+            current_item TEXT,
+            queued_at INTEGER,
+            started_at INTEGER,
+            completed_at INTEGER,
+            duration_ms INTEGER,
+            error_message TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        )
+    </update>
+
+    <insert id="copyKnowledgeFolderRunsToMigrationTable">
+        INSERT INTO knowledge_folder_runs_migration (
+            id, scope_type, scope_id, operation, status,
+            scanned_count, parsed_count, skipped_count, failed_count,
+            indexed_document_count, indexed_chunk_count, failed_document_count,
+            failures_json, phase, progress_current, progress_total, current_item,
+            queued_at, started_at, completed_at, duration_ms, error_message, created_at, updated_at
+        )
+        SELECT
+            id, scope_type, scope_id, operation, status,
+            scanned_count, parsed_count, skipped_count, failed_count,
+            indexed_document_count, indexed_chunk_count, failed_document_count,
+            failures_json,
+            CASE WHEN status = 'RUNNING' THEN 'RUNNING' ELSE NULL END,
+            0,
+            0,
+            NULL,
+            created_at,
+            started_at,
+            completed_at,
+            duration_ms,
+            error_message,
+            created_at,
+            completed_at
+        FROM knowledge_folder_runs
+    </insert>
+
+    <update id="dropKnowledgeFolderRunsTable">
+        DROP TABLE IF EXISTS knowledge_folder_runs
+    </update>
+
+    <update id="renameKnowledgeFolderRunsMigrationTable">
+        ALTER TABLE knowledge_folder_runs_migration RENAME TO knowledge_folder_runs
     </update>
 
     <update id="createKnowledgeGraphChunkExtractionsTable">
@@ -350,6 +424,11 @@
     <update id="createKnowledgeFolderRunsOperationIndex">
         CREATE INDEX IF NOT EXISTS idx_kf_runs_operation
         ON knowledge_folder_runs(operation, created_at DESC)
+    </update>
+
+    <update id="createKnowledgeFolderRunsStatusIndex">
+        CREATE INDEX IF NOT EXISTS idx_kf_runs_status
+        ON knowledge_folder_runs(status, created_at)
     </update>
 
     <update id="createKnowledgeGraphViewsScopeIndex">

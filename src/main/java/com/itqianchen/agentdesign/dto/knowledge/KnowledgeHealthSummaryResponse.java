@@ -18,6 +18,8 @@ public record KnowledgeHealthSummaryResponse(
         long luceneDocumentCount,
         long luceneChunkCount,
         boolean embeddingConfigured,
-        boolean indexConsistent
+        boolean indexConsistent,
+        int runningRunCount,
+        int queuedRunCount
 ) {
 }

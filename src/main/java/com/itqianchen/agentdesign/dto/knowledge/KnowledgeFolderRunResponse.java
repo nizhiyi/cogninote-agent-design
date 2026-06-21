@@ -21,10 +21,18 @@ public record KnowledgeFolderRunResponse(
         long indexedDocumentCount,
         long indexedChunkCount,
         long failedDocumentCount,
-        long startedAt,
-        long completedAt,
-        long durationMs,
-        String errorMessage
+        String phase,
+        long progressCurrent,
+        long progressTotal,
+        String currentItem,
+        Long queuedAt,
+        Long startedAt,
+        Long completedAt,
+        Long durationMs,
+        String errorMessage,
+        long createdAt,
+        long updatedAt,
+        Integer queuePosition
 ) {
     /**
      * 从领域运行记录构造接口响应。
@@ -46,10 +54,47 @@ public record KnowledgeFolderRunResponse(
                 run.indexedDocumentCount(),
                 run.indexedChunkCount(),
                 run.failedDocumentCount(),
+                run.phase(),
+                run.progressCurrent(),
+                run.progressTotal(),
+                run.currentItem(),
+                run.queuedAt(),
                 run.startedAt(),
                 run.completedAt(),
                 run.durationMs(),
-                run.errorMessage()
+                run.errorMessage(),
+                run.createdAt(),
+                run.updatedAt(),
+                null
+        );
+    }
+
+    public KnowledgeFolderRunResponse withQueuePosition(Integer queuePosition) {
+        return new KnowledgeFolderRunResponse(
+                id,
+                scopeType,
+                scopeId,
+                operation,
+                status,
+                scannedCount,
+                parsedCount,
+                skippedCount,
+                failedCount,
+                indexedDocumentCount,
+                indexedChunkCount,
+                failedDocumentCount,
+                phase,
+                progressCurrent,
+                progressTotal,
+                currentItem,
+                queuedAt,
+                startedAt,
+                completedAt,
+                durationMs,
+                errorMessage,
+                createdAt,
+                updatedAt,
+                queuePosition
         );
     }
 }

@@ -19,11 +19,17 @@
             <arg column="indexed_chunk_count" javaType="_long"/>
             <arg column="failed_document_count" javaType="_long"/>
             <arg column="failures_json" javaType="java.lang.String"/>
-            <arg column="started_at" javaType="_long"/>
-            <arg column="completed_at" javaType="_long"/>
-            <arg column="duration_ms" javaType="_long"/>
+            <arg column="phase" javaType="java.lang.String"/>
+            <arg column="progress_current" javaType="_long"/>
+            <arg column="progress_total" javaType="_long"/>
+            <arg column="current_item" javaType="java.lang.String"/>
+            <arg column="queued_at" javaType="java.lang.Long"/>
+            <arg column="started_at" javaType="java.lang.Long"/>
+            <arg column="completed_at" javaType="java.lang.Long"/>
+            <arg column="duration_ms" javaType="java.lang.Long"/>
             <arg column="error_message" javaType="java.lang.String"/>
             <arg column="created_at" javaType="_long"/>
+            <arg column="updated_at" javaType="_long"/>
         </constructor>
     </resultMap>
 
@@ -41,11 +47,17 @@
         indexed_chunk_count,
         failed_document_count,
         failures_json,
+        phase,
+        progress_current,
+        progress_total,
+        current_item,
+        queued_at,
         started_at,
         completed_at,
         duration_ms,
         error_message,
-        created_at
+        created_at,
+        updated_at
     </sql>
 
     <insert id="insertRun">
@@ -53,15 +65,57 @@
             id, scope_type, scope_id, operation, status,
             scanned_count, parsed_count, skipped_count, failed_count,
             indexed_document_count, indexed_chunk_count, failed_document_count,
-            failures_json, started_at, completed_at, duration_ms, error_message, created_at
+            failures_json, phase, progress_current, progress_total, current_item,
+            queued_at, started_at, completed_at, duration_ms, error_message, created_at, updated_at
         )
         VALUES (
             #{id}, #{scopeType}, #{scopeId}, #{operation}, #{status},
             #{scannedCount}, #{parsedCount}, #{skippedCount}, #{failedCount},
             #{indexedDocumentCount}, #{indexedChunkCount}, #{failedDocumentCount},
-            #{failuresJson}, #{startedAt}, #{completedAt}, #{durationMs}, #{errorMessage}, #{createdAt}
+            #{failuresJson}, #{phase}, #{progressCurrent}, #{progressTotal}, #{currentItem},
+            #{queuedAt}, #{startedAt}, #{completedAt}, #{durationMs}, #{errorMessage}, #{createdAt}, #{updatedAt}
         )
     </insert>
+
+    <select id="findById" resultMap="KnowledgeFolderRunMap">
+        SELECT <include refid="RunColumns"/>
+        FROM knowledge_folder_runs
+        WHERE id = #{id}
+    </select>
+
+    <select id="findActiveByScopeAndOperation" resultMap="KnowledgeFolderRunMap">
+        SELECT <include refid="RunColumns"/>
+        FROM knowledge_folder_runs
+        WHERE scope_type = #{scopeType}
+          AND ((#{scopeId} IS NULL AND scope_id IS NULL) OR scope_id = #{scopeId})
+          AND operation = #{operation}
+          AND status IN ('QUEUED', 'RUNNING', 'CANCELLING')
+        ORDER BY created_at ASC
+        LIMIT 1
+    </select>
+
+    <select id="findActiveRuns" resultMap="KnowledgeFolderRunMap">
+        SELECT <include refid="RunColumns"/>
+        FROM knowledge_folder_runs
+        WHERE status IN ('RUNNING', 'CANCELLING')
+        ORDER BY started_at ASC, created_at ASC
+    </select>
+
+    <select id="findQueuedRuns" resultMap="KnowledgeFolderRunMap">
+        SELECT <include refid="RunColumns"/>
+        FROM knowledge_folder_runs
+        WHERE status = 'QUEUED'
+        ORDER BY queued_at ASC, created_at ASC
+    </select>
+
+    <select id="findQueueRuns" resultMap="KnowledgeFolderRunMap">
+        SELECT <include refid="RunColumns"/>
+        FROM knowledge_folder_runs
+        WHERE status IN ('QUEUED', 'RUNNING', 'CANCELLING')
+        ORDER BY
+            CASE status WHEN 'RUNNING' THEN 0 WHEN 'CANCELLING' THEN 0 ELSE 1 END,
+            COALESCE(started_at, queued_at, created_at) ASC
+    </select>
 
     <select id="findRuns" resultMap="KnowledgeFolderRunMap">
         SELECT <include refid="RunColumns"/>
@@ -100,6 +154,122 @@
         )
         ORDER BY created_at DESC
     </select>
+
+    <select id="findLatestRun" resultMap="KnowledgeFolderRunMap">
+        SELECT <include refid="RunColumns"/>
+        FROM knowledge_folder_runs
+        ORDER BY created_at DESC
+        LIMIT 1
+    </select>
+
+    <update id="markStarted">
+        UPDATE knowledge_folder_runs
+        SET status = 'RUNNING',
+            phase = #{phase},
+            progress_current = 0,
+            progress_total = #{progressTotal},
+            current_item = #{currentItem},
+            started_at = #{startedAt},
+            updated_at = #{startedAt}
+        WHERE id = #{id}
+          AND status = 'QUEUED'
+    </update>
+
+    <update id="updateProgress">
+        UPDATE knowledge_folder_runs
+        SET phase = #{phase},
+            progress_current = #{progressCurrent},
+            progress_total = #{progressTotal},
+            current_item = #{currentItem},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+          AND status IN ('RUNNING', 'CANCELLING')
+    </update>
+
+    <update id="markCancelling">
+        UPDATE knowledge_folder_runs
+        SET status = 'CANCELLING',
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+          AND status = 'RUNNING'
+    </update>
+
+    <update id="markCancelled">
+        UPDATE knowledge_folder_runs
+        SET status = 'CANCELLED',
+            phase = 'CANCELLED',
+            completed_at = #{completedAt},
+            duration_ms = CASE
+                WHEN started_at IS NULL THEN 0
+                ELSE MAX(0, #{completedAt} - started_at)
+            END,
+            error_message = #{message},
+            updated_at = #{completedAt}
+        WHERE id = #{id}
+          AND status IN ('QUEUED', 'RUNNING', 'CANCELLING')
+    </update>
+
+    <update id="markCompleted">
+        UPDATE knowledge_folder_runs
+        SET status = #{status},
+            scanned_count = #{scannedCount},
+            parsed_count = #{parsedCount},
+            skipped_count = #{skippedCount},
+            failed_count = #{failedCount},
+            indexed_document_count = #{indexedDocumentCount},
+            indexed_chunk_count = #{indexedChunkCount},
+            failed_document_count = #{failedDocumentCount},
+            failures_json = #{failuresJson},
+            phase = 'COMPLETED',
+            progress_current = #{progressCurrent},
+            progress_total = #{progressTotal},
+            current_item = NULL,
+            completed_at = #{completedAt},
+            duration_ms = CASE
+                WHEN started_at IS NULL THEN 0
+                ELSE MAX(0, #{completedAt} - started_at)
+            END,
+            error_message = NULL,
+            updated_at = #{completedAt}
+        WHERE id = #{id}
+    </update>
+
+    <update id="markFailed">
+        UPDATE knowledge_folder_runs
+        SET status = 'FAILED',
+            phase = 'FAILED',
+            completed_at = #{completedAt},
+            duration_ms = CASE
+                WHEN started_at IS NULL THEN 0
+                ELSE MAX(0, #{completedAt} - started_at)
+            END,
+            error_message = #{message},
+            updated_at = #{completedAt}
+        WHERE id = #{id}
+    </update>
+
+    <update id="cleanupInterruptedRuns">
+        UPDATE knowledge_folder_runs
+        SET status = CASE
+                WHEN status = 'QUEUED' THEN 'CANCELLED'
+                ELSE 'FAILED'
+            END,
+            phase = CASE
+                WHEN status = 'QUEUED' THEN 'CANCELLED'
+                ELSE 'FAILED'
+            END,
+            completed_at = #{completedAt},
+            duration_ms = CASE
+                WHEN started_at IS NULL THEN 0
+                ELSE MAX(0, #{completedAt} - started_at)
+            END,
+            error_message = CASE
+                WHEN status = 'QUEUED' THEN #{queuedMessage}
+                ELSE #{runningMessage}
+            END,
+            updated_at = #{completedAt}
+        WHERE status IN ('QUEUED', 'RUNNING', 'CANCELLING')
+    </update>
 
     <delete id="deleteByScope">
         DELETE FROM knowledge_folder_runs

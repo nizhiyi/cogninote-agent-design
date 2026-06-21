@@ -1,10 +1,10 @@
 package com.itqianchen.agentdesign.domain.knowledge;
 
 /**
- * 知识库维护动作的历史记录。
+ * 知识库维护任务记录。
  *
- * <p>run 只记录已经发生的导入、同步、重建、启停和删除结果；它不是后台任务队列。
- * 这些字段会写入本地 SQLite 并暴露给健康面板，新增字段时需要同步 schema、Mapper 和响应 DTO。</p>
+ * <p>该记录既是本地 FIFO 队列的恢复事实源，也是完成后的维护历史。未结束任务的
+ * startedAt、completedAt 和 durationMs 可以为空；调用方必须以 status 判断任务生命周期。</p>
  */
 public record KnowledgeFolderRun(
         String id,
@@ -20,10 +20,16 @@ public record KnowledgeFolderRun(
         long indexedChunkCount,
         long failedDocumentCount,
         String failuresJson,
-        long startedAt,
-        long completedAt,
-        long durationMs,
+        String phase,
+        long progressCurrent,
+        long progressTotal,
+        String currentItem,
+        Long queuedAt,
+        Long startedAt,
+        Long completedAt,
+        Long durationMs,
         String errorMessage,
-        long createdAt
+        long createdAt,
+        long updatedAt
 ) {
 }

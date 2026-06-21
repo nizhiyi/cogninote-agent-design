@@ -64,6 +64,31 @@ public interface DatabaseSchemaMapper {
     void createKnowledgeFolderRunsTable();
 
     /**
+     * 删除知识库维护任务迁移临时表。
+     */
+    void dropKnowledgeFolderRunsMigrationTable();
+
+    /**
+     * 创建知识库维护任务迁移临时表。
+     */
+    void createKnowledgeFolderRunsMigrationTable();
+
+    /**
+     * 将旧维护记录复制到迁移临时表。
+     */
+    void copyKnowledgeFolderRunsToMigrationTable();
+
+    /**
+     * 删除旧知识库维护任务表。
+     */
+    void dropKnowledgeFolderRunsTable();
+
+    /**
+     * 将迁移临时表重命名为正式维护任务表。
+     */
+    void renameKnowledgeFolderRunsMigrationTable();
+
+    /**
      * 创建图谱 chunk 抽取缓存表。
      */
     void createKnowledgeGraphChunkExtractionsTable();
@@ -225,6 +250,11 @@ public interface DatabaseSchemaMapper {
      * 创建知识库维护运行 operation 查询索引。
      */
     void createKnowledgeFolderRunsOperationIndex();
+
+    /**
+     * 创建知识库维护运行 status 查询索引。
+     */
+    void createKnowledgeFolderRunsStatusIndex();
 
     /**
      * 创建图谱视图 scope 查询索引。

@@ -6,6 +6,7 @@ import com.itqianchen.agentdesign.domain.document.KnowledgeDocument;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolder;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRun;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunScopeType;
+import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunStatus;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderSummary;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeHealthIssueCode;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeHealthStatus;
@@ -84,19 +85,31 @@ public class KnowledgeHealthService {
     public KnowledgeHealthResponse health() {
         List<KnowledgeFolderSummary> summaries = folderRepository.findAllSummaries();
         Map<String, KnowledgeFolderRun> latestRuns = latestRunsByScope();
+        List<KnowledgeFolderRunResponse> currentRuns = runRepository.findActiveRuns().stream()
+                .map(KnowledgeFolderRunResponse::from)
+                .toList();
+        List<KnowledgeFolderRunResponse> queuedRuns = withQueuePositions(runRepository.findQueuedRuns());
         List<FolderHealthSnapshot> folderSnapshots = summaries.stream()
                 .map(summary -> folderSnapshot(summary, latestRuns.get(scopeKey(summary.folder().id()))))
                 .toList();
 
         IndexHealthSnapshot indexHealth = indexHealth(folderSnapshots);
-        KnowledgeHealthSummaryResponse summary = totalSummary(folderSnapshots, indexHealth);
+        KnowledgeHealthSummaryResponse summary = totalSummary(
+                folderSnapshots,
+                indexHealth,
+                currentRuns.size(),
+                queuedRuns.size()
+        );
         List<KnowledgeHealthIssueResponse> issues = allIssues(folderSnapshots, summary, indexHealth);
         KnowledgeHealthStatus status = overallStatus(folderSnapshots, summary, issues);
         List<KnowledgeFolderHealthSummaryResponse> folders = folderSnapshots.stream()
                 .map(FolderHealthSnapshot::toSummaryResponse)
                 .toList();
+        KnowledgeFolderRunResponse latestRun = runRepository.findLatestRun()
+                .map(KnowledgeFolderRunResponse::from)
+                .orElse(null);
 
-        return new KnowledgeHealthResponse(status, summary, issues, folders);
+        return new KnowledgeHealthResponse(status, summary, issues, folders, currentRuns, queuedRuns, latestRun);
     }
 
     /**
@@ -465,7 +478,9 @@ public class KnowledgeHealthService {
      */
     private KnowledgeHealthSummaryResponse totalSummary(
             List<FolderHealthSnapshot> snapshots,
-            IndexHealthSnapshot indexHealth
+            IndexHealthSnapshot indexHealth,
+            int runningRunCount,
+            int queuedRunCount
     ) {
         int folderCount = snapshots.size();
         int enabledFolderCount = 0;
@@ -514,8 +529,21 @@ public class KnowledgeHealthService {
                 indexHealth.luceneDocumentCount(),
                 indexHealth.luceneChunkCount(),
                 indexHealth.embeddingConfigured(),
-                indexHealth.indexConsistent()
+                indexHealth.indexConsistent(),
+                runningRunCount,
+                queuedRunCount
         );
+    }
+
+    private static List<KnowledgeFolderRunResponse> withQueuePositions(List<KnowledgeFolderRun> runs) {
+        List<KnowledgeFolderRunResponse> responses = new ArrayList<>();
+        int position = 1;
+        for (KnowledgeFolderRun run : runs) {
+            responses.add(KnowledgeFolderRunResponse.from(run).withQueuePosition(
+                    run.status() == KnowledgeFolderRunStatus.QUEUED ? position++ : null
+            ));
+        }
+        return List.copyOf(responses);
     }
 
     /**

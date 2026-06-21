@@ -4,11 +4,13 @@ import { ElMessage } from 'element-plus'
 import { BrainCircuit, Copy, Database, FolderSync, RotateCcw } from 'lucide-vue-next'
 import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
 import { useKnowledgeHealthStore } from '../stores/knowledge-health'
+import { useKnowledgeMaintenanceStore } from '../stores/knowledge-maintenance'
 import { useSearchStore } from '../stores/search'
 import { formatTime } from '../utils/formatters'
 
 const knowledgeStore = useKnowledgeFoldersStore()
 const healthStore = useKnowledgeHealthStore()
+const maintenanceStore = useKnowledgeMaintenanceStore()
 const searchStore = useSearchStore()
 
 const currentFolder = computed(() =>
@@ -50,6 +52,7 @@ const hasFolderSyncIssues = computed(() => problemSections.value.some((section) 
 const hasFolderIndexIssues = computed(() => problemSections.value.some((section) => section.action === 'REBUILD_INDEX'))
 const hasIndexIssue = computed(() => globalIssues.value.some((issue) => issue.code === 'INDEX_INCONSISTENT'))
 const hasEmbeddingIssue = computed(() => globalIssues.value.some((issue) => issue.code === 'EMBEDDING_UNCONFIGURED'))
+const selectedFolderRun = computed(() => maintenanceStore.activeRunForFolder(healthStore.selectedFolderId))
 const systemProblemSections = computed(() => [
   {
     key: 'INDEX_INCONSISTENT',
@@ -73,15 +76,10 @@ async function syncSelectedFolder() {
     return
   }
   await knowledgeStore.syncFolder(healthStore.selectedFolderId)
-  await healthStore.fetchFolderHealth(healthStore.selectedFolderId)
 }
 
 async function rebuildGlobalIndex() {
   await searchStore.rebuildIndex()
-  await healthStore.fetchHealth()
-  if (healthStore.selectedFolderId) {
-    await healthStore.fetchFolderHealth(healthStore.selectedFolderId)
-  }
 }
 
 async function rebuildSelectedFolder() {
@@ -89,7 +87,6 @@ async function rebuildSelectedFolder() {
     return
   }
   await knowledgeStore.rebuildFolder(healthStore.selectedFolderId)
-  await healthStore.fetchFolderHealth(healthStore.selectedFolderId)
 }
 
 async function copyPath(path) {
@@ -135,25 +132,26 @@ function fallbackCopy(text) {
     <div class="knowledge-health-drawer__actions">
       <el-button
         v-if="hasFolderSyncIssues"
-        :disabled="!canRepairFolder || knowledgeStore.isFolderBusy(healthStore.selectedFolderId)"
-        :loading="knowledgeStore.isFolderBusy(healthStore.selectedFolderId)"
+        :disabled="!canRepairFolder || Boolean(selectedFolderRun)"
+        :loading="selectedFolderRun?.status === 'RUNNING' || selectedFolderRun?.status === 'CANCELLING'"
         @click="syncSelectedFolder"
       >
         <FolderSync aria-hidden="true" />
-        <span>同步/重试</span>
+        <span>{{ selectedFolderRun ? '维护中' : '同步/重试' }}</span>
       </el-button>
       <el-button
         v-if="hasFolderIndexIssues"
-        :disabled="!canRepairFolder || knowledgeStore.isFolderBusy(healthStore.selectedFolderId)"
-        :loading="knowledgeStore.isFolderBusy(healthStore.selectedFolderId)"
+        :disabled="!canRepairFolder || Boolean(selectedFolderRun)"
+        :loading="selectedFolderRun?.status === 'RUNNING' || selectedFolderRun?.status === 'CANCELLING'"
         @click="rebuildSelectedFolder"
       >
         <RotateCcw aria-hidden="true" />
-        <span>重建目录索引</span>
+        <span>{{ selectedFolderRun ? '维护中' : '重建目录索引' }}</span>
       </el-button>
       <el-button
         v-if="hasIndexIssue"
         :loading="searchStore.isRebuildingIndex"
+        :disabled="maintenanceStore.hasActiveRun"
         @click="rebuildGlobalIndex"
       >
         <Database aria-hidden="true" />

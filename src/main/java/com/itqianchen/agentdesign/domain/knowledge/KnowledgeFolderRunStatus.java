@@ -1,14 +1,23 @@
 package com.itqianchen.agentdesign.domain.knowledge;
 
 /**
- * 知识库维护运行结果。
+ * 知识库维护任务状态。
  *
- * <p>状态表示一次维护动作是否完成，不等同于目录健康状态；有失败项但主流程完成时应使用
- * COMPLETED_WITH_WARNINGS。</p>
+ * <p>状态会持久化到 knowledge_folder_runs.status，同时驱动前端队列展示和按钮禁用规则；
+ * 新增或改名必须同步 SQLite 迁移、Mapper、前端状态映射和测试。</p>
  */
 public enum KnowledgeFolderRunStatus {
-    /** 操作正在执行，前端应禁用重复触发并展示运行中状态。 */
+    /** 等待后台维护 worker 执行。 */
+    QUEUED,
+
+    /** 操作正在执行，前端应禁用冲突操作并展示进度。 */
     RUNNING,
+
+    /** 已收到取消请求，任务会在下一个安全检查点停止。 */
+    CANCELLING,
+
+    /** 任务在执行前或执行中被用户取消。 */
+    CANCELLED,
 
     /** 操作完成且没有报告失败项。 */
     COMPLETED,

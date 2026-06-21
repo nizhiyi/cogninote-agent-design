@@ -10,6 +10,9 @@ public record KnowledgeHealthResponse(
         KnowledgeHealthStatus status,
         KnowledgeHealthSummaryResponse summary,
         List<KnowledgeHealthIssueResponse> issues,
-        List<KnowledgeFolderHealthSummaryResponse> folders
+        List<KnowledgeFolderHealthSummaryResponse> folders,
+        List<KnowledgeFolderRunResponse> currentRuns,
+        List<KnowledgeFolderRunResponse> queuedRuns,
+        KnowledgeFolderRunResponse latestRun
 ) {
 }

@@ -1,6 +1,7 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { getIndexStatus, rebuildSearchIndex, searchKnowledge as requestSearch } from '../api/search-api'
+import { getIndexStatus, searchKnowledge as requestSearch } from '../api/search-api'
+import { useKnowledgeMaintenanceStore } from './knowledge-maintenance'
 
 /**
  * 与后端 SearchMode 枚举保持一致的检索模式。
@@ -23,13 +24,16 @@ export const useSearchStore = defineStore('search', () => {
   const rebuildResult = ref(null)
   const searchResult = ref(null)
   const isLoadingIndexStatus = ref(false)
-  const isRebuildingIndex = ref(false)
   const isSearching = ref(false)
   const indexError = ref('')
   const searchError = ref('')
   const query = ref('')
   const mode = ref('KEYWORD')
   const topK = ref(8)
+  const maintenanceStore = useKnowledgeMaintenanceStore()
+  const isRebuildingIndex = computed(() => Boolean(
+    maintenanceStore.activeRunForOperation('REBUILD_INDEX', 'ALL')
+  ))
 
   async function fetchIndexStatus() {
     isLoadingIndexStatus.value = true
@@ -52,17 +56,13 @@ export const useSearchStore = defineStore('search', () => {
   }
 
   async function rebuildIndex() {
-    isRebuildingIndex.value = true
     rebuildResult.value = null
     indexError.value = ''
 
     try {
-      rebuildResult.value = await rebuildSearchIndex()
-      await fetchIndexStatus()
+      rebuildResult.value = await maintenanceStore.rebuildAllIndex()
     } catch (err) {
       indexError.value = `重建索引失败：${err.message}`
-    } finally {
-      isRebuildingIndex.value = false
     }
   }
 

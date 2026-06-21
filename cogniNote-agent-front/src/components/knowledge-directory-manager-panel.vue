@@ -19,10 +19,12 @@ import KnowledgeFolderImportDialog from './knowledge-folder-import-dialog.vue'
 import KnowledgeHealthDrawer from './knowledge-health-drawer.vue'
 import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
 import { useKnowledgeHealthStore } from '../stores/knowledge-health'
+import { useKnowledgeMaintenanceStore } from '../stores/knowledge-maintenance'
 import { formatFileSize, formatTime } from '../utils/formatters'
 
 const knowledgeStore = useKnowledgeFoldersStore()
 const knowledgeHealthStore = useKnowledgeHealthStore()
+const maintenanceStore = useKnowledgeMaintenanceStore()
 const isImportDialogOpen = ref(false)
 const folderSearchKeyword = ref('')
 const folderStatusFilter = ref('all')
@@ -48,7 +50,10 @@ const RUN_OPERATION_LABELS = {
 }
 
 const RUN_STATUS_LABELS = {
+  QUEUED: '等待中',
   RUNNING: '运行中',
+  CANCELLING: '取消中',
+  CANCELLED: '已取消',
   COMPLETED: '完成',
   COMPLETED_WITH_WARNINGS: '有失败项',
   FAILED: '失败'
@@ -182,11 +187,11 @@ function runStatusClass(run) {
 }
 
 function lastRun(folder) {
-  return folderHealth(folder)?.lastRun || null
+  return maintenanceStore.activeRunForFolder(folder.id) || folderHealth(folder)?.lastRun || null
 }
 
 function isFolderRunning(folder) {
-  return lastRun(folder)?.status === 'RUNNING' || knowledgeStore.isFolderBusy(folder.id)
+  return Boolean(maintenanceStore.activeRunForFolder(folder.id))
 }
 
 function repairAction(folder) {
@@ -201,7 +206,14 @@ function repairAction(folder) {
 }
 
 function repairLabel(folder) {
-  if (isFolderRunning(folder)) {
+  const run = maintenanceStore.activeRunForFolder(folder.id)
+  if (run?.status === 'QUEUED') {
+    return '已排队'
+  }
+  if (run?.status === 'CANCELLING') {
+    return '取消中'
+  }
+  if (run?.status === 'RUNNING') {
     return '运行中'
   }
   if (repairAction(folder) === 'rebuild') {
@@ -228,7 +240,7 @@ function clearFilters() {
 }
 
 async function confirmDeleteFolder(folder) {
-  if (!folder || knowledgeStore.isFolderBusy(folder.id)) {
+  if (!folder || maintenanceStore.isFolderBusy(folder.id)) {
     return
   }
 
@@ -254,8 +266,16 @@ async function confirmDeleteFolder(folder) {
 async function refreshDirectories() {
   await Promise.all([
     knowledgeStore.fetchFolders(),
-    knowledgeHealthStore.fetchHealth()
+    knowledgeHealthStore.fetchHealth(),
+    maintenanceStore.fetchQueue()
   ])
+}
+
+function runProgressPercentage(run) {
+  if (!run?.progressTotal) {
+    return 0
+  }
+  return Math.min(100, Math.round((run.progressCurrent / run.progressTotal) * 100))
 }
 </script>
 
@@ -334,6 +354,15 @@ async function refreshDirectories() {
       show-icon
     />
 
+    <el-alert
+      v-if="maintenanceStore.error"
+      class="settings-inline-alert"
+      type="error"
+      :title="maintenanceStore.error"
+      :closable="false"
+      show-icon
+    />
+
     <section class="knowledge-directory-list" aria-label="目录列表">
       <header class="knowledge-directory-list__head" aria-hidden="true">
         <span>目录</span>
@@ -402,13 +431,13 @@ async function refreshDirectories() {
               >
                 <Activity aria-hidden="true" />
                 <span>{{ runStatusLabel(lastRun(folder)) }}</span>
-                <em>最近{{ runOperationLabel(lastRun(folder)) }} {{ formatTime(lastRun(folder).completedAt) }}</em>
+                <em>{{ lastRun(folder).status === 'QUEUED' ? '排队' : '最近' }}{{ runOperationLabel(lastRun(folder)) }} {{ formatTime(lastRun(folder).completedAt || lastRun(folder).queuedAt || lastRun(folder).startedAt) }}</em>
               </div>
               <el-progress
                 v-if="isFolderRunning(folder)"
-                :percentage="50"
+                :percentage="runProgressPercentage(lastRun(folder))"
                 :show-text="false"
-                :indeterminate="true"
+                :indeterminate="!lastRun(folder)?.progressTotal"
                 :duration="1.6"
                 aria-label="目录维护运行中"
               />
@@ -443,9 +472,9 @@ async function refreshDirectories() {
                   <EllipsisVertical aria-hidden="true" />
                 </el-button>
                 <template #dropdown>
-                  <el-dropdown-menu>
+                <el-dropdown-menu>
                     <el-dropdown-item
-                      :disabled="!folder.enabled"
+                      :disabled="!folder.enabled || isFolderRunning(folder)"
                       @click="knowledgeStore.rebuildFolder(folder.id)"
                     >
                       重建索引

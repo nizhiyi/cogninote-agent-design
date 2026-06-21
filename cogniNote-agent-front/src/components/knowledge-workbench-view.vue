@@ -10,12 +10,14 @@ import KnowledgeSearchPanel from './knowledge-search-panel.vue'
 import { normalizeKnowledgePanel } from '../config/knowledge-navigation'
 import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
 import { useKnowledgeHealthStore } from '../stores/knowledge-health'
+import { useKnowledgeMaintenanceStore } from '../stores/knowledge-maintenance'
 import { useModelConfigStore } from '../stores/model-config'
 import { useSearchStore } from '../stores/search'
 
 const route = useRoute()
 const knowledgeStore = useKnowledgeFoldersStore()
 const knowledgeHealthStore = useKnowledgeHealthStore()
+const maintenanceStore = useKnowledgeMaintenanceStore()
 const searchStore = useSearchStore()
 const modelConfigStore = useModelConfigStore()
 
@@ -31,12 +33,14 @@ const embeddingReady = computed(() => {
 })
 const isRefreshing = computed(() =>
   knowledgeStore.isLoading || knowledgeHealthStore.isLoading || searchStore.isLoadingIndexStatus
+    || maintenanceStore.isLoadingQueue
 )
 onMounted(() => {
   // 三个请求互不依赖，并行加载能让侧栏摘要和当前面板尽快进入可用状态。
   void Promise.all([
     knowledgeStore.ensureFoldersLoaded(),
     knowledgeHealthStore.ensureHealthLoaded(),
+    maintenanceStore.ensureQueueLoaded(),
     searchStore.ensureIndexStatusLoaded(),
     modelConfigStore.ensureModelConfigLoaded()
   ])
@@ -46,6 +50,7 @@ async function refreshWorkbench() {
   await Promise.all([
     knowledgeStore.fetchFolders(),
     knowledgeHealthStore.fetchHealth(),
+    maintenanceStore.fetchQueue(),
     searchStore.fetchIndexStatus(),
     modelConfigStore.ensureModelConfigLoaded()
   ])

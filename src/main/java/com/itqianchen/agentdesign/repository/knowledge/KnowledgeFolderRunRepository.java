@@ -1,9 +1,12 @@
 package com.itqianchen.agentdesign.repository.knowledge;
 
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRun;
+import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunOperation;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunScopeType;
+import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunStatus;
 import com.itqianchen.agentdesign.mapper.knowledge.KnowledgeFolderRunMapper;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
 /**
@@ -34,6 +37,30 @@ public class KnowledgeFolderRunRepository {
      */
     public void insert(KnowledgeFolderRun run) {
         mapper.insertRun(run);
+    }
+
+    public Optional<KnowledgeFolderRun> findById(String id) {
+        return Optional.ofNullable(mapper.findById(id));
+    }
+
+    public Optional<KnowledgeFolderRun> findActiveByScopeAndOperation(
+            KnowledgeFolderRunScopeType scopeType,
+            String scopeId,
+            KnowledgeFolderRunOperation operation
+    ) {
+        return Optional.ofNullable(mapper.findActiveByScopeAndOperation(scopeType.name(), scopeId, operation.name()));
+    }
+
+    public List<KnowledgeFolderRun> findActiveRuns() {
+        return mapper.findActiveRuns();
+    }
+
+    public List<KnowledgeFolderRun> findQueuedRuns() {
+        return mapper.findQueuedRuns();
+    }
+
+    public List<KnowledgeFolderRun> findQueueRuns() {
+        return mapper.findQueueRuns();
     }
 
     /**
@@ -92,6 +119,69 @@ public class KnowledgeFolderRunRepository {
      */
     public List<KnowledgeFolderRun> findLatestRunsByScope() {
         return mapper.findLatestRunsByScope();
+    }
+
+    public Optional<KnowledgeFolderRun> findLatestRun() {
+        return Optional.ofNullable(mapper.findLatestRun());
+    }
+
+    public int markStarted(String id, String phase, long progressTotal, String currentItem, long startedAt) {
+        return mapper.markStarted(id, phase, progressTotal, currentItem, startedAt);
+    }
+
+    public int updateProgress(String id, String phase, long progressCurrent, long progressTotal, String currentItem) {
+        return mapper.updateProgress(id, phase, progressCurrent, progressTotal, currentItem, System.currentTimeMillis());
+    }
+
+    public int markCancelling(String id) {
+        return mapper.markCancelling(id, System.currentTimeMillis());
+    }
+
+    public int markCancelled(String id, String message) {
+        return mapper.markCancelled(id, message, System.currentTimeMillis());
+    }
+
+    public int markCompleted(
+            String id,
+            KnowledgeFolderRunStatus status,
+            int scannedCount,
+            int parsedCount,
+            int skippedCount,
+            int failedCount,
+            long indexedDocumentCount,
+            long indexedChunkCount,
+            long failedDocumentCount,
+            String failuresJson,
+            long progressCurrent,
+            long progressTotal
+    ) {
+        return mapper.markCompleted(
+                id,
+                status.name(),
+                scannedCount,
+                parsedCount,
+                skippedCount,
+                failedCount,
+                indexedDocumentCount,
+                indexedChunkCount,
+                failedDocumentCount,
+                failuresJson,
+                progressCurrent,
+                progressTotal,
+                System.currentTimeMillis()
+        );
+    }
+
+    public int markFailed(String id, String message) {
+        return mapper.markFailed(id, message, System.currentTimeMillis());
+    }
+
+    public int cleanupInterruptedRuns() {
+        return mapper.cleanupInterruptedRuns(
+                System.currentTimeMillis(),
+                "应用重启，排队中的维护任务已取消。",
+                "应用重启，运行中的维护任务已中断。"
+        );
     }
 
     /**
