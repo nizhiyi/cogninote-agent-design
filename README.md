@@ -31,7 +31,7 @@
 1. 下载并安装对应平台的桌面包。
 2. 打开应用，在“设置”页选择 Provider，填写 API Key，并分别配置 Chat / Embedding 模型。
 3. 在“知识库总览”中通过导入弹窗导入本地文档目录。
-4. 在资料管理页查看知识库健康状态；需要批量维护时进入“目录管理”列表，按名称、路径或状态搜索目录并执行同步、启停、删除或重建索引。
+4. 在资料总览页查看知识库健康状态；需要批量维护时进入“目录管理”列表，按名称、路径或状态搜索目录，并把同步、停用、删除或重建索引加入维护队列。
 5. 使用搜索面板验证索引命中结果。
 6. 回到“对话”页提问，查看带引用来源的流式回答；需要追问某段助手回复时，选中文本并点击“添加到对话”。
 
@@ -40,16 +40,20 @@
 ## 界面预览
 
 <p align="center">
-  <img src="docs/assets/image/聊天页面.png" alt="聊天页面" width="49%">
-  <img src="docs/assets/image/知识库.png" alt="知识库" width="49%">
+  <img src="docs/assets/image/聊天页面.png" alt="聊天页面" width="80%">
+</p>
+<p align="center">
+  <img src="docs/assets/image/知识库.png" alt="知识库" width="80%">
 </p>
 
 <details>
 <summary>更多截图</summary>
 
 <p align="center">
-  <img src="docs/assets/image/设置相关.png" alt="设置相关" width="49%">
-  <img src="docs/assets/image/知识图谱.png" alt="知识图谱" width="49%">
+  <img src="docs/assets/image/设置相关.png" alt="设置相关" width="80%">
+</p>
+<p align="center">
+  <img src="docs/assets/image/知识图谱.png" alt="知识图谱" width="80%">
 </p>
 
 </details>
@@ -58,8 +62,9 @@
 
 - 本地文档导入：支持 Markdown、TXT、DOCX、文本型 PDF。
 - 知识库目录管理：总览页保持轻量入口，目录维护在独立列表中完成；支持导入弹窗、模糊搜索、启停/问题筛选、分页查找、文件同步、启用/停用、删除目录、局部重建索引和按目录展开文档。
-- 知识库健康诊断：资料管理页展示“可信状态控制台”，聚合解析失败、未索引、缺失文件、疑似变化、Lucene 一致性和 Embedding 可用性；停用目录显示为 `DISABLED`，作为用户主动排除检索范围的状态，不计入问题数量或全库告警。点击“查看问题”会先列出全局问题和问题目录，再进入诊断与修复抽屉执行同步重试、重建索引、配置向量模型或复制路径等修复动作。
-- 本地数据存储：SQLite 保存文档元数据、chunk 内容、知识库维护运行记录、模型配置、聊天会话、消息和用户引用的助手回复片段。
+- 知识库健康诊断：资料总览页展示“可信状态控制台”，聚合解析失败、未索引、缺失文件、疑似变化、新增本地文件、Lucene 一致性和 Embedding 可用性；停用目录显示为 `DISABLED`，作为用户主动排除检索范围的状态，不计入问题数量或全库告警。点击“查看问题”会先列出全局问题和问题目录，再进入诊断与修复抽屉执行同步重试、重建索引、配置向量模型或复制路径等修复动作。
+- 知识库维护队列：导入目录、同步目录、启停、删除、目录重建和全库重建都会先进入本地 FIFO 队列，通过 SSE 推送 `QUEUED/RUNNING/COMPLETED/FAILED` 等状态；等待任务可取消，运行任务执行到安全完成点。高风险操作先二次确认，导入和重建类任务完成后会弹出需要用户确认的结果提示。
+- 本地数据存储：SQLite 保存文档元数据、chunk 内容、知识库维护队列与历史、模型配置、聊天会话、消息和用户引用的助手回复片段。
 - 本地搜索索引：Lucene 提供 BM25 关键词检索、向量检索和混合检索；支持中文正文、代码标识符、路径片段和流程图节点检索，向量检索会使用 active Embedding 模型生成查询向量。
 - RAG 对话：通过 Spring AI ChatClient + Advisor 注入会话记忆和知识库片段；知识库模式可按 `AUTO/ALWAYS/OFF` 策略补全省略、指代、动作型和领域切换追问的检索 query，并保留空白的 SSE 流式输出答案、展示引用来源；模型截断、异常或流提前断开时会标记“未完成”，避免半截回答伪装成完成。
 - 知识图谱：基于已导入 chunks 调用 active Chat 模型抽取实体、中文关系谓词、关系描述和证据，写入 SQLite 图谱缓存与派生视图；进入图谱页先展示可搜索、可筛选的已有全库/目录/文件图谱清单，点击“查看”后才按需加载完整视图；已有图谱可重新生成或删除，删除只清理图谱节点、关系、证据、视图和运行记录，不删除原始目录、文件、chunks 或 chunk 抽取缓存；关系 `type` 只做内部粗分类，画布、邻接表、Inspector 和证据抽屉直接展示后端校验后的中文 `displayLabel` 与 `description`。
@@ -201,7 +206,7 @@ macOS 桌面版默认写入：
   logs/desktop-backend.log
 ```
 
-SQLite 是业务事实来源，Lucene 是可重建索引。应用不会复制用户原始文件，只保存解析后的 chunk 文本、文档元数据、知识库维护运行记录、聊天记录、知识图谱事实与视图缓存、图谱运行记录、索引数据和模型配置。健康状态由 SQLite 当前事实和轻量文件系统探针即时计算，不额外保存一份容易过期的健康表。用户删除某个已有知识图谱时，只删除该 scope 的图谱派生数据和运行记录，不触碰原始资料或可复用的 chunk 抽取缓存。
+SQLite 是业务事实来源，Lucene 是可重建索引。应用不会复制用户原始文件，只保存解析后的 chunk 文本、文档元数据、知识库维护队列与历史、聊天记录、知识图谱事实与视图缓存、图谱运行记录、索引数据和模型配置。健康状态由 SQLite 当前事实和轻量文件系统探针即时计算，不额外保存一份容易过期的健康表。用户删除知识库目录时，只删除应用内目录、文档、chunks、索引、图谱派生数据和该目录维护记录，不触碰本地原始文件；用户删除某个已有知识图谱时，只删除该 scope 的图谱派生数据和运行记录，不触碰原始资料或可复用的 chunk 抽取缓存。
 
 `app.log` 是 Spring Boot 业务日志，`desktop-backend.log` 是桌面壳启动后端时的 stdout/stderr 日志。定位桌面启动、模型连接、RAG 对话和索引问题时优先查看这两个文件。
 
@@ -223,6 +228,7 @@ Spring Boot Backend
   ├─ Repository + MyBatis Mapper
   ├─ Lucene Knowledge Store
   ├─ Knowledge Health Diagnostics
+  ├─ Knowledge Maintenance Queue + SSE
   ├─ Model Configuration
   ├─ AI Runtime
   ├─ Chat Memory
@@ -234,6 +240,7 @@ Vue Frontend
   ├─ Persistent Sessions
   ├─ Knowledge Workbench
   ├─ Knowledge Directory Manager
+  ├─ Knowledge Maintenance Store
   ├─ Knowledge Health Drawer
   ├─ AI Streaming Markdown Renderer
   └─ Settings Center
@@ -279,12 +286,13 @@ bash ./scripts/build-desktop-app-macos.sh --skip-tests
 | [模型配置指南](docs/model-configuration-guide.md) | DashScope 与 OpenAI-compatible 配置方式 |
 | [桌面构建指南](docs/desktop-build-guide.md) | 桌面打包、签名、公证、发布和故障排查 |
 | [第 32 阶段可信状态加固计划](docs/phase-32-knowledge-health-p0-hardening-plan.md) | Lucene 一致性、Embedding 降级提示、删除清理和前端控制台 |
+| [第 33 阶段维护队列计划](docs/phase-33-knowledge-maintenance-queue-plan.md) | 维护任务队列、SSE 状态、确认弹窗、完成提示和 SQLite 连接约束 |
 
 阶段计划和内部工程文档保存在 `docs/` 目录，用于追踪研发过程。
 
 ## 开发状态
 
-当前项目已完成文档摄入、知识库目录管理与健康诊断、可信状态控制台、Lucene 一致性检查、Embedding 降级提示、目录删除时清理维护记录、独立目录管理列表（模糊搜索、筛选、分页和中文分页控件）、导入目录弹窗、代码友好的 Lucene 混合检索、模型驱动追问补全 Agent、追问补全自动触发与知识库设置页配置、知识图谱与思维导图、已有知识图谱清单按需加载和删除、知识图谱探索器重设计、图谱关系中文谓词直出与描述可读化、Prompt 专用配置文件、模型配置、对话上下文窗口配置与 Token 估算优化、RAG 对话、路由式多智能体对话、模式隔离聊天记忆、聊天回复片段引用、智能体模型运行时重构、AI 流式 Markdown 与 Mermaid 渲染、SQLite 聊天记忆、纯模型对话、空白保真的 SSE 流式输出、流式截断识别与错误状态同步、MyBatis 统一数据访问层、Windows 桌面打包、macOS Apple Silicon 独立打包链路、`0.1.36` 双平台 unsigned/signed CI 打包链路、桌面安装/卸载/升级可靠性修复、桌面会话令牌保护、stable/preview 通道自动更新，以及中性主题与蓝色动作色的应用主题方案主要闭环。仍需重点补齐：
+当前项目已完成文档摄入、知识库目录管理与健康诊断、可信状态控制台、维护任务 FIFO 队列、SSE 任务状态推送、维护记录分页弹窗、维护操作二次确认、重建/导入完成确认提示、Lucene 一致性检查、Embedding 降级提示、目录删除时清理维护记录、独立目录管理列表（模糊搜索、筛选、分页和中文分页控件）、导入目录弹窗、代码友好的 Lucene 混合检索、模型驱动追问补全 Agent、追问补全自动触发与知识库设置页配置、知识图谱与思维导图、已有知识图谱清单按需加载和删除、知识图谱探索器重设计、图谱关系中文谓词直出与描述可读化、Prompt 专用配置文件、模型配置、对话上下文窗口配置与 Token 估算优化、RAG 对话、路由式多智能体对话、模式隔离聊天记忆、聊天回复片段引用、智能体模型运行时重构、AI 流式 Markdown 与 Mermaid 渲染、SQLite 聊天记忆、纯模型对话、空白保真的 SSE 流式输出、流式截断识别与错误状态同步、MyBatis 统一数据访问层、Windows 桌面打包、macOS Apple Silicon 独立打包链路、`0.1.36` 双平台 unsigned/signed CI 打包链路、桌面安装/卸载/升级可靠性修复、桌面会话令牌保护、stable/preview 通道自动更新，以及中性主题与蓝色动作色的应用主题方案主要闭环。仍需重点补齐：
 
 - API Key 本地加密或凭据管理。
 - 更完整的发布验收和安装包测试。

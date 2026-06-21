@@ -215,11 +215,11 @@ DELETE /api/knowledge-folders/{id}
 
 删除目录记录、关联文档、chunks 和 Lucene 条目。不会删除用户本机原始文件。
 
-第 32 阶段后，删除目录还会清理该目录 scope 下的 `knowledge_folder_runs` 维护记录，避免删除后继续显示孤儿可信状态数据。`ALL` scope 和其他目录的运行记录不受影响。
+第 33 阶段后，前端删除目录优先调用维护队列接口 `POST /api/knowledge-maintenance/runs/folders/{id}/delete`。旧删除接口仍保留兼容。删除目录会清理该目录 scope 下的 `knowledge_folder_runs` 维护记录，避免删除后继续显示孤儿可信状态数据；`ALL` scope 和其他目录的运行记录不受影响。
 
 ## 知识库健康
 
-知识库健康接口只做诊断，不会自动同步、重建、启停或删除。状态由 SQLite 文档记录、目录配置、索引字段和本地文件元数据即时派生；维护运行记录保存在 `knowledge_folder_runs` 中。
+知识库健康接口只做诊断，不会自动同步、重建、启停或删除。状态由 SQLite 文档记录、目录配置、索引字段、Lucene reader 统计和本地文件元数据即时派生；维护任务队列与运行历史保存在 `knowledge_folder_runs` 中。
 
 ### 查询全库健康
 
@@ -241,16 +241,22 @@ GET /api/knowledge-health
     "unindexedCount": 1,
     "missingLocalFileCount": 0,
     "staleLocalFileCount": 2,
+    "newLocalFileCount": 1,
     "chunkCount": 560,
     "lastIngestedAt": 1780000000000,
     "lastIndexedAt": 1780000005000,
     "luceneDocumentCount": 40,
     "luceneChunkCount": 560,
     "embeddingConfigured": false,
-    "indexConsistent": true
+    "indexConsistent": true,
+    "runningRunCount": 1,
+    "queuedRunCount": 2
   },
   "issues": [],
-  "folders": []
+  "folders": [],
+  "currentRuns": [],
+  "queuedRuns": [],
+  "latestRun": null
 }
 ```
 
@@ -303,7 +309,7 @@ GET /api/knowledge-health/folders/{id}
 }
 ```
 
-第一版健康诊断只比较本地文件是否存在、文件大小和修改时间，不重新计算内容 hash；真正的新增、修改、删除收敛仍由“同步目录”完成。单个文件访问异常会转成文件不可访问问题，不会让整个健康接口失败。
+健康诊断会比较本地文件是否存在、文件大小和修改时间，并轻量扫描目录中尚未入库的新文件数量；不重新计算内容 hash。真正的新增、修改、删除收敛仍由“同步目录”维护任务完成。单个文件访问异常会转成文件不可访问问题，不会让整个健康接口失败。
 
 ### 查询维护运行记录
 
@@ -313,7 +319,123 @@ GET /api/knowledge-health/runs?scopeType=KNOWLEDGE_FOLDER&scopeId=folder-xxx&lim
 
 `scopeType` 可省略；支持 `ALL`、`KNOWLEDGE_FOLDER`、`UNASSIGNED`。返回导入、同步、重建索引、启停和删除的最近记录。
 
-运行记录 `operation` 支持 `IMPORT`、`SYNC`、`REBUILD_INDEX`、`ENABLE`、`DISABLE`、`DELETE`；`status` 支持 `RUNNING`、`COMPLETED`、`COMPLETED_WITH_WARNINGS`、`FAILED`。记录写入失败只会写 warning 日志，不影响原导入、同步或重建操作的主流程。
+运行记录 `operation` 支持 `IMPORT`、`SYNC`、`REBUILD_INDEX`、`ENABLE`、`DISABLE`、`DELETE`；`status` 支持 `QUEUED`、`RUNNING`、`CANCELLING`、`CANCELLED`、`COMPLETED`、`COMPLETED_WITH_WARNINGS`、`FAILED`。`phase`、`currentItem`、`queuedAt`、`startedAt`、`completedAt`、`durationMs` 和 `queuePosition` 用于前端展示当前队列和历史详情。
+
+分页查询维护记录：
+
+```text
+GET /api/knowledge-health/runs/page?scopeType=KNOWLEDGE_FOLDER&scopeId=folder-xxx&page=1&pageSize=10
+```
+
+返回：
+
+```json
+{
+  "items": [],
+  "total": 42,
+  "page": 1,
+  "pageSize": 10
+}
+```
+
+旧 `/runs` 接口继续返回列表，维护记录弹窗优先使用 `/runs/page`，避免前端猜测是否还有下一页。
+
+## 知识库维护任务队列
+
+第 33 阶段后，前端所有知识库维护动作优先调用统一任务队列接口。旧目录接口和旧索引重建接口保留兼容，但不再作为前端状态事实源。
+
+### 入队维护任务
+
+```text
+POST /api/knowledge-maintenance/runs/rebuild-index
+POST /api/knowledge-maintenance/runs/import-folder
+POST /api/knowledge-maintenance/runs/folders/{id}/sync
+POST /api/knowledge-maintenance/runs/folders/{id}/rebuild
+POST /api/knowledge-maintenance/runs/folders/{id}/enabled
+POST /api/knowledge-maintenance/runs/folders/{id}/delete
+```
+
+导入目录请求体与旧导入接口一致：
+
+```json
+{
+  "folderPath": "D:/notes",
+  "recursive": true
+}
+```
+
+启停目录请求体：
+
+```json
+{
+  "enabled": false
+}
+```
+
+入队成功返回 `KnowledgeFolderRunResponse`。如果同一 scope、同一 operation 已有 `QUEUED/RUNNING/CANCELLING` 任务，后端返回已有任务，避免重复入队。
+
+### 查询队列
+
+```text
+GET /api/knowledge-maintenance/runs/queue
+```
+
+返回：
+
+```json
+{
+  "currentRuns": [],
+  "queuedRuns": [],
+  "latestRun": null
+}
+```
+
+队列为单机 FIFO，同一时间最多一个 `RUNNING`。应用启动时会把遗留 `QUEUED` 标记为 `CANCELLED`，把遗留 `RUNNING/CANCELLING` 标记为 `FAILED`。
+
+### 查询单个任务
+
+```text
+GET /api/knowledge-maintenance/runs/{runId}
+```
+
+返回字段与健康运行记录一致。前端在 SSE 终态事件丢失时会用该接口兜底恢复完成提示。
+
+### 订阅任务事件
+
+```text
+GET /api/knowledge-maintenance/runs/{runId}/events
+```
+
+该接口使用 `text/event-stream`。事件名包括：
+
+| event | 含义 |
+| --- | --- |
+| `maintenance-run-snapshot` | 连接建立后的当前任务快照 |
+| `maintenance-run-queued` | 任务已进入等待队列 |
+| `maintenance-run-started` | 任务开始执行 |
+| `maintenance-run-progress` | 任务阶段、当前项或统计变化 |
+| `maintenance-run-cancelling` | 收到取消请求；当前只作为历史兼容事件 |
+| `maintenance-run-cancelled` | 等待任务已取消 |
+| `maintenance-run-completed` | 任务完成 |
+| `maintenance-run-failed` | 任务失败 |
+| `maintenance-queue-updated` | 队列顺序或当前任务发生变化 |
+
+维护任务是服务端单向状态推送场景，因此使用项目已有 SSE 通道，不新增 WebSocket 技术栈。
+
+### 取消任务
+
+```text
+POST /api/knowledge-maintenance/runs/{runId}/cancel
+```
+
+只允许取消 `QUEUED` 任务。`RUNNING` 任务已经开始修改 SQLite、Lucene 或派生数据，接口会返回业务错误：
+
+```json
+{
+  "code": "KNOWLEDGE_MAINTENANCE_ERROR",
+  "message": "只能取消等待中的维护任务；正在运行的任务会自动执行到安全完成点。"
+}
+```
 
 ## 检索与索引
 
