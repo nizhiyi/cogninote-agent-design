@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Database, FolderOpen, ListTree, Network, Pencil, Plus, Search, Settings2, Trash2 } from 'lucide-vue-next'
+import { Database, FolderOpen, ListTree, Network, Pencil, Plus, Search, Settings2, ShieldCheck, Trash2 } from 'lucide-vue-next'
 import { KNOWLEDGE_PANEL_OPTIONS, normalizeKnowledgePanel } from '../config/knowledge-navigation'
 import { DEFAULT_SETTINGS_ITEM, SETTINGS_NAV_GROUPS, normalizeSettingsItem } from '../config/settings-navigation'
 import { useChatStore } from '../stores/chat'
@@ -51,6 +51,7 @@ const knowledgeSummary = computed(() =>
 )
 const knowledgePanelIcons = {
   folders: FolderOpen,
+  health: ShieldCheck,
   directories: ListTree,
   search: Search,
   graph: Network

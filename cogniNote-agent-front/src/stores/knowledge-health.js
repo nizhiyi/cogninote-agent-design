@@ -3,7 +3,8 @@ import { defineStore } from 'pinia'
 import {
   getKnowledgeFolderHealth,
   getKnowledgeHealth,
-  listKnowledgeHealthRuns
+  listKnowledgeHealthRuns,
+  listKnowledgeHealthRunsPage
 } from '../api/knowledge-health-api'
 
 /**
@@ -15,6 +16,7 @@ export const useKnowledgeHealthStore = defineStore('knowledgeHealth', () => {
   const health = ref(null)
   const folderHealth = ref(null)
   const runs = ref([])
+  const runsPage = ref({ items: [], total: 0, page: 1, pageSize: 10 })
   const selectedFolderId = ref('')
   const isDrawerOpen = ref(false)
   const isLoading = ref(false)
@@ -87,10 +89,30 @@ export const useKnowledgeHealthStore = defineStore('knowledgeHealth', () => {
     }
   }
 
+  async function fetchRunsPage(params = {}) {
+    isLoadingRuns.value = true
+    error.value = ''
+
+    try {
+      runsPage.value = await listKnowledgeHealthRunsPage(params)
+    } catch (err) {
+      runsPage.value = {
+        items: [],
+        total: 0,
+        page: params.page || 1,
+        pageSize: params.pageSize || 10
+      }
+      error.value = `维护记录读取失败：${err.message}`
+    } finally {
+      isLoadingRuns.value = false
+    }
+  }
+
   return {
     health,
     folderHealth,
     runs,
+    runsPage,
     selectedFolderId,
     isDrawerOpen,
     isLoading,
@@ -103,6 +125,7 @@ export const useKnowledgeHealthStore = defineStore('knowledgeHealth', () => {
     fetchFolderHealth,
     openFolderIssues,
     closeDrawer,
-    fetchRuns
+    fetchRuns,
+    fetchRunsPage
   }
 })

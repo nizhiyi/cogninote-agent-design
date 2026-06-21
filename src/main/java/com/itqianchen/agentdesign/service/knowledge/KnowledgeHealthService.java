@@ -13,6 +13,7 @@ import com.itqianchen.agentdesign.domain.search.KnowledgeStore;
 import com.itqianchen.agentdesign.dto.index.IndexStatusResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderHealthResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderHealthSummaryResponse;
+import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunPageResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeHealthIssueResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeHealthResponse;
@@ -46,6 +47,8 @@ public class KnowledgeHealthService {
     private static final Logger log = LoggerFactory.getLogger(KnowledgeHealthService.class);
 
     private static final int DETAIL_RUN_LIMIT = 20;
+    private static final int DEFAULT_RUN_PAGE_SIZE = 10;
+    private static final int MAX_RUN_PAGE_SIZE = 100;
 
     private final KnowledgeFolderRepository folderRepository;
     private final DocumentRepository documentRepository;
@@ -183,6 +186,41 @@ public class KnowledgeHealthService {
                 .stream()
                 .map(KnowledgeFolderRunResponse::from)
                 .toList();
+    }
+
+    /**
+     * 分页查询维护运行记录。
+     *
+     * @param scopeType 范围类型；为空时查询全部
+     * @param scopeId 范围 ID；全库为空
+     * @param page 页码，从 1 开始
+     * @param pageSize 每页数量
+     * @return 分页运行记录响应
+     */
+    @Transactional(readOnly = true)
+    public KnowledgeFolderRunPageResponse runsPage(
+            KnowledgeFolderRunScopeType scopeType,
+            String scopeId,
+            Integer page,
+            Integer pageSize
+    ) {
+        int normalizedPage = normalizePage(page);
+        int normalizedPageSize = normalizeRunPageSize(pageSize);
+        List<KnowledgeFolderRunResponse> items = runRepository.findRunsPage(
+                        scopeType,
+                        scopeId,
+                        normalizedPage,
+                        normalizedPageSize
+                )
+                .stream()
+                .map(KnowledgeFolderRunResponse::from)
+                .toList();
+        return new KnowledgeFolderRunPageResponse(
+                items,
+                runRepository.countRuns(scopeType, scopeId),
+                normalizedPage,
+                normalizedPageSize
+        );
     }
 
     /**
@@ -734,6 +772,17 @@ public class KnowledgeHealthService {
             return left;
         }
         return Math.max(left, right);
+    }
+
+    private static int normalizePage(Integer page) {
+        return page == null || page <= 0 ? 1 : page;
+    }
+
+    private static int normalizeRunPageSize(Integer pageSize) {
+        if (pageSize == null || pageSize <= 0) {
+            return DEFAULT_RUN_PAGE_SIZE;
+        }
+        return Math.min(pageSize, MAX_RUN_PAGE_SIZE);
     }
 
     /**

@@ -798,6 +798,10 @@
   justify-content: space-between;
 }
 
+.knowledge-workbench__header--actions-only {
+  justify-content: flex-end;
+}
+
 .knowledge-workbench__actions {
   display: flex;
   flex: 0 0 auto;

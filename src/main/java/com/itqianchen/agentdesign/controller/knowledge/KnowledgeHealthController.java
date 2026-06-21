@@ -3,6 +3,7 @@ package com.itqianchen.agentdesign.controller.knowledge;
 import com.itqianchen.agentdesign.common.api.ApiResponse;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunScopeType;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderHealthResponse;
+import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunPageResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeHealthResponse;
 import com.itqianchen.agentdesign.service.knowledge.KnowledgeHealthService;
@@ -69,5 +70,24 @@ public class KnowledgeHealthController {
             @RequestParam(required = false) Integer limit
     ) {
         return ApiResponse.ok(healthService.runs(scopeType, scopeId, limit));
+    }
+
+    /**
+     * 分页查询知识库维护运行记录。
+     *
+     * @param scopeType 范围类型；为空时查询全部
+     * @param scopeId 范围 ID；全库范围为空
+     * @param page 页码，从 1 开始
+     * @param pageSize 每页数量
+     * @return 分页运行记录
+     */
+    @GetMapping("/runs/page")
+    public ApiResponse<KnowledgeFolderRunPageResponse> runsPage(
+            @RequestParam(required = false) KnowledgeFolderRunScopeType scopeType,
+            @RequestParam(required = false) String scopeId,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer pageSize
+    ) {
+        return ApiResponse.ok(healthService.runsPage(scopeType, scopeId, page, pageSize));
     }
 }

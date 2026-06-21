@@ -31,6 +31,34 @@ public interface KnowledgeFolderRunMapper {
     );
 
     /**
+     * 分页查询维护运行记录。
+     *
+     * @param scopeType 范围类型；为空时不限制
+     * @param scopeId 范围 ID；全库范围为空
+     * @param limit 每页数量
+     * @param offset 偏移量
+     * @return 当前页运行记录
+     */
+    List<KnowledgeFolderRun> findRunsPage(
+            @Param("scopeType") String scopeType,
+            @Param("scopeId") String scopeId,
+            @Param("limit") int limit,
+            @Param("offset") int offset
+    );
+
+    /**
+     * 统计维护运行记录数量。
+     *
+     * @param scopeType 范围类型；为空时不限制
+     * @param scopeId 范围 ID；全库范围为空
+     * @return 记录数量
+     */
+    long countRuns(
+            @Param("scopeType") String scopeType,
+            @Param("scopeId") String scopeId
+    );
+
+    /**
      * 查询每个 scope 的最近一次运行记录。
      *
      * @return 每个 scope 的最近维护记录

@@ -5,6 +5,7 @@ import { RefreshCw, Settings2 } from 'lucide-vue-next'
 import KnowledgeDirectoryManagerPanel from './knowledge-directory-manager-panel.vue'
 import KnowledgeFolderPanel from './knowledge-folder-panel.vue'
 import KnowledgeGraphPanel from './knowledge-graph-panel.vue'
+import KnowledgeHealthPanel from './knowledge-health-panel.vue'
 import KnowledgeSearchPanel from './knowledge-search-panel.vue'
 import { normalizeKnowledgePanel } from '../config/knowledge-navigation'
 import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
@@ -31,11 +32,6 @@ const embeddingReady = computed(() => {
 const isRefreshing = computed(() =>
   knowledgeStore.isLoading || knowledgeHealthStore.isLoading || searchStore.isLoadingIndexStatus
 )
-const compactSummary = computed(() => {
-  const indexed = searchStore.indexStatus?.indexedDocumentCount ?? 0
-  return `${knowledgeStore.stats.folderCount} 个目录 · ${knowledgeStore.stats.documentCount} 个文档 · ${indexed} 个已索引`
-})
-
 onMounted(() => {
   // 三个请求互不依赖，并行加载能让侧栏摘要和当前面板尽快进入可用状态。
   void Promise.all([
@@ -61,13 +57,10 @@ async function refreshWorkbench() {
     class="knowledge-workbench"
     :class="{ 'knowledge-workbench--directory-manager': activePanel === 'directories' }"
   >
-    <header v-if="activePanel !== 'directories'" class="knowledge-workbench__header">
-      <div>
-        <p class="eyebrow">知识库工作区</p>
-        <h2>知识库</h2>
-        <p class="subtitle">{{ compactSummary }}</p>
-      </div>
-
+    <header
+      v-if="activePanel === 'search'"
+      class="knowledge-workbench__header knowledge-workbench__header--actions-only"
+    >
       <div class="knowledge-workbench__actions">
         <button
           class="secondary-button knowledge-workbench__refresh-button"
@@ -97,6 +90,7 @@ async function refreshWorkbench() {
 
     <div class="knowledge-workbench__panel">
       <KnowledgeFolderPanel v-if="activePanel === 'folders'" />
+      <KnowledgeHealthPanel v-else-if="activePanel === 'health'" />
       <KnowledgeDirectoryManagerPanel v-else-if="activePanel === 'directories'" />
       <KnowledgeSearchPanel v-else-if="activePanel === 'search'" />
       <KnowledgeGraphPanel v-else />

@@ -24,3 +24,22 @@ export function listKnowledgeHealthRuns({ scopeType, scopeId, limit } = {}) {
   const query = params.toString()
   return requestJson(`/api/knowledge-health/runs${query ? `?${query}` : ''}`)
 }
+
+export function listKnowledgeHealthRunsPage({ scopeType, scopeId, page, pageSize } = {}) {
+  const params = new URLSearchParams()
+  if (scopeType) {
+    params.set('scopeType', scopeType)
+  }
+  if (scopeId) {
+    params.set('scopeId', scopeId)
+  }
+  if (page) {
+    params.set('page', String(page))
+  }
+  if (pageSize) {
+    params.set('pageSize', String(pageSize))
+  }
+
+  const query = params.toString()
+  return requestJson(`/api/knowledge-health/runs/page${query ? `?${query}` : ''}`)
+}

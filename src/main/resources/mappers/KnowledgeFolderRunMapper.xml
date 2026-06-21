@@ -72,6 +72,23 @@
         LIMIT #{limit}
     </select>
 
+    <select id="findRunsPage" resultMap="KnowledgeFolderRunMap">
+        SELECT <include refid="RunColumns"/>
+        FROM knowledge_folder_runs
+        WHERE (#{scopeType} IS NULL OR scope_type = #{scopeType})
+          AND (#{scopeId} IS NULL OR scope_id = #{scopeId})
+        ORDER BY created_at DESC
+        LIMIT #{limit}
+        OFFSET #{offset}
+    </select>
+
+    <select id="countRuns" resultType="_long">
+        SELECT COUNT(1)
+        FROM knowledge_folder_runs
+        WHERE (#{scopeType} IS NULL OR scope_type = #{scopeType})
+          AND (#{scopeId} IS NULL OR scope_id = #{scopeId})
+    </select>
+
     <select id="findLatestRunsByScope" resultMap="KnowledgeFolderRunMap">
         SELECT <include refid="RunColumns"/>
         FROM knowledge_folder_runs run

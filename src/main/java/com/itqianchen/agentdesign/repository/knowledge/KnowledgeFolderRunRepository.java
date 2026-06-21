@@ -14,6 +14,7 @@ public class KnowledgeFolderRunRepository {
 
     private static final int DEFAULT_LIMIT = 20;
     private static final int MAX_LIMIT = 100;
+    private static final int DEFAULT_PAGE_SIZE = 10;
 
     private final KnowledgeFolderRunMapper mapper;
 
@@ -49,6 +50,42 @@ public class KnowledgeFolderRunRepository {
     }
 
     /**
+     * 分页查询维护运行记录。
+     *
+     * @param scopeType 范围类型；为空时不限制
+     * @param scopeId 范围 ID；全库范围为空
+     * @param page 页码，从 1 开始
+     * @param pageSize 每页数量
+     * @return 当前页运行记录
+     */
+    public List<KnowledgeFolderRun> findRunsPage(
+            KnowledgeFolderRunScopeType scopeType,
+            String scopeId,
+            Integer page,
+            Integer pageSize
+    ) {
+        int normalizedPageSize = normalizePageSize(pageSize);
+        int offset = normalizeOffset(page, normalizedPageSize);
+        return mapper.findRunsPage(
+                scopeType == null ? null : scopeType.name(),
+                scopeId,
+                normalizedPageSize,
+                offset
+        );
+    }
+
+    /**
+     * 统计维护运行记录数量。
+     *
+     * @param scopeType 范围类型；为空时不限制
+     * @param scopeId 范围 ID；全库范围为空
+     * @return 记录数量
+     */
+    public long countRuns(KnowledgeFolderRunScopeType scopeType, String scopeId) {
+        return mapper.countRuns(scopeType == null ? null : scopeType.name(), scopeId);
+    }
+
+    /**
      * 查询每个 scope 最近一次维护记录。
      *
      * @return 最近运行记录列表
@@ -73,5 +110,17 @@ public class KnowledgeFolderRunRepository {
             return DEFAULT_LIMIT;
         }
         return Math.min(limit, MAX_LIMIT);
+    }
+
+    private static int normalizePageSize(Integer pageSize) {
+        if (pageSize == null || pageSize <= 0) {
+            return DEFAULT_PAGE_SIZE;
+        }
+        return Math.min(pageSize, MAX_LIMIT);
+    }
+
+    private static int normalizeOffset(Integer page, int pageSize) {
+        int normalizedPage = page == null || page <= 0 ? 1 : page;
+        return (normalizedPage - 1) * pageSize;
     }
 }
