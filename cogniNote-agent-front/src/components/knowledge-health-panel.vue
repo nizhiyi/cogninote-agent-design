@@ -55,6 +55,7 @@ const RUN_STATUS_LABELS = {
   COMPLETED_WITH_WARNINGS: '有失败项',
   FAILED: '失败'
 }
+const RUNNING_STATUSES = new Set(['RUNNING', 'CANCELLING'])
 
 const healthSummary = computed(() => healthStore.health?.summary || null)
 const healthIssues = computed(() => healthStore.health?.issues || [])
@@ -62,13 +63,17 @@ const globalIssues = computed(() => healthIssues.value.filter((issue) => issue.s
 const folderIssues = computed(() =>
   (healthStore.health?.folders || []).filter((folder) => folderHealthIssueCount(folder))
 )
-const currentRuns = computed(() => maintenanceStore.currentRuns.length
-  ? maintenanceStore.currentRuns
-  : healthStore.health?.currentRuns || []
-)
-const queuedRuns = computed(() => maintenanceStore.queuedRuns.length
-  ? maintenanceStore.queuedRuns
-  : healthStore.health?.queuedRuns || []
+const queueRuns = computed(() => {
+  const maintenanceRuns = [...maintenanceStore.currentRuns, ...maintenanceStore.queuedRuns]
+  if (maintenanceRuns.length) {
+    return uniqueRuns(maintenanceRuns)
+  }
+  return uniqueRuns([...(healthStore.health?.currentRuns || []), ...(healthStore.health?.queuedRuns || [])])
+})
+const currentRuns = computed(() => queueRuns.value.filter((run) => RUNNING_STATUSES.has(run.status)))
+const queuedRuns = computed(() => queueRuns.value
+  .filter((run) => run.status === 'QUEUED')
+  .sort((left, right) => (left.queuePosition || 0) - (right.queuePosition || 0))
 )
 const folderDisplayById = computed(() => {
   const entries = new Map()
@@ -298,6 +303,16 @@ function runCountSummary(run) {
     pieces.push(`失败 ${failedCount}`)
   }
   return pieces.length ? pieces.join(' · ') : '无计数'
+}
+
+function uniqueRuns(runs) {
+  const byId = new Map()
+  runs.forEach((run) => {
+    if (run?.id) {
+      byId.set(run.id, run)
+    }
+  })
+  return [...byId.values()]
 }
 </script>
 

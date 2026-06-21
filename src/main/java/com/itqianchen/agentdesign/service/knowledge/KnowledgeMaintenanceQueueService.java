@@ -206,35 +206,102 @@ public class KnowledgeMaintenanceQueueService implements ApplicationListener<App
         KnowledgeFolderRunResponse response = KnowledgeFolderRunResponse.from(run);
         publisher.publishQueued(run.id(), response);
         dispatchNext();
-        return response;
+        return runRepository.findById(run.id())
+                .map(KnowledgeFolderRunResponse::from)
+                .orElse(response);
     }
 
-    private synchronized void dispatchNext() {
+    private void dispatchNext() {
+        DispatchCandidate candidate = nextDispatchCandidate();
+        if (candidate == null) {
+            return;
+        }
+
+        if (!markRunStarted(candidate.runId(), candidate.request())) {
+            finishDispatchWithoutExecution(candidate.runId());
+            return;
+        }
+
+        try {
+            taskExecutor.execute(() -> runTask(candidate.runId(), candidate.request()));
+        } catch (RuntimeException ex) {
+            failBeforeExecution(candidate.runId(), candidate.request(), ex);
+        }
+    }
+
+    private synchronized DispatchCandidate nextDispatchCandidate() {
         if (workerRunning) {
-            return;
+            return null;
         }
-        List<KnowledgeFolderRun> queuedRuns = runRepository.findQueuedRuns();
-        if (queuedRuns.isEmpty()) {
-            publisher.publishQueueUpdated(queue());
-            return;
-        }
-        KnowledgeFolderRun next = queuedRuns.getFirst();
-        MaintenanceTaskRequest request = taskRequests.get(next.id());
-        if (request == null) {
+        while (true) {
+            List<KnowledgeFolderRun> queuedRuns = runRepository.findQueuedRuns();
+            if (queuedRuns.isEmpty()) {
+                publisher.publishQueueUpdated(queue());
+                return null;
+            }
+            KnowledgeFolderRun next = queuedRuns.getFirst();
+            MaintenanceTaskRequest request = taskRequests.get(next.id());
+            if (request != null) {
+                workerRunning = true;
+                return new DispatchCandidate(next.id(), request);
+            }
             runRepository.markCancelled(next.id(), "任务参数已丢失，维护任务已取消。");
-            dispatchNext();
-            return;
+            runRepository.findById(next.id()).map(KnowledgeFolderRunResponse::from)
+                    .ifPresent(response -> publisher.publishCancelled(next.id(), response));
         }
-        workerRunning = true;
-        taskExecutor.execute(() -> runTask(next.id(), request));
+    }
+
+    private boolean markRunStarted(String runId, MaintenanceTaskRequest request) {
+        /*
+         * 先把数据库事实状态切到 RUNNING，再把任务交给后台线程。
+         * 否则前端刷新队列时会短暂看到“没有当前任务 + 第一个任务等待中”，
+         * 用户会误以为运行中的任务仍可取消排队。
+         */
+        int updated = runRepository.markStarted(
+                runId,
+                phaseFor(request.operation()),
+                1,
+                currentItem(request),
+                System.currentTimeMillis()
+        );
+        if (updated == 0) {
+            return false;
+        }
+        runRepository.findById(runId).map(KnowledgeFolderRunResponse::from)
+                .ifPresent(response -> publisher.publishStarted(runId, response));
+        return true;
+    }
+
+    private void finishDispatchWithoutExecution(String runId) {
+        taskRequests.remove(runId);
+        synchronized (this) {
+            workerRunning = false;
+        }
+        publisher.publishQueueUpdated(queue());
+        dispatchNext();
+    }
+
+    private void failBeforeExecution(String runId, MaintenanceTaskRequest request, RuntimeException ex) {
+        String message = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
+        runRepository.markFailed(runId, message);
+        runRepository.findById(runId).map(KnowledgeFolderRunResponse::from)
+                .ifPresent(response -> publisher.publishFailed(runId, response));
+        log.warn("knowledge_maintenance_run_dispatch_failed runId={} operation={} scopeType={} scopeId={} reason={}",
+                runId,
+                request.operation(),
+                request.scopeType(),
+                request.scopeId(),
+                message
+        );
+        taskRequests.remove(runId);
+        synchronized (this) {
+            workerRunning = false;
+        }
+        dispatchNext();
     }
 
     private void runTask(String runId, MaintenanceTaskRequest request) {
         try {
-            long startedAt = System.currentTimeMillis();
-            runRepository.markStarted(runId, phaseFor(request.operation()), 1, currentItem(request), startedAt);
-            runRepository.findById(runId).map(KnowledgeFolderRunResponse::from)
-                    .ifPresent(response -> publisher.publishStarted(runId, response));
             ensureNotCancelledBeforeSideEffects(runId);
             KnowledgeMaintenanceCompletion completion = execute(request, runId);
             completeRun(runId, completion, request);
@@ -260,8 +327,8 @@ public class KnowledgeMaintenanceQueueService implements ApplicationListener<App
             publisher.clearCancellation(runId);
             synchronized (this) {
                 workerRunning = false;
-                dispatchNext();
             }
+            dispatchNext();
         }
     }
 
@@ -275,6 +342,9 @@ public class KnowledgeMaintenanceQueueService implements ApplicationListener<App
             case ENABLE, DISABLE -> setFolderEnabled(request);
             case DELETE -> deleteFolder(request);
         };
+    }
+
+    private record DispatchCandidate(String runId, MaintenanceTaskRequest request) {
     }
 
     private KnowledgeMaintenanceCompletion importFolder(MaintenanceTaskRequest request) {
@@ -324,7 +394,6 @@ public class KnowledgeMaintenanceQueueService implements ApplicationListener<App
                 Math.max(1, response.indexedDocumentCount())
         );
     }
-
     private KnowledgeMaintenanceCompletion setFolderEnabled(MaintenanceTaskRequest request) {
         runService.withoutRecording(() -> folderService.setEnabled(request.scopeId(), Boolean.TRUE.equals(request.enabled())));
         return KnowledgeMaintenanceCompletion.simple();

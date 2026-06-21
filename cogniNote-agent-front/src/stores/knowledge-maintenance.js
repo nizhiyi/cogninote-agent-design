@@ -13,6 +13,7 @@ import {
 } from '../api/knowledge-maintenance-api'
 
 const ACTIVE_STATUSES = new Set(['QUEUED', 'RUNNING', 'CANCELLING'])
+const RUNNING_STATUSES = new Set(['RUNNING', 'CANCELLING'])
 const TERMINAL_STATUSES = new Set(['CANCELLED', 'COMPLETED', 'COMPLETED_WITH_WARNINGS', 'FAILED'])
 const COMPLETION_NOTICE_STATUSES = new Set(['COMPLETED', 'COMPLETED_WITH_WARNINGS', 'FAILED'])
 
@@ -153,8 +154,9 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
   }
 
   function applyQueue(queue) {
-    currentRuns.value = queue?.currentRuns || []
-    queuedRuns.value = queue?.queuedRuns || []
+    const activeRuns = uniqueRuns([...(queue?.currentRuns || []), ...(queue?.queuedRuns || [])])
+    currentRuns.value = activeRuns.filter((run) => RUNNING_STATUSES.has(run.status))
+    queuedRuns.value = activeRuns.filter((run) => run.status === 'QUEUED').sort(queueSort)
     latestRun.value = queue?.latestRun || null
     // SSE 当前只跟随一个 run；队列刷新兜底捕获用户触发任务的终态。
     maybePublishCompletionNotice(latestRun.value)
@@ -314,6 +316,16 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
     if (COMPLETION_NOTICE_STATUSES.has(run.status)) {
       completionNoticeRun.value = run
     }
+  }
+
+  function uniqueRuns(runs) {
+    const byId = new Map()
+    runs.forEach((run) => {
+      if (run?.id) {
+        byId.set(run.id, run)
+      }
+    })
+    return [...byId.values()]
   }
 
   function queueSort(left, right) {
