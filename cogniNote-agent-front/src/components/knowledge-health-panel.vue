@@ -722,58 +722,66 @@ defineExpose({
       align-center
     >
       <section class="knowledge-run-history-toolbar" aria-label="维护记录筛选">
-        <el-input
-          v-model="runFilters.keyword"
-          clearable
-          placeholder="搜索范围、目录、错误、任务 ID"
-          @keyup.enter="applyRunFilters"
-        >
-          <template #prefix>
-            <Search aria-hidden="true" />
-          </template>
-        </el-input>
-        <el-select v-model="runFilters.scopeType" clearable placeholder="范围">
-          <el-option label="全库" value="ALL" />
-          <el-option label="目录" value="KNOWLEDGE_FOLDER" />
-        </el-select>
-        <el-select v-model="runFilters.operations" multiple collapse-tags collapse-tags-tooltip placeholder="操作">
-          <el-option
-            v-for="option in RUN_OPERATION_OPTIONS"
-            :key="option.value"
-            :label="option.label"
-            :value="option.value"
+        <div class="knowledge-run-history-toolbar__filters">
+          <el-input
+            v-model="runFilters.keyword"
+            class="knowledge-run-history-toolbar__search"
+            clearable
+            placeholder="搜索范围、目录、错误、任务 ID"
+            @keyup.enter="applyRunFilters"
+          >
+            <template #prefix>
+              <Search aria-hidden="true" />
+            </template>
+          </el-input>
+          <el-select v-model="runFilters.scopeType" clearable placeholder="范围">
+            <el-option label="全库" value="ALL" />
+            <el-option label="目录" value="KNOWLEDGE_FOLDER" />
+          </el-select>
+          <el-select v-model="runFilters.operations" multiple collapse-tags collapse-tags-tooltip placeholder="操作">
+            <el-option
+              v-for="option in RUN_OPERATION_OPTIONS"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
+          </el-select>
+          <el-select v-model="runFilters.statuses" multiple collapse-tags collapse-tags-tooltip placeholder="状态">
+            <el-option
+              v-for="option in RUN_STATUS_OPTIONS"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
+          </el-select>
+          <el-date-picker
+            v-model="runFilters.timeRange"
+            class="knowledge-run-history-toolbar__time"
+            type="datetimerange"
+            value-format="x"
+            start-placeholder="开始时间"
+            end-placeholder="结束时间"
+            range-separator="至"
           />
-        </el-select>
-        <el-select v-model="runFilters.statuses" multiple collapse-tags collapse-tags-tooltip placeholder="状态">
-          <el-option
-            v-for="option in RUN_STATUS_OPTIONS"
-            :key="option.value"
-            :label="option.label"
-            :value="option.value"
-          />
-        </el-select>
-        <el-date-picker
-          v-model="runFilters.timeRange"
-          type="datetimerange"
-          value-format="x"
-          start-placeholder="开始时间"
-          end-placeholder="结束时间"
-          range-separator="至"
-        />
+        </div>
         <div class="knowledge-run-history-toolbar__actions">
           <el-button type="primary" :loading="healthStore.isLoadingRuns" @click="applyRunFilters">
+            <Search aria-hidden="true" />
             查询
           </el-button>
-          <el-button @click="resetRunFilters">重置</el-button>
+          <el-button @click="resetRunFilters">
+            <RefreshCw aria-hidden="true" />
+            重置
+          </el-button>
         </div>
       </section>
 
       <section class="knowledge-run-history-bulkbar" aria-label="维护记录批量操作">
         <span>已选 {{ selectedRunIds.length }} 条</span>
         <el-button
+          v-if="selectedRunIds.length"
           type="danger"
           plain
-          :disabled="!selectedRunIds.length"
           @click="batchDeleteRuns"
         >
           <Trash2 aria-hidden="true" />

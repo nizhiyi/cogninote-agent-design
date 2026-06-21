@@ -97,9 +97,8 @@
 
 .knowledge-run-history-toolbar {
   display: grid;
-  grid-template-columns: minmax(220px, 1.2fr) minmax(110px, 0.5fr) minmax(140px, 0.7fr) minmax(140px, 0.7fr) minmax(280px, 1.2fr) auto;
-  gap: 10px;
-  align-items: center;
+  gap: 12px;
+  align-items: stretch;
   min-width: 0;
   padding: 12px;
   border: 1px solid #e1e7ef;
@@ -107,11 +106,32 @@
   background: #f8fbfc;
 }
 
+.knowledge-run-history-toolbar__filters {
+  display: grid;
+  grid-template-columns:
+    minmax(260px, 1.25fr)
+    minmax(116px, 0.46fr)
+    minmax(132px, 0.52fr)
+    minmax(132px, 0.52fr)
+    minmax(320px, 1.25fr);
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
 .knowledge-run-history-toolbar .el-input,
 .knowledge-run-history-toolbar .el-select,
 .knowledge-run-history-toolbar .el-date-editor {
   min-width: 0;
   width: 100%;
+}
+
+.knowledge-run-history-toolbar__search .el-input__inner {
+  text-overflow: ellipsis;
+}
+
+.knowledge-run-history-toolbar__time {
+  justify-self: stretch;
 }
 
 .knowledge-run-history-toolbar svg {
@@ -123,6 +143,12 @@
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+  padding-top: 2px;
+}
+
+.knowledge-run-history-toolbar__actions .el-button {
+  min-width: 84px;
+  height: 36px;
 }
 
 .knowledge-run-history-bulkbar {
@@ -130,10 +156,14 @@
   gap: 10px;
   align-items: center;
   justify-content: space-between;
-  min-height: 40px;
+  min-height: 36px;
   color: #526071;
   font-size: 13px;
   font-weight: 750;
+}
+
+.knowledge-run-history-bulkbar .el-button {
+  height: 34px;
 }
 
 .knowledge-run-history-table {
@@ -333,6 +363,26 @@
   color: #b42318;
   font-size: 12px;
   line-height: 1.45;
+}
+
+@media (max-width: 1240px) {
+  .knowledge-run-history-toolbar__filters {
+    grid-template-columns:
+      minmax(260px, 1fr)
+      repeat(3, minmax(132px, 0.5fr))
+      minmax(280px, 0.95fr);
+  }
+}
+
+@media (max-width: 1100px) {
+  .knowledge-run-history-toolbar__filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .knowledge-run-history-toolbar__search,
+  .knowledge-run-history-toolbar__time {
+    grid-column: 1 / -1;
+  }
 }
 
 .knowledge-maintenance-completion-dialog .el-dialog__body {
