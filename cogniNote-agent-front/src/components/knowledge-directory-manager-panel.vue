@@ -266,11 +266,7 @@ async function confirmDeleteFolder(folder) {
 }
 
 async function refreshDirectories() {
-  await Promise.all([
-    knowledgeStore.fetchFolders(),
-    knowledgeHealthStore.fetchHealth(),
-    maintenanceStore.fetchQueue()
-  ])
+  await maintenanceStore.refreshKnowledgeSnapshots()
 }
 
 function runProgressPercentage(run) {

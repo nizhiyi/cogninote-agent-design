@@ -48,10 +48,7 @@ onMounted(() => {
 
 async function refreshWorkbench() {
   await Promise.all([
-    knowledgeStore.fetchFolders(),
-    knowledgeHealthStore.fetchHealth(),
-    maintenanceStore.fetchQueue(),
-    searchStore.fetchIndexStatus(),
+    maintenanceStore.refreshKnowledgeSnapshots(),
     modelConfigStore.ensureModelConfigLoaded()
   ])
 }

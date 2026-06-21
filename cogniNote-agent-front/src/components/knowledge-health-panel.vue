@@ -185,7 +185,7 @@ function runStatusClass(run) {
 }
 
 async function refreshHealthPanel() {
-  await healthStore.fetchHealth()
+  await maintenanceStore.refreshKnowledgeSnapshots()
 }
 
 async function rebuildAllIndexes() {

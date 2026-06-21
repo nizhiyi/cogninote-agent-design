@@ -30,6 +30,8 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
   const isEnqueueing = ref(false)
   const cancellingRunIds = ref(new Set())
   let runAbortController = null
+  let subscribedRunId = null
+  let snapshotRefreshPromise = null
 
   const currentRun = computed(() => currentRuns.value[0] || null)
   const hasActiveRun = computed(() => Boolean(currentRun.value || queuedRuns.value.length))
@@ -86,6 +88,9 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
       upsertRun(run)
       subscribeToRun(run.id)
       await fetchQueue()
+      if (!allActiveRuns().some((activeRun) => activeRun.id === run.id)) {
+        void refreshKnowledgeSnapshots()
+      }
       return run
     } catch (err) {
       error.value = `维护任务入队失败：${err.message}`
@@ -185,17 +190,31 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
     if (!runId) {
       return
     }
+    if (subscribedRunId === runId && runAbortController) {
+      return
+    }
     stopRunStream()
-    runAbortController = new AbortController()
+    const controller = new AbortController()
+    runAbortController = controller
+    subscribedRunId = runId
     void streamMaintenanceRun(runId, {
-      signal: runAbortController.signal,
+      signal: controller.signal,
       onEvent: handleRunEvent
+    }).then(() => {
+      if (!controller.signal.aborted) {
+        void refreshKnowledgeSnapshots()
+      }
     }).catch((err) => {
-      if (err.name === 'AbortError') {
+      if (err.name === 'AbortError' || controller.signal.aborted) {
         return
       }
       error.value = `维护任务进度连接已断开：${err.message}`
-      void fetchQueue()
+      void refreshKnowledgeSnapshots()
+    }).finally(() => {
+      if (runAbortController === controller) {
+        runAbortController = null
+        subscribedRunId = null
+      }
     })
   }
 
@@ -205,25 +224,41 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
     }
     runAbortController.abort()
     runAbortController = null
+    subscribedRunId = null
   }
 
-  async function refreshKnowledgeSnapshots() {
+  function refreshKnowledgeSnapshots() {
+    if (snapshotRefreshPromise) {
+      return snapshotRefreshPromise
+    }
     /*
-     * 维护任务终态会同时影响目录列表、健康诊断和 Lucene 统计。
-     * 这里集中刷新，避免各页面各自猜测哪些快照已经过期。
+     * 维护任务会同时改 SQLite 文档、目录摘要、Lucene 索引和运行队列。
+     * 所有页面共用这一个刷新入口，避免可信页、资料页和目录页各自保留过期快照。
      */
+    snapshotRefreshPromise = refreshKnowledgeSnapshotsOnce()
+      .finally(() => {
+        snapshotRefreshPromise = null
+      })
+    return snapshotRefreshPromise
+  }
+
+  async function refreshKnowledgeSnapshotsOnce() {
     const { useKnowledgeFoldersStore } = await import('./knowledge-folders')
     const { useKnowledgeHealthStore } = await import('./knowledge-health')
     const { useSearchStore } = await import('./search')
     const knowledgeStore = useKnowledgeFoldersStore()
     const healthStore = useKnowledgeHealthStore()
     const searchStore = useSearchStore()
+    const selectedFolderId = healthStore.selectedFolderId
     await Promise.all([
       fetchQueue(),
       knowledgeStore.fetchFolders(),
       healthStore.fetchHealth(),
       searchStore.fetchIndexStatus()
     ])
+    if (healthStore.isDrawerOpen && selectedFolderId && healthStore.folderHealthById.has(selectedFolderId)) {
+      await healthStore.fetchFolderHealth(selectedFolderId)
+    }
   }
 
   function allActiveRuns() {
@@ -256,6 +291,7 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
     hasActiveRun,
     fetchQueue,
     ensureQueueLoaded,
+    refreshKnowledgeSnapshots,
     importFolder,
     rebuildAllIndex,
     syncFolder,
