@@ -14,6 +14,7 @@ import {
 
 const ACTIVE_STATUSES = new Set(['QUEUED', 'RUNNING', 'CANCELLING'])
 const TERMINAL_STATUSES = new Set(['CANCELLED', 'COMPLETED', 'COMPLETED_WITH_WARNINGS', 'FAILED'])
+const COMPLETION_NOTICE_STATUSES = new Set(['COMPLETED', 'COMPLETED_WITH_WARNINGS', 'FAILED'])
 
 /**
  * 知识库维护任务统一状态源。
@@ -29,6 +30,8 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
   const isLoadingQueue = ref(false)
   const isEnqueueing = ref(false)
   const cancellingRunIds = ref(new Set())
+  const completionNoticeRunIds = ref(new Set())
+  const completionNoticeRun = ref(null)
   let runAbortController = null
   let subscribedRunId = null
   let snapshotRefreshPromise = null
@@ -57,11 +60,11 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
   }
 
   async function importFolder(payload) {
-    return enqueue(() => enqueueImportFolder(payload))
+    return enqueue(() => enqueueImportFolder(payload), { notifyOnComplete: true })
   }
 
   async function rebuildAllIndex() {
-    return enqueue(enqueueRebuildIndex)
+    return enqueue(enqueueRebuildIndex, { notifyOnComplete: true })
   }
 
   async function syncFolder(id) {
@@ -69,7 +72,7 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
   }
 
   async function rebuildFolder(id) {
-    return enqueue(() => enqueueRebuildFolder(id))
+    return enqueue(() => enqueueRebuildFolder(id), { notifyOnComplete: true })
   }
 
   async function setFolderEnabled(id, enabled) {
@@ -80,11 +83,14 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
     return enqueue(() => enqueueDeleteFolder(id))
   }
 
-  async function enqueue(action) {
+  async function enqueue(action, options = {}) {
     isEnqueueing.value = true
     error.value = ''
     try {
       const run = await action()
+      if (options.notifyOnComplete) {
+        trackCompletionNotice(run.id, true)
+      }
       upsertRun(run)
       subscribeToRun(run.id)
       await fetchQueue()
@@ -98,6 +104,10 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
     } finally {
       isEnqueueing.value = false
     }
+  }
+
+  function clearCompletionNotice() {
+    completionNoticeRun.value = null
   }
 
   async function cancelRun(runId) {
@@ -146,6 +156,8 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
     currentRuns.value = queue?.currentRuns || []
     queuedRuns.value = queue?.queuedRuns || []
     latestRun.value = queue?.latestRun || null
+    // SSE 当前只跟随一个 run；队列刷新兜底捕获用户触发任务的终态。
+    maybePublishCompletionNotice(latestRun.value)
   }
 
   function upsertRun(run) {
@@ -180,6 +192,7 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
         || eventName === 'maintenance-run-failed'
         || eventName === 'maintenance-run-cancelled') {
       upsertRun(payload)
+      maybePublishCompletionNotice(payload)
       void refreshKnowledgeSnapshots()
     }
   }
@@ -280,6 +293,29 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
     cancellingRunIds.value = next
   }
 
+  function trackCompletionNotice(runId, enabled) {
+    if (!runId) {
+      return
+    }
+    const next = new Set(completionNoticeRunIds.value)
+    if (enabled) {
+      next.add(runId)
+    } else {
+      next.delete(runId)
+    }
+    completionNoticeRunIds.value = next
+  }
+
+  function maybePublishCompletionNotice(run) {
+    if (!run?.id || !completionNoticeRunIds.value.has(run.id)) {
+      return
+    }
+    trackCompletionNotice(run.id, false)
+    if (COMPLETION_NOTICE_STATUSES.has(run.status)) {
+      completionNoticeRun.value = run
+    }
+  }
+
   function queueSort(left, right) {
     return (left.queuePosition || 0) - (right.queuePosition || 0)
       || (left.queuedAt || left.createdAt || 0) - (right.queuedAt || right.createdAt || 0)
@@ -292,11 +328,13 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
     error,
     isLoadingQueue,
     isEnqueueing,
+    completionNoticeRun,
     currentRun,
     hasActiveRun,
     fetchQueue,
     ensureQueueLoaded,
     refreshKnowledgeSnapshots,
+    clearCompletionNotice,
     importFolder,
     rebuildAllIndex,
     syncFolder,

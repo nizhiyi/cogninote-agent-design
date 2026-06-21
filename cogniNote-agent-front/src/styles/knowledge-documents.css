@@ -1,0 +1,67 @@
+.search-results-scroll {
+  flex: 1 1 auto;
+  min-height: 220px;
+  margin-top: 16px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.document-row--nested {
+  padding: 12px;
+  background: #f8fbfc;
+}
+
+.document-title-line {
+  justify-content: flex-start;
+}
+
+.document-main p,
+.source-main p {
+  margin: 8px 0;
+  color: #526071;
+}
+
+.status-chip {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.status-chip--parsed {
+  color: #0f513f;
+  background: #d7f4e8;
+}
+
+.status-chip--failed {
+  color: #842029;
+  background: #f8d7da;
+}
+
+.status-chip--skipped {
+  color: #715300;
+  background: #fff2bf;
+}
+
+.status-chip--health-healthy {
+  color: #0f513f;
+  background: #d7f4e8;
+}
+
+.status-chip--health-warning {
+  color: #7a4a08;
+  background: #fff2bf;
+}
+
+.status-chip--health-error {
+  color: #842029;
+  background: #f8d7da;
+}
+
+.status-chip--health-disabled,
+.status-chip--health-empty,
+.status-chip--health-unknown {
+  color: #475467;
+  background: #eef2f6;
+}

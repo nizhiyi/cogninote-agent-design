@@ -269,12 +269,6 @@ async function refreshDirectories() {
   await maintenanceStore.refreshKnowledgeSnapshots()
 }
 
-function runProgressPercentage(run) {
-  if (!run?.progressTotal) {
-    return 0
-  }
-  return Math.min(100, Math.round((run.progressCurrent / run.progressTotal) * 100))
-}
 </script>
 
 <template>
@@ -432,14 +426,6 @@ function runProgressPercentage(run) {
                 <span>{{ runStatusLabel(lastRun(folder)) }}</span>
                 <em>{{ lastRun(folder).status === 'QUEUED' ? '排队' : '最近' }}{{ runOperationLabel(lastRun(folder)) }} {{ formatTime(lastRun(folder).completedAt || lastRun(folder).queuedAt || lastRun(folder).startedAt) }}</em>
               </div>
-              <el-progress
-                v-if="isFolderRunning(folder)"
-                :percentage="runProgressPercentage(lastRun(folder))"
-                :show-text="false"
-                :indeterminate="!lastRun(folder)?.progressTotal"
-                :duration="1.6"
-                aria-label="目录维护运行中"
-              />
               <span>导入 {{ formatTime(folder.lastIngestedAt) }}</span>
               <span>索引 {{ formatTime(folder.lastIndexedAt) }}</span>
             </div>

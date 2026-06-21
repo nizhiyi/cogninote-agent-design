@@ -1,0 +1,353 @@
+.knowledge-pane--directories {
+  gap: 10px;
+  overflow: hidden;
+}
+
+.knowledge-directory-toolbar {
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: minmax(220px, 1fr) minmax(132px, 150px) minmax(132px, 150px) minmax(180px, auto) auto;
+  gap: 10px;
+  align-items: end;
+  margin-top: 0;
+  padding: 10px 12px;
+  border: 1px solid #e1e7ef;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.knowledge-directory-search,
+.knowledge-directory-filter {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.knowledge-directory-search > span,
+.knowledge-directory-filter > span {
+  color: #526071;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.knowledge-directory-search svg,
+.knowledge-directory-toolbar__meta svg {
+  width: 16px;
+  height: 16px;
+  color: #667085;
+}
+
+.knowledge-directory-toolbar__meta {
+  display: flex;
+  min-height: 32px;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.knowledge-directory-toolbar__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.knowledge-directory-toolbar__actions .el-button {
+  min-height: 38px;
+  margin-left: 0;
+}
+
+.knowledge-directory-toolbar__actions svg {
+  width: 16px;
+  height: 16px;
+}
+
+.knowledge-directory-list {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+  margin-top: 0;
+  border: 1px solid #e1e7ef;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.knowledge-directory-list__head,
+.knowledge-directory-row__grid {
+  display: grid;
+  grid-template-columns:
+    minmax(220px, 1.5fr)
+    minmax(134px, 0.72fr)
+    minmax(118px, 0.55fr)
+    minmax(150px, 0.75fr)
+    minmax(190px, 0.78fr);
+  gap: 12px;
+}
+
+.knowledge-directory-list__head {
+  flex: 0 0 auto;
+  padding: 9px 12px;
+  border-bottom: 1px solid #e1e7ef;
+  color: #667085;
+  background: #f8fbfc;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.knowledge-directory-list__head span:last-child {
+  text-align: right;
+}
+
+.knowledge-directory-list__body {
+  display: block;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.knowledge-directory-row {
+  min-width: 0;
+  border-bottom: 1px solid #e1e7ef;
+  background: #ffffff;
+}
+
+.knowledge-directory-row:last-child {
+  border-bottom: 0;
+}
+
+.knowledge-directory-row:hover {
+  background: #fbfdff;
+}
+
+.knowledge-directory-row__grid {
+  align-items: center;
+  padding: 8px 12px;
+}
+
+.knowledge-directory-row__main,
+.knowledge-directory-row__status,
+.knowledge-directory-row__numbers,
+.knowledge-directory-row__time,
+.knowledge-directory-row__actions {
+  min-width: 0;
+}
+
+.knowledge-directory-row__status,
+.knowledge-directory-row__numbers,
+.knowledge-directory-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.knowledge-directory-row__numbers {
+  color: #667085;
+  font-size: 12px;
+}
+
+.knowledge-directory-row__numbers strong {
+  color: #101828;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.knowledge-directory-row__time {
+  display: grid;
+  gap: 3px;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.knowledge-run-status {
+  display: inline-grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 5px;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.knowledge-run-status svg {
+  width: 14px;
+  height: 14px;
+}
+
+.knowledge-run-status em {
+  min-width: 0;
+  overflow: hidden;
+  color: #667085;
+  font-style: normal;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.knowledge-run-status--queued {
+  color: #175cd3;
+}
+
+.knowledge-run-status--running,
+.knowledge-run-status--cancelling {
+  color: #7a4a08;
+}
+
+.knowledge-run-status--completed,
+.knowledge-run-status--cancelled {
+  color: #0f513f;
+}
+
+.knowledge-run-status--completed_with_warnings,
+.knowledge-run-status--failed {
+  color: #842029;
+}
+
+.knowledge-directory-row__actions {
+  justify-content: flex-end;
+}
+
+.knowledge-directory-row__actions .el-button {
+  min-height: 32px;
+  margin-left: 0;
+}
+
+.knowledge-directory-more-button {
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+}
+
+.knowledge-directory-issue-button {
+  display: inline-flex;
+  min-height: 26px;
+  gap: 5px;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid #f6d7a9;
+  border-radius: 999px;
+  color: #7a4a08;
+  background: #fff8e8;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.knowledge-directory-issue-button:hover,
+.knowledge-directory-issue-button:focus-visible {
+  border-color: #d69d54;
+  outline: 0;
+}
+
+.knowledge-directory-danger-item {
+  color: #842029;
+}
+
+.folder-issue-count {
+  color: #7a4a08;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.knowledge-folder-empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 34px 16px;
+  text-align: center;
+}
+
+.knowledge-folder-empty strong {
+  color: #101828;
+  font-size: 15px;
+}
+
+.knowledge-directory-footer {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  margin-top: 0;
+  padding: 8px 12px;
+  border-top: 1px solid #e1e7ef;
+  background: #ffffff;
+}
+
+.knowledge-directory-footer .el-pagination {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.knowledge-directory-row--unassigned {
+  margin-top: 0;
+  padding: 12px;
+  border: 0;
+  border-bottom: 1px solid #e1e7ef;
+  border-radius: 0;
+  background: #ffffff;
+}
+
+.folder-toggle-button {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 34px;
+  gap: 8px;
+  align-items: center;
+  border: 0;
+  color: #101828;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.folder-toggle-button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.folder-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+  color: #667085;
+  font-size: 13px;
+}
+
+.folder-documents {
+  display: grid;
+  gap: 10px;
+  max-height: 320px;
+  margin: 0 14px 14px 48px;
+  overflow-y: auto;
+  padding-top: 12px;
+  border-top: 1px solid #e1e7ef;
+}
+
+.knowledge-directory-row--unassigned .folder-documents {
+  margin: 14px 0 0;
+}

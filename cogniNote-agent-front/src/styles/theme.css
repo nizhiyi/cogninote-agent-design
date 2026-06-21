@@ -200,7 +200,6 @@ body {
 .knowledge-directory-entry,
 .knowledge-folder-snapshot,
 .source-row,
-.index-toolbar,
 .model-config-list,
 .model-config-editor,
 .model-config-summary,
@@ -519,7 +518,6 @@ body {
   line-height: 1.45;
 }
 
-.index-toolbar,
 .index-path-panel > span,
 .folder-toggle-button,
 .knowledge-directory-entry h4,
@@ -703,8 +701,7 @@ body {
 
 .source-index,
 .score-chip,
-.search-hit__top span,
-.result-strip span {
+.search-hit__top span {
   color: var(--color-action-strong);
   background: var(--color-action-soft);
 }
@@ -729,7 +726,6 @@ body {
 .settings-center-page .settings-card,
 .settings-center-page .knowledge-pane,
 .settings-center-page .knowledge-folder-card,
-.settings-center-page .index-toolbar,
 .settings-center-page .model-config-list,
 .settings-center-page .model-config-editor,
 .settings-center-page .model-config-summary,

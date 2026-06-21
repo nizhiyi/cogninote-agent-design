@@ -3,11 +3,9 @@
 import { computed } from 'vue'
 import SearchResults from './search-results.vue'
 import SegmentedControl from './segmented-control.vue'
-import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
 import { SEARCH_MODES, useSearchStore } from '../stores/search'
 import { formatTime } from '../utils/formatters'
 
-const knowledgeStore = useKnowledgeFoldersStore()
 const searchStore = useSearchStore()
 const indexStatusItems = computed(() => [
   { label: '已索引', value: searchStore.indexStatus?.indexedDocumentCount ?? '-' },
@@ -16,13 +14,6 @@ const indexStatusItems = computed(() => [
   { label: '向量', value: searchStore.indexStatus?.embeddingConfigured ? '可用' : '未启用' }
 ])
 
-/**
- * 重建后同步目录列表，让检索页和资料页共享同一份最新状态。
- */
-async function rebuildAll() {
-  await searchStore.rebuildIndex()
-  await knowledgeStore.fetchFolders()
-}
 </script>
 
 <template>
@@ -84,12 +75,6 @@ async function rebuildAll() {
       <summary>索引目录</summary>
       <p class="path-text path-text--index">{{ searchStore.indexStatus?.indexPath || '索引目录读取中...' }}</p>
     </details>
-
-    <div v-if="searchStore.rebuildResult" class="result-strip result-strip--three">
-      <span>索引文档 {{ searchStore.rebuildResult.indexedDocumentCount }}</span>
-      <span>索引 chunks {{ searchStore.rebuildResult.indexedChunkCount }}</span>
-      <span>耗时 {{ searchStore.rebuildResult.durationMs }} ms</span>
-    </div>
 
     <el-alert
       v-if="searchStore.searchError"

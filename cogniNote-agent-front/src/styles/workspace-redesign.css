@@ -516,8 +516,7 @@
 .knowledge-pane,
 .knowledge-folder-card,
 .search-hit,
-.document-row,
-.index-toolbar {
+.document-row {
   border-color: var(--color-border);
   background: var(--color-surface);
   box-shadow: none;

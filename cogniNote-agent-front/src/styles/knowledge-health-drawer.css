@@ -1,0 +1,140 @@
+.knowledge-health-drawer__folder {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid #dfe8ee;
+  border-radius: 8px;
+  background: #f8fbfc;
+}
+
+.knowledge-health-drawer__folder strong {
+  color: #101828;
+  font-size: 16px;
+}
+
+.knowledge-health-drawer__folder span {
+  color: #526071;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.knowledge-health-drawer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.knowledge-health-drawer svg,
+.knowledge-problem-item svg {
+  width: 16px;
+  height: 16px;
+}
+
+.knowledge-issue-list,
+.knowledge-problem-section,
+.knowledge-run-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.knowledge-issue-list {
+  margin-bottom: 4px;
+}
+
+.knowledge-problem-section h4,
+.knowledge-run-list h4 {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  color: #101828;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.knowledge-problem-section h4 svg {
+  width: 16px;
+  height: 16px;
+  color: var(--color-action-strong, #125f7a);
+}
+
+.knowledge-problem-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e1e7ef;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.knowledge-issue-item {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #f6d7a9;
+  border-radius: 8px;
+  color: #7a4a08;
+  background: #fff8e8;
+}
+
+.knowledge-problem-item strong,
+.knowledge-issue-item strong,
+.knowledge-run-item strong {
+  display: block;
+  color: #101828;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.knowledge-problem-item span,
+.knowledge-problem-item em,
+.knowledge-issue-item span,
+.knowledge-run-item span,
+.knowledge-run-item em {
+  display: block;
+  margin-top: 5px;
+  color: #526071;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.knowledge-run-item {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid #e1e7ef;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.search-hit {
+  padding: 16px;
+}
+
+.index-path-panel {
+  min-width: 0;
+}
+
+.index-path-panel > span {
+  display: inline-flex;
+  margin-bottom: 6px;
+  color: var(--color-action);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.path-text--index {
+  color: #182230;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.55;
+}
+

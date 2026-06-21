@@ -223,35 +223,6 @@ function runOperationLabel(run) {
       show-icon
     />
 
-    <div v-if="knowledgeStore.ingestResult" class="result-strip result-strip--compact">
-      <span>扫描 {{ knowledgeStore.ingestResult.scannedCount }}</span>
-      <span>解析 {{ knowledgeStore.ingestResult.parsedCount }}</span>
-      <span>跳过 {{ knowledgeStore.ingestResult.skippedCount }}</span>
-      <span>失败 {{ knowledgeStore.ingestResult.failedCount }}</span>
-    </div>
-
-    <div v-if="knowledgeStore.rebuildResult" class="result-strip result-strip--compact result-strip--three">
-      <span>扫描 {{ knowledgeStore.rebuildResult.scannedCount }}</span>
-      <span>索引文档 {{ knowledgeStore.rebuildResult.indexedDocumentCount }}</span>
-      <span>失败 {{ knowledgeStore.rebuildResult.failedCount + knowledgeStore.rebuildResult.failedDocumentCount }}</span>
-    </div>
-
-    <div v-if="searchStore.rebuildResult" class="result-strip result-strip--compact result-strip--three">
-      <span>索引文档 {{ searchStore.rebuildResult.indexedDocumentCount }}</span>
-      <span>索引 chunks {{ searchStore.rebuildResult.indexedChunkCount }}</span>
-      <span>耗时 {{ searchStore.rebuildResult.durationMs }} ms</span>
-    </div>
-
-    <ul v-if="knowledgeStore.ingestResult?.failures?.length || knowledgeStore.rebuildResult?.failures?.length" class="failure-list">
-      <li
-        v-for="failure in (knowledgeStore.ingestResult?.failures || knowledgeStore.rebuildResult?.failures)"
-        :key="failure.sourcePath"
-      >
-        <strong>{{ failure.sourcePath }}</strong>
-        <span>{{ failure.message }}</span>
-      </li>
-    </ul>
-
     <KnowledgeFolderImportDialog v-model="isImportDialogOpen" />
   </section>
 </template>

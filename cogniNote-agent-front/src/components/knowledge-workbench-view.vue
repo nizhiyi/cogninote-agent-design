@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { RefreshCw, Settings2 } from 'lucide-vue-next'
+import { useRoute, useRouter } from 'vue-router'
+import { AlertTriangle, CheckCircle2, RefreshCw, Settings2, XCircle } from 'lucide-vue-next'
 import KnowledgeDirectoryManagerPanel from './knowledge-directory-manager-panel.vue'
 import KnowledgeFolderPanel from './knowledge-folder-panel.vue'
 import KnowledgeGraphPanel from './knowledge-graph-panel.vue'
@@ -15,6 +15,7 @@ import { useModelConfigStore } from '../stores/model-config'
 import { useSearchStore } from '../stores/search'
 
 const route = useRoute()
+const router = useRouter()
 const knowledgeStore = useKnowledgeFoldersStore()
 const knowledgeHealthStore = useKnowledgeHealthStore()
 const maintenanceStore = useKnowledgeMaintenanceStore()
@@ -35,6 +36,45 @@ const isRefreshing = computed(() =>
   knowledgeStore.isLoading || knowledgeHealthStore.isLoading || searchStore.isLoadingIndexStatus
     || maintenanceStore.isLoadingQueue
 )
+const completionDialogOpen = computed({
+  get: () => Boolean(maintenanceStore.completionNoticeRun),
+  set: (value) => {
+    if (!value) {
+      maintenanceStore.clearCompletionNotice()
+    }
+  }
+})
+const completionRun = computed(() => maintenanceStore.completionNoticeRun)
+const completionFailed = computed(() => completionRun.value?.status === 'FAILED')
+const completionWarning = computed(() => completionRun.value?.status === 'COMPLETED_WITH_WARNINGS')
+const completionIcon = computed(() => {
+  if (completionFailed.value) {
+    return XCircle
+  }
+  if (completionWarning.value) {
+    return AlertTriangle
+  }
+  return CheckCircle2
+})
+const completionDialogTitle = computed(() => {
+  if (completionFailed.value) {
+    return '维护任务失败'
+  }
+  if (completionWarning.value) {
+    return '完成，但有失败项'
+  }
+  return '维护任务已完成'
+})
+const completionMetrics = computed(() => buildCompletionMetrics(completionRun.value))
+
+const RUN_OPERATION_LABELS = {
+  IMPORT: '导入目录',
+  REBUILD_INDEX: '重建索引',
+  SYNC: '同步目录',
+  ENABLE: '启用目录',
+  DISABLE: '停用目录',
+  DELETE: '删除目录'
+}
 onMounted(() => {
   // 三个请求互不依赖，并行加载能让侧栏摘要和当前面板尽快进入可用状态。
   void Promise.all([
@@ -51,6 +91,106 @@ async function refreshWorkbench() {
     maintenanceStore.refreshKnowledgeSnapshots(),
     modelConfigStore.ensureModelConfigLoaded()
   ])
+}
+
+function completionOperationLabel(run) {
+  if (!run) {
+    return '维护任务'
+  }
+  if (run.operation === 'REBUILD_INDEX' && run.scopeType === 'ALL') {
+    return '重建全部索引'
+  }
+  if (run.operation === 'REBUILD_INDEX') {
+    return '重建目录索引'
+  }
+  return RUN_OPERATION_LABELS[run.operation] || run.operation || '维护任务'
+}
+
+function completionScopeLabel(run) {
+  if (!run) {
+    return '未知范围'
+  }
+  if (run.scopeType === 'ALL') {
+    return '全库'
+  }
+  const folder = findFolderDisplay(run.scopeId)
+  if (folder?.name) {
+    return folder.name
+  }
+  return run.currentItem || '未知目录'
+}
+
+function completionScopeDetail(run) {
+  if (!run || run.scopeType === 'ALL') {
+    return ''
+  }
+  const folder = findFolderDisplay(run.scopeId)
+  return folder?.path || run.currentItem || ''
+}
+
+function findFolderDisplay(folderId) {
+  const folder = knowledgeStore.folders.find((item) => item.id === folderId)
+  if (folder) {
+    return {
+      name: folder.displayName || folder.folderPath || folder.id,
+      path: folder.folderPath || ''
+    }
+  }
+  const healthFolder = (knowledgeHealthStore.health?.folders || []).find((item) => item.id === folderId)
+  if (!healthFolder) {
+    return null
+  }
+  return {
+    name: healthFolder.displayName || healthFolder.folderPath || healthFolder.id,
+    path: healthFolder.folderPath || ''
+  }
+}
+
+function buildCompletionMetrics(run) {
+  if (!run) {
+    return []
+  }
+  const metrics = []
+  if (run.operation === 'IMPORT') {
+    metrics.push(
+      { label: '扫描', value: run.scannedCount || 0 },
+      { label: '解析', value: run.parsedCount || 0 },
+      { label: '跳过', value: run.skippedCount || 0 },
+      { label: '失败', value: (run.failedCount || 0) + (run.failedDocumentCount || 0), tone: hasRunFailure(run) ? 'error' : 'default' }
+    )
+  } else if (run.operation === 'REBUILD_INDEX') {
+    if (run.scannedCount != null && run.scopeType !== 'ALL') {
+      metrics.push({ label: '扫描', value: run.scannedCount || 0 })
+    }
+    metrics.push(
+      { label: '索引文档', value: run.indexedDocumentCount || 0 },
+      { label: '索引 chunks', value: run.indexedChunkCount || 0 },
+      { label: '失败文档', value: run.failedDocumentCount || 0, tone: hasRunFailure(run) ? 'error' : 'default' }
+    )
+  }
+  metrics.push({ label: '耗时', value: formatDuration(run.durationMs) })
+  return metrics
+}
+
+function hasRunFailure(run) {
+  return run?.status === 'FAILED'
+    || run?.status === 'COMPLETED_WITH_WARNINGS'
+    || Boolean((run?.failedCount || 0) + (run?.failedDocumentCount || 0))
+}
+
+function formatDuration(durationMs) {
+  if (durationMs == null) {
+    return '-'
+  }
+  if (durationMs < 1000) {
+    return `${durationMs} ms`
+  }
+  return `${(durationMs / 1000).toFixed(1)} s`
+}
+
+async function openHealthPanel() {
+  maintenanceStore.clearCompletionNotice()
+  await router.push({ name: 'knowledge', query: { panel: 'health' } })
 }
 </script>
 
@@ -97,5 +237,48 @@ async function refreshWorkbench() {
       <KnowledgeSearchPanel v-else-if="activePanel === 'search'" />
       <KnowledgeGraphPanel v-else />
     </div>
+
+    <el-dialog
+      v-model="completionDialogOpen"
+      class="knowledge-maintenance-completion-dialog"
+      :title="completionDialogTitle"
+      width="min(620px, calc(100vw - 32px))"
+      align-center
+    >
+      <section
+        v-if="completionRun"
+        :class="[
+          'knowledge-maintenance-completion',
+          completionFailed ? 'knowledge-maintenance-completion--error' : '',
+          completionWarning ? 'knowledge-maintenance-completion--warning' : ''
+        ]"
+      >
+        <span class="knowledge-maintenance-completion__icon">
+          <component :is="completionIcon" aria-hidden="true" />
+        </span>
+        <div class="knowledge-maintenance-completion__body">
+          <strong>{{ completionOperationLabel(completionRun) }} · {{ completionScopeLabel(completionRun) }}</strong>
+          <p v-if="completionScopeDetail(completionRun)" class="path-text">{{ completionScopeDetail(completionRun) }}</p>
+          <p v-if="completionRun.errorMessage" class="knowledge-maintenance-completion__message">
+            {{ completionRun.errorMessage }}
+          </p>
+          <dl class="knowledge-maintenance-completion__metrics">
+            <div
+              v-for="metric in completionMetrics"
+              :key="metric.label"
+              :class="{ 'knowledge-maintenance-completion__metric--error': metric.tone === 'error' }"
+            >
+              <dt>{{ metric.label }}</dt>
+              <dd>{{ metric.value }}</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+
+      <template #footer>
+        <el-button @click="maintenanceStore.clearCompletionNotice">知道了</el-button>
+        <el-button type="primary" @click="openHealthPanel">查看维护记录</el-button>
+      </template>
+    </el-dialog>
   </section>
 </template>

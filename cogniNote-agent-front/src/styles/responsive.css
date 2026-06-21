@@ -14,13 +14,12 @@
   .knowledge-overview-grid,
   .knowledge-directory-summary,
   .knowledge-directory-entry,
+  .knowledge-maintenance-completion__metrics,
   .knowledge-directory-toolbar,
-  .ingest-form,
   .knowledge-folder-import,
   .search-form,
   .model-form,
   .model-options-grid,
-  .result-strip,
   .stat-grid {
     grid-template-columns: 1fr;
   }
@@ -62,8 +61,7 @@
   }
 
   .source-row,
-  .document-row,
-  .index-toolbar {
+  .document-row {
     align-items: stretch;
     flex-direction: column;
   }
@@ -111,6 +109,10 @@
   }
 
   .knowledge-problem-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .knowledge-maintenance-completion {
     grid-template-columns: minmax(0, 1fr);
   }
 

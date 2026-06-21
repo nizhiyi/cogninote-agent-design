@@ -70,6 +70,23 @@ const queuedRuns = computed(() => maintenanceStore.queuedRuns.length
   ? maintenanceStore.queuedRuns
   : healthStore.health?.queuedRuns || []
 )
+const folderDisplayById = computed(() => {
+  const entries = new Map()
+  const healthFolders = healthStore.health?.folders || []
+  healthFolders.forEach((folder) => {
+    entries.set(folder.id, {
+      name: folder.displayName || folder.folderPath || folder.id,
+      path: folder.folderPath || ''
+    })
+  })
+  knowledgeStore.folders.forEach((folder) => {
+    entries.set(folder.id, {
+      name: folder.displayName || folder.folderPath || folder.id,
+      path: folder.folderPath || ''
+    })
+  })
+  return entries
+})
 const hasIndexIssue = computed(() => globalIssues.value.some((issue) => issue.code === 'INDEX_INCONSISTENT'))
 const hasEmbeddingIssue = computed(() => globalIssues.value.some((issue) => issue.code === 'EMBEDDING_UNCONFIGURED'))
 const totalIssueEntries = computed(() => globalIssues.value.length + folderIssues.value.length)
@@ -242,14 +259,27 @@ function runScopeLabel(run) {
   if (run.scopeType === 'ALL') {
     return '全库'
   }
-  return run.scopeId ? `目录 · ${run.scopeId}` : '目录'
+  const folder = folderDisplayById.value.get(run.scopeId)
+  if (folder?.name) {
+    return `目录 · ${folder.name}`
+  }
+  return run.scopeId ? '目录 · 未知目录' : '目录'
 }
 
-function runProgressPercentage(run) {
-  if (!run?.progressTotal) {
-    return 0
+function runCurrentItemLabel(run) {
+  if (!run) {
+    return '处理中'
   }
-  return Math.min(100, Math.round((run.progressCurrent / run.progressTotal) * 100))
+  if (run.scopeType === 'KNOWLEDGE_FOLDER') {
+    const folder = folderDisplayById.value.get(run.scopeId)
+    if (folder?.path) {
+      return folder.path
+    }
+    if (folder?.name) {
+      return folder.name
+    }
+  }
+  return run.currentItem || (run.status === 'QUEUED' ? '等待执行' : '处理中')
 }
 
 function runCountSummary(run) {
@@ -475,14 +505,9 @@ function runCountSummary(run) {
             <span>{{ runStatusLabel(currentRuns[0]) }}</span>
           </span>
         </div>
-        <p>{{ currentRuns[0].phase || 'RUNNING' }} · {{ currentRuns[0].currentItem || '处理中' }}</p>
-        <el-progress
-          :percentage="runProgressPercentage(currentRuns[0])"
-          :indeterminate="!currentRuns[0].progressTotal"
-          :show-text="Boolean(currentRuns[0].progressTotal)"
-        />
+        <p>{{ currentRuns[0].phase || 'RUNNING' }} · {{ runCurrentItemLabel(currentRuns[0]) }}</p>
         <span class="knowledge-maintenance-task__hint">
-          运行中任务不可取消，等待队列中的任务可取消。
+          文件较多时导入、同步或重建索引可能需要较长时间；运行中任务不可取消，等待队列中的任务可取消。
         </span>
       </article>
 
@@ -500,7 +525,7 @@ function runCountSummary(run) {
               <span>{{ runStatusLabel(run) }}</span>
             </span>
           </div>
-          <p>{{ run.currentItem || '等待执行' }} · 排队 {{ formatTime(run.queuedAt || run.createdAt) }}</p>
+          <p>{{ runCurrentItemLabel(run) }} · 排队 {{ formatTime(run.queuedAt || run.createdAt) }}</p>
           <el-button
             :loading="maintenanceStore.isRunCancelling(run.id)"
             @click="maintenanceStore.cancelRun(run.id)"
