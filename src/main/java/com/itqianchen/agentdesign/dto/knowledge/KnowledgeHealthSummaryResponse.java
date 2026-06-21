@@ -12,6 +12,7 @@ public record KnowledgeHealthSummaryResponse(
         int unindexedCount,
         int missingLocalFileCount,
         int staleLocalFileCount,
+        int newLocalFileCount,
         int chunkCount,
         Long lastIngestedAt,
         Long lastIndexedAt,

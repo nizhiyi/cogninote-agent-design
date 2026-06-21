@@ -123,6 +123,28 @@ class KnowledgeHealthControllerTests {
     }
 
     @Test
+    void folderHealthReportsNewLocalFileAfterImport() throws Exception {
+        Files.writeString(tempDir.resolve("imported.md"), "# Imported\n\nalready in knowledge base");
+        String folderId = importFolder(tempDir);
+
+        Files.writeString(tempDir.resolve("new-local.md"), "# New\n\nnot synced yet");
+
+        mockMvc.perform(get("/api/knowledge-health/folders/{id}", folderId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("WARNING"))
+                .andExpect(jsonPath("$.data.issues[*].code", hasItem("NEW_LOCAL_FILES")))
+                .andExpect(jsonPath("$.data.newLocalFiles.length()").value(1))
+                .andExpect(jsonPath("$.data.newLocalFiles[0].fileName").value("new-local.md"));
+
+        mockMvc.perform(get("/api/knowledge-health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("WARNING"))
+                .andExpect(jsonPath("$.data.summary.newLocalFileCount").value(1))
+                .andExpect(jsonPath("$.data.folders[0].newLocalFileCount").value(1))
+                .andExpect(jsonPath("$.data.issues[*].code", hasItem("NEW_LOCAL_FILES")));
+    }
+
+    @Test
     void folderHealthTreatsInvalidStoredPathAsMissingLocalFile() throws Exception {
         long now = System.currentTimeMillis();
         String folderId = "folder-invalid-path";

@@ -9,6 +9,7 @@ import com.itqianchen.agentdesign.domain.ingestion.DocumentIdentity;
 import com.itqianchen.agentdesign.domain.ingestion.DocumentParseException;
 import com.itqianchen.agentdesign.domain.ingestion.DocumentParserRegistry;
 import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
+import com.itqianchen.agentdesign.domain.ingestion.ScannedDocumentFile;
 import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
 import com.itqianchen.agentdesign.domain.search.IndexedChunk;
 import com.itqianchen.agentdesign.domain.search.IndexedDocument;
@@ -205,6 +206,31 @@ public class DocumentIngestionService {
     }
 
     /**
+     * 扫描目录下当前可导入文件的轻量快照。
+     *
+     * <p>该方法服务于健康诊断，只读取路径和文件元数据，不解析正文、不写 SQLite 或 Lucene。</p>
+     *
+     * @param folderPath 本地目录路径
+     * @param recursive 是否递归扫描
+     * @return 当前受支持文件快照
+     */
+    public List<ScannedDocumentFile> scanDocumentFiles(String folderPath, boolean recursive) {
+        Path folder = Path.of(folderPath).toAbsolutePath().normalize();
+        if (!Files.isDirectory(folder)) {
+            throw new DocumentParseException("Folder does not exist or is not a directory: " + folder);
+        }
+        return scanSupportedFiles(folder, recursive).stream()
+                .map(path -> path.toAbsolutePath().normalize())
+                .map(file -> new ScannedDocumentFile(
+                        documentIdentity.idForPath(file.toString()),
+                        file.toString(),
+                        file.getFileName().toString(),
+                        lastModifiedOrZero(file)
+                ))
+                .toList();
+    }
+
+    /**
      * 扫描目录中的受支持文件。
      *
      * @param folder 本地目录
@@ -221,6 +247,14 @@ public class DocumentIngestionService {
                     .toList();
         } catch (IOException ex) {
             throw new DocumentParseException("Failed to scan folder: " + folder, ex);
+        }
+    }
+
+    private static long lastModifiedOrZero(Path path) {
+        try {
+            return Files.getLastModifiedTime(path).toMillis();
+        } catch (IOException ex) {
+            return 0L;
         }
     }
 

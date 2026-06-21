@@ -23,6 +23,7 @@ import com.itqianchen.agentdesign.dto.knowledge.KnowledgeProblemDocumentResponse
 import com.itqianchen.agentdesign.repository.document.DocumentRepository;
 import com.itqianchen.agentdesign.repository.knowledge.KnowledgeFolderRepository;
 import com.itqianchen.agentdesign.repository.knowledge.KnowledgeFolderRunRepository;
+import com.itqianchen.agentdesign.service.document.DocumentIngestionService;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -55,6 +56,7 @@ public class KnowledgeHealthService {
     private final DocumentRepository documentRepository;
     private final KnowledgeFolderRunRepository runRepository;
     private final KnowledgeStore knowledgeStore;
+    private final DocumentIngestionService ingestionService;
 
     /**
      * 注入知识库健康诊断依赖。
@@ -63,17 +65,20 @@ public class KnowledgeHealthService {
      * @param documentRepository 文档仓储
      * @param runRepository 维护运行记录仓储
      * @param knowledgeStore 检索索引边界
+     * @param ingestionService 文档扫描边界
      */
     public KnowledgeHealthService(
             KnowledgeFolderRepository folderRepository,
             DocumentRepository documentRepository,
             KnowledgeFolderRunRepository runRepository,
-            KnowledgeStore knowledgeStore
+            KnowledgeStore knowledgeStore,
+            DocumentIngestionService ingestionService
     ) {
         this.folderRepository = folderRepository;
         this.documentRepository = documentRepository;
         this.runRepository = runRepository;
         this.knowledgeStore = knowledgeStore;
+        this.ingestionService = ingestionService;
     }
 
     /**
@@ -130,7 +135,7 @@ public class KnowledgeHealthService {
         }
 
         List<KnowledgeDocument> documents = documentRepository.findByKnowledgeFolderIdOrderByUpdatedAtDesc(folderId);
-        FolderHealthProbe probe = probeDocuments(documents);
+        FolderHealthProbe probe = probeDocuments(summary.folder(), documents);
         List<KnowledgeHealthIssueResponse> issues = folderIssues(summary, probe);
         KnowledgeHealthStatus status = folderStatus(summary, probe, issues);
         List<KnowledgeFolderRunResponse> runs = runRepository.findRuns(
@@ -150,6 +155,7 @@ public class KnowledgeHealthService {
                 unindexedDocuments(documents),
                 probe.missingLocalFiles(),
                 probe.staleLocalFiles(),
+                probe.newLocalFiles(),
                 runs
         );
     }
@@ -176,6 +182,7 @@ public class KnowledgeHealthService {
         return new KnowledgeFolderHealthResponse(
                 folderId,
                 KnowledgeHealthStatus.DISABLED,
+                List.of(),
                 List.of(),
                 List.of(),
                 List.of(),
@@ -270,6 +277,7 @@ public class KnowledgeHealthService {
                     0,
                     0,
                     0,
+                    0,
                     latestRun == null ? null : KnowledgeFolderRunResponse.from(latestRun),
                     List.of()
             );
@@ -278,13 +286,14 @@ public class KnowledgeHealthService {
         List<KnowledgeDocument> documents = documentRepository.findByKnowledgeFolderIdOrderByUpdatedAtDesc(
                 summary.folder().id()
         );
-        FolderHealthProbe probe = probeDocuments(documents);
+        FolderHealthProbe probe = probeDocuments(summary.folder(), documents);
         List<KnowledgeHealthIssueResponse> issues = folderIssues(summary, probe);
         return new FolderHealthSnapshot(
                 summary,
                 folderStatus(summary, probe, issues),
                 probe.missingLocalFiles().size(),
                 probe.staleLocalFiles().size(),
+                probe.newLocalFiles().size(),
                 indexedChunkCount(documents),
                 latestRun == null ? null : KnowledgeFolderRunResponse.from(latestRun),
                 issues
@@ -292,18 +301,21 @@ public class KnowledgeHealthService {
     }
 
     /**
-     * 探测 SQLite 文档记录对应的本地文件状态。
+     * 探测目录本地文件与 SQLite 文档记录之间的差异。
      *
      * <p>健康诊断是只读、尽力而为的入口。单个文档路径损坏、权限异常或外置盘不可用时，
      * 应把该文档报告为不可访问，而不是让整个健康面板返回 500。</p>
      *
+     * @param folder 知识库目录配置
      * @param documents 目录下的文档记录
-     * @return 文件缺失和疑似变化的探针结果
+     * @return 文件缺失、疑似变化和本地新增的探针结果
      */
-    private FolderHealthProbe probeDocuments(List<KnowledgeDocument> documents) {
+    private FolderHealthProbe probeDocuments(KnowledgeFolder folder, List<KnowledgeDocument> documents) {
         List<KnowledgeProblemDocumentResponse> missingLocalFiles = new ArrayList<>();
         List<KnowledgeProblemDocumentResponse> staleLocalFiles = new ArrayList<>();
+        Map<String, KnowledgeDocument> documentsById = new LinkedHashMap<>();
         for (KnowledgeDocument document : documents) {
+            documentsById.put(document.id(), document);
             try {
                 Path path = Path.of(document.sourcePath());
                 if (!Files.exists(path) || !Files.isRegularFile(path)) {
@@ -322,7 +334,41 @@ public class KnowledgeHealthService {
                 missingLocalFiles.add(KnowledgeProblemDocumentResponse.from(document, probeFailureMessage(ex)));
             }
         }
-        return new FolderHealthProbe(List.copyOf(missingLocalFiles), List.copyOf(staleLocalFiles));
+        List<KnowledgeProblemDocumentResponse> newLocalFiles = newLocalFiles(folder, documentsById);
+        return new FolderHealthProbe(
+                List.copyOf(missingLocalFiles),
+                List.copyOf(staleLocalFiles),
+                List.copyOf(newLocalFiles)
+        );
+    }
+
+    /**
+     * 找出本地目录中尚未进入 SQLite 的受支持文件。
+     *
+     * <p>这里复用导入服务的扫描和 ID 规则，避免健康诊断与同步动作看到两套不同的文件集合。</p>
+     *
+     * @param folder 知识库目录配置
+     * @param documentsById SQLite 已记录文档
+     * @return 本地新增文件列表
+     */
+    private List<KnowledgeProblemDocumentResponse> newLocalFiles(
+            KnowledgeFolder folder,
+            Map<String, KnowledgeDocument> documentsById
+    ) {
+        try {
+            return ingestionService.scanDocumentFiles(folder.folderPath(), folder.recursive())
+                    .stream()
+                    .filter(file -> !documentsById.containsKey(file.documentId()))
+                    .map(file -> KnowledgeProblemDocumentResponse.from(file, "本地目录中有新增文件，点击同步可纳入知识库。"))
+                    .toList();
+        } catch (RuntimeException ex) {
+            log.warn("knowledge_health_new_file_probe_failed folderId={} path={}",
+                    folder.id(),
+                    folder.folderPath(),
+                    ex
+            );
+            return List.of();
+        }
     }
 
     /**
@@ -384,7 +430,7 @@ public class KnowledgeHealthService {
                     1
             ));
         }
-        if (folder.enabled() && summary.documentCount() == 0) {
+        if (folder.enabled() && summary.documentCount() == 0 && probe.newLocalFiles().isEmpty()) {
             issues.add(issue(
                     KnowledgeHealthIssueCode.NO_DOCUMENTS,
                     "WARNING",
@@ -434,6 +480,16 @@ public class KnowledgeHealthService {
                     probe.staleLocalFiles().size()
             ));
         }
+        if (!probe.newLocalFiles().isEmpty()) {
+            issues.add(issue(
+                    KnowledgeHealthIssueCode.NEW_LOCAL_FILES,
+                    "WARNING",
+                    "有 " + probe.newLocalFiles().size() + " 个本地新增文件尚未同步到知识库。",
+                    "SYNC_FOLDER",
+                    folderId,
+                    probe.newLocalFiles().size()
+            ));
+        }
         return List.copyOf(issues);
     }
 
@@ -459,11 +515,14 @@ public class KnowledgeHealthService {
         if (hasSeverity(issues, "ERROR")) {
             return KnowledgeHealthStatus.ERROR;
         }
+        if (hasSeverity(issues, "WARNING")
+                || !probe.missingLocalFiles().isEmpty()
+                || !probe.staleLocalFiles().isEmpty()
+                || !probe.newLocalFiles().isEmpty()) {
+            return KnowledgeHealthStatus.WARNING;
+        }
         if (summary.documentCount() == 0) {
             return KnowledgeHealthStatus.EMPTY;
-        }
-        if (hasSeverity(issues, "WARNING") || !probe.missingLocalFiles().isEmpty() || !probe.staleLocalFiles().isEmpty()) {
-            return KnowledgeHealthStatus.WARNING;
         }
         return KnowledgeHealthStatus.HEALTHY;
     }
@@ -490,6 +549,7 @@ public class KnowledgeHealthService {
         int unindexedCount = 0;
         int missingLocalFileCount = 0;
         int staleLocalFileCount = 0;
+        int newLocalFileCount = 0;
         int chunkCount = 0;
         Long lastIngestedAt = null;
         Long lastIndexedAt = null;
@@ -509,6 +569,7 @@ public class KnowledgeHealthService {
             unindexedCount += summary.unindexedCount();
             missingLocalFileCount += snapshot.missingLocalFileCount();
             staleLocalFileCount += snapshot.staleLocalFileCount();
+            newLocalFileCount += snapshot.newLocalFileCount();
             chunkCount += summary.chunkCount();
             lastIngestedAt = maxNullable(lastIngestedAt, summary.folder().lastIngestedAt());
             lastIndexedAt = maxNullable(lastIndexedAt, summary.folder().lastIndexedAt());
@@ -523,6 +584,7 @@ public class KnowledgeHealthService {
                 unindexedCount,
                 missingLocalFileCount,
                 staleLocalFileCount,
+                newLocalFileCount,
                 chunkCount,
                 lastIngestedAt,
                 lastIndexedAt,
@@ -682,6 +744,9 @@ public class KnowledgeHealthService {
             if (hasSeverity(issues, "ERROR")) {
                 return KnowledgeHealthStatus.ERROR;
             }
+            if (hasSeverity(issues, "WARNING")) {
+                return KnowledgeHealthStatus.WARNING;
+            }
             return KnowledgeHealthStatus.EMPTY;
         }
         if (hasSeverity(issues, "ERROR")) {
@@ -830,7 +895,8 @@ public class KnowledgeHealthService {
      */
     private record FolderHealthProbe(
             List<KnowledgeProblemDocumentResponse> missingLocalFiles,
-            List<KnowledgeProblemDocumentResponse> staleLocalFiles
+            List<KnowledgeProblemDocumentResponse> staleLocalFiles,
+            List<KnowledgeProblemDocumentResponse> newLocalFiles
     ) {
     }
 
@@ -844,6 +910,7 @@ public class KnowledgeHealthService {
             KnowledgeHealthStatus status,
             int missingLocalFileCount,
             int staleLocalFileCount,
+            int newLocalFileCount,
             int indexedChunkCount,
             KnowledgeFolderRunResponse lastRun,
             List<KnowledgeHealthIssueResponse> issues
@@ -866,6 +933,7 @@ public class KnowledgeHealthService {
                     summary.unindexedCount(),
                     missingLocalFileCount,
                     staleLocalFileCount,
+                    newLocalFileCount,
                     summary.chunkCount(),
                     summary.folder().lastIngestedAt(),
                     summary.folder().lastIndexedAt(),
@@ -956,6 +1024,7 @@ public class KnowledgeHealthService {
                 case PARSE_FAILED -> "有 " + count + " 个文档解析失败。";
                 case UNINDEXED_DOCUMENTS -> "有 " + count + " 个已解析文档尚未进入索引。";
                 case STALE_LOCAL_FILES -> "有 " + count + " 个本地文件疑似已变化。";
+                case NEW_LOCAL_FILES -> "有 " + count + " 个本地新增文件尚未同步到知识库。";
                 case MISSING_LOCAL_FILES -> "有 " + count + " 个已记录文件在本地不存在。";
                 case DISABLED_FOLDER -> "有 " + count + " 个目录已停用。";
                 default -> Objects.requireNonNullElse(fallback, "知识库存在需要处理的问题。");

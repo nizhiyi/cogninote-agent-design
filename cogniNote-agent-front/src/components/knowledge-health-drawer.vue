@@ -43,6 +43,12 @@ const problemSections = computed(() => [
     title: '疑似已变化',
     action: 'SYNC_FOLDER',
     items: folderHealth.value?.staleLocalFiles || []
+  },
+  {
+    key: 'new-local',
+    title: '本地新增',
+    action: 'SYNC_FOLDER',
+    items: folderHealth.value?.newLocalFiles || []
   }
 ].filter((section) => section.items.length))
 const issueCount = computed(() => folderHealth.value?.issues?.reduce((total, issue) => total + issue.count, 0) || 0)

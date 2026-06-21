@@ -14,6 +14,7 @@ public record KnowledgeFolderHealthResponse(
         List<KnowledgeProblemDocumentResponse> unindexedDocuments,
         List<KnowledgeProblemDocumentResponse> missingLocalFiles,
         List<KnowledgeProblemDocumentResponse> staleLocalFiles,
+        List<KnowledgeProblemDocumentResponse> newLocalFiles,
         List<KnowledgeFolderRunResponse> runs
 ) {
 }

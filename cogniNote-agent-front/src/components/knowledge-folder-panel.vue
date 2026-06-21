@@ -87,6 +87,7 @@ function folderHealthIssueCount(health) {
     + health.unindexedCount
     + health.missingLocalFileCount
     + health.staleLocalFileCount
+    + (health.newLocalFileCount || 0)
   return health.status === 'HEALTHY' ? 0 : Math.max(1, fileIssueCount)
 }
 

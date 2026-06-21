@@ -1,6 +1,7 @@
 package com.itqianchen.agentdesign.dto.knowledge;
 
 import com.itqianchen.agentdesign.domain.document.KnowledgeDocument;
+import com.itqianchen.agentdesign.domain.ingestion.ScannedDocumentFile;
 
 /**
  * 健康抽屉中展示的问题文档。
@@ -26,6 +27,23 @@ public record KnowledgeProblemDocumentResponse(
                 document.fileName(),
                 message,
                 document.updatedAt()
+        );
+    }
+
+    /**
+     * 从本地扫描文件构造问题文档响应。
+     *
+     * @param file 本地文件快照
+     * @param message 问题说明
+     * @return 问题文档响应
+     */
+    public static KnowledgeProblemDocumentResponse from(ScannedDocumentFile file, String message) {
+        return new KnowledgeProblemDocumentResponse(
+                file.documentId(),
+                file.sourcePath(),
+                file.fileName(),
+                message,
+                file.lastModified()
         );
     }
 }

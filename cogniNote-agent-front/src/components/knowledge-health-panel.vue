@@ -114,6 +114,12 @@ const issueMetrics = computed(() => [
     label: '疑似变化',
     value: healthSummary.value?.staleLocalFileCount || 0,
     tone: (healthSummary.value?.staleLocalFileCount || 0) > 0 ? 'warning' : 'muted'
+  },
+  {
+    key: 'new-local',
+    label: '本地新增',
+    value: healthSummary.value?.newLocalFileCount || 0,
+    tone: (healthSummary.value?.newLocalFileCount || 0) > 0 ? 'warning' : 'muted'
   }
 ])
 const systemSignals = computed(() => [
@@ -162,6 +168,7 @@ function folderHealthIssueCount(health) {
     + health.unindexedCount
     + health.missingLocalFileCount
     + health.staleLocalFileCount
+    + (health.newLocalFileCount || 0)
   return health.status === 'HEALTHY' ? 0 : Math.max(1, fileIssueCount)
 }
 
@@ -432,6 +439,7 @@ function runCountSummary(run) {
               <span v-if="folder.unindexedCount">未索引 {{ folder.unindexedCount }}</span>
               <span v-if="folder.missingLocalFileCount">缺失 {{ folder.missingLocalFileCount }}</span>
               <span v-if="folder.staleLocalFileCount">变化 {{ folder.staleLocalFileCount }}</span>
+              <span v-if="folder.newLocalFileCount">新增 {{ folder.newLocalFileCount }}</span>
             </div>
           </div>
           <el-button @click="healthStore.openFolderIssues(folder.id)">

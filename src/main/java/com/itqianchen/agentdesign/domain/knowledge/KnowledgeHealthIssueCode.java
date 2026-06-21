@@ -21,6 +21,9 @@ public enum KnowledgeHealthIssueCode {
     /** 本地文件元数据与上次解析记录不一致。 */
     STALE_LOCAL_FILES,
 
+    /** 本地目录中存在尚未同步到应用的支持文件。 */
+    NEW_LOCAL_FILES,
+
     /** 应用记录中的本地文件已经不存在。 */
     MISSING_LOCAL_FILES,
 

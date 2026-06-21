@@ -96,6 +96,7 @@ const filteredFolders = computed(() => {
       folder.folderPath,
       folder.enabled ? '已启用 enabled 启用' : '已停用 disabled 停用',
       healthStatusLabel(health?.status),
+      health?.newLocalFileCount ? '本地新增 new local added' : '',
       issueCount ? '有问题 issue warning error' : '无问题 clean'
     ].join(' '))
     return terms.every((term) => searchableText.includes(term) || isSubsequence(term, searchableText))
@@ -155,6 +156,7 @@ function folderIssueCount(folder) {
     + health.unindexedCount
     + health.missingLocalFileCount
     + health.staleLocalFileCount
+    + (health.newLocalFileCount || 0)
   return health.status === 'HEALTHY' ? 0 : Math.max(1, fileIssueCount)
 }
 
@@ -422,6 +424,7 @@ function runProgressPercentage(run) {
               <span v-if="folder.enabled">{{ folder.unindexedCount }} 未索引</span>
               <span v-if="folderHealth(folder)?.missingLocalFileCount">缺失 {{ folderHealth(folder).missingLocalFileCount }}</span>
               <span v-if="folderHealth(folder)?.staleLocalFileCount">变化 {{ folderHealth(folder).staleLocalFileCount }}</span>
+              <span v-if="folderHealth(folder)?.newLocalFileCount">新增 {{ folderHealth(folder).newLocalFileCount }}</span>
             </div>
 
             <div class="knowledge-directory-row__time">
