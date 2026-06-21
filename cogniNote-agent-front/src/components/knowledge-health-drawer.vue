@@ -2,6 +2,11 @@
 import { computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { BrainCircuit, Copy, Database, FolderSync, RotateCcw } from 'lucide-vue-next'
+import {
+  confirmRebuildAllIndex,
+  confirmRebuildFolderIndex,
+  confirmSyncFolder
+} from '../composables/use-knowledge-maintenance-confirm'
 import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
 import { useKnowledgeHealthStore } from '../stores/knowledge-health'
 import { useKnowledgeMaintenanceStore } from '../stores/knowledge-maintenance'
@@ -81,15 +86,24 @@ async function syncSelectedFolder() {
   if (!healthStore.selectedFolderId) {
     return
   }
+  if (!await confirmSyncFolder(currentFolder.value)) {
+    return
+  }
   await knowledgeStore.syncFolder(healthStore.selectedFolderId)
 }
 
 async function rebuildGlobalIndex() {
+  if (!await confirmRebuildAllIndex()) {
+    return
+  }
   await searchStore.rebuildIndex()
 }
 
 async function rebuildSelectedFolder() {
   if (!healthStore.selectedFolderId) {
+    return
+  }
+  if (!await confirmRebuildFolderIndex(currentFolder.value)) {
     return
   }
   await knowledgeStore.rebuildFolder(healthStore.selectedFolderId)

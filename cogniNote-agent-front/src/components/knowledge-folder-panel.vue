@@ -7,6 +7,7 @@ import {
   ShieldCheck
 } from 'lucide-vue-next'
 import KnowledgeFolderImportDialog from './knowledge-folder-import-dialog.vue'
+import { confirmRebuildAllIndex } from '../composables/use-knowledge-maintenance-confirm'
 import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
 import { useKnowledgeHealthStore } from '../stores/knowledge-health'
 import { useKnowledgeMaintenanceStore } from '../stores/knowledge-maintenance'
@@ -55,6 +56,9 @@ const overviewStats = computed(() => [
  * 全量重建会触发高成本索引操作，只在用户明确点击时执行。
  */
 async function rebuildAllIndexes() {
+  if (!await confirmRebuildAllIndex()) {
+    return
+  }
   await searchStore.rebuildIndex()
 }
 

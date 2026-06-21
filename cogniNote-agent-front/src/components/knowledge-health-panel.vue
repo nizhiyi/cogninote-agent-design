@@ -15,6 +15,7 @@ import {
   Wrench
 } from 'lucide-vue-next'
 import KnowledgeHealthDrawer from './knowledge-health-drawer.vue'
+import { confirmRebuildAllIndex } from '../composables/use-knowledge-maintenance-confirm'
 import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
 import { useKnowledgeHealthStore } from '../stores/knowledge-health'
 import { useKnowledgeMaintenanceStore } from '../stores/knowledge-maintenance'
@@ -212,6 +213,9 @@ async function refreshHealthPanel() {
 }
 
 async function rebuildAllIndexes() {
+  if (!await confirmRebuildAllIndex()) {
+    return
+  }
   await searchStore.rebuildIndex()
 }
 

@@ -1,6 +1,5 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { ElMessageBox } from 'element-plus'
 import {
   Activity,
   AlertTriangle,
@@ -17,6 +16,12 @@ import {
 } from 'lucide-vue-next'
 import KnowledgeFolderImportDialog from './knowledge-folder-import-dialog.vue'
 import KnowledgeHealthDrawer from './knowledge-health-drawer.vue'
+import {
+  confirmDeleteKnowledgeFolder,
+  confirmDisableFolder,
+  confirmRebuildFolderIndex,
+  confirmSyncFolder
+} from '../composables/use-knowledge-maintenance-confirm'
 import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
 import { useKnowledgeHealthStore } from '../stores/knowledge-health'
 import { useKnowledgeMaintenanceStore } from '../stores/knowledge-maintenance'
@@ -229,10 +234,36 @@ async function repairFolder(folder) {
     return
   }
   if (repairAction(folder) === 'rebuild') {
+    if (!await confirmRebuildFolderIndex(folder)) {
+      return
+    }
     await knowledgeStore.rebuildFolder(folder.id)
     return
   }
+  if (!await confirmSyncFolder(folder)) {
+    return
+  }
   await knowledgeStore.syncFolder(folder.id)
+}
+
+async function rebuildFolderIndex(folder) {
+  if (!folder?.enabled || isFolderRunning(folder)) {
+    return
+  }
+  if (!await confirmRebuildFolderIndex(folder)) {
+    return
+  }
+  await knowledgeStore.rebuildFolder(folder.id)
+}
+
+async function toggleFolderEnabled(folder) {
+  if (!folder || isFolderRunning(folder)) {
+    return
+  }
+  if (folder.enabled && !await confirmDisableFolder(folder)) {
+    return
+  }
+  await knowledgeStore.toggleFolderEnabled(folder)
 }
 
 function clearFilters() {
@@ -245,24 +276,10 @@ async function confirmDeleteFolder(folder) {
   if (!folder || maintenanceStore.isFolderBusy(folder.id)) {
     return
   }
-
-  try {
-    await ElMessageBox.confirm(
-      `确定删除“${folder.displayName}”这个知识库目录记录吗？会删除应用内目录、文档、索引、图谱派生数据和该目录维护记录；本地原始文件不会被删除。`,
-      '删除知识库目录',
-      {
-        confirmButtonText: '删除',
-        cancelButtonText: '取消',
-        type: 'warning',
-        confirmButtonClass: 'el-button--danger'
-      }
-    )
-    await knowledgeStore.deleteFolder(folder.id)
-  } catch (err) {
-    if (err !== 'cancel' && err !== 'close') {
-      throw err
-    }
+  if (!await confirmDeleteKnowledgeFolder(folder)) {
+    return
   }
+  await knowledgeStore.deleteFolder(folder.id)
 }
 
 async function refreshDirectories() {
@@ -443,7 +460,7 @@ async function refreshDirectories() {
               </el-button>
               <el-button
                 :disabled="isFolderRunning(folder)"
-                @click="knowledgeStore.toggleFolderEnabled(folder)"
+                @click="toggleFolderEnabled(folder)"
               >
                 {{ folder.enabled ? '停用' : '启用' }}
               </el-button>
@@ -460,7 +477,7 @@ async function refreshDirectories() {
                 <el-dropdown-menu>
                     <el-dropdown-item
                       :disabled="!folder.enabled || isFolderRunning(folder)"
-                      @click="knowledgeStore.rebuildFolder(folder.id)"
+                      @click="rebuildFolderIndex(folder)"
                     >
                       重建索引
                     </el-dropdown-item>
