@@ -1,6 +1,9 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import {
+  batchDeleteKnowledgeHealthRuns,
+  deleteKnowledgeHealthRun,
+  getKnowledgeHealthRunDetail,
   getKnowledgeFolderHealth,
   getKnowledgeHealth,
   listKnowledgeHealthRuns,
@@ -17,6 +20,7 @@ export const useKnowledgeHealthStore = defineStore('knowledgeHealth', () => {
   const folderHealth = ref(null)
   const runs = ref([])
   const runsPage = ref({ items: [], total: 0, page: 1, pageSize: 10 })
+  const selectedRunDetail = ref(null)
   const selectedFolderId = ref('')
   const isDrawerOpen = ref(false)
   const isLoading = ref(false)
@@ -108,11 +112,35 @@ export const useKnowledgeHealthStore = defineStore('knowledgeHealth', () => {
     }
   }
 
+  async function fetchRunDetail(runId) {
+    isLoadingRuns.value = true
+    error.value = ''
+    selectedRunDetail.value = null
+
+    try {
+      selectedRunDetail.value = await getKnowledgeHealthRunDetail(runId)
+    } catch (err) {
+      selectedRunDetail.value = null
+      error.value = `维护记录详情读取失败：${err.message}`
+    } finally {
+      isLoadingRuns.value = false
+    }
+  }
+
+  async function deleteRun(runId) {
+    return deleteKnowledgeHealthRun(runId)
+  }
+
+  async function batchDeleteRuns(ids) {
+    return batchDeleteKnowledgeHealthRuns(ids)
+  }
+
   return {
     health,
     folderHealth,
     runs,
     runsPage,
+    selectedRunDetail,
     selectedFolderId,
     isDrawerOpen,
     isLoading,
@@ -126,6 +154,9 @@ export const useKnowledgeHealthStore = defineStore('knowledgeHealth', () => {
     openFolderIssues,
     closeDrawer,
     fetchRuns,
-    fetchRunsPage
+    fetchRunsPage,
+    fetchRunDetail,
+    deleteRun,
+    batchDeleteRuns
   }
 })

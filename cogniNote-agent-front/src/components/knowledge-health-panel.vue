@@ -7,13 +7,17 @@ import {
   CheckCircle2,
   ChevronRight,
   Database,
+  Eye,
   FolderOpen,
   RefreshCw,
   RotateCcw,
+  Search,
   ShieldAlert,
   ShieldCheck,
+  Trash2,
   Wrench
 } from 'lucide-vue-next'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import KnowledgeHealthDrawer from './knowledge-health-drawer.vue'
 import { confirmRebuildAllIndex } from '../composables/use-knowledge-maintenance-confirm'
 import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
@@ -27,8 +31,17 @@ const healthStore = useKnowledgeHealthStore()
 const maintenanceStore = useKnowledgeMaintenanceStore()
 const searchStore = useSearchStore()
 const isRunsDialogOpen = ref(false)
+const isRunDetailDialogOpen = ref(false)
 const runPage = ref(1)
 const runPageSize = ref(10)
+const selectedRunIds = ref([])
+const runFilters = ref({
+  keyword: '',
+  scopeType: '',
+  operations: [],
+  statuses: [],
+  timeRange: []
+})
 
 const HEALTH_STATUS_LABELS = {
   HEALTHY: '可信',
@@ -57,6 +70,9 @@ const RUN_STATUS_LABELS = {
   FAILED: '失败'
 }
 const RUNNING_STATUSES = new Set(['RUNNING', 'CANCELLING'])
+const TERMINAL_STATUSES = new Set(['CANCELLED', 'COMPLETED', 'COMPLETED_WITH_WARNINGS', 'FAILED'])
+const RUN_OPERATION_OPTIONS = Object.entries(RUN_OPERATION_LABELS).map(([value, label]) => ({ value, label }))
+const RUN_STATUS_OPTIONS = Object.entries(RUN_STATUS_LABELS).map(([value, label]) => ({ value, label }))
 
 const healthSummary = computed(() => healthStore.health?.summary || null)
 const healthIssues = computed(() => healthStore.health?.issues || [])
@@ -240,14 +256,39 @@ function openGlobalIssues() {
 async function openRunsDialog() {
   isRunsDialogOpen.value = true
   runPage.value = 1
+  selectedRunIds.value = []
   await fetchRunsPage()
 }
 
 async function fetchRunsPage() {
+  const [timeFrom, timeTo] = runFilters.value.timeRange || []
   await healthStore.fetchRunsPage({
+    keyword: runFilters.value.keyword?.trim(),
+    scopeType: runFilters.value.scopeType,
+    operations: runFilters.value.operations,
+    statuses: runFilters.value.statuses,
+    timeFrom: timeFrom ? Number(timeFrom) : undefined,
+    timeTo: timeTo ? Number(timeTo) : undefined,
     page: runPage.value,
     pageSize: runPageSize.value
   })
+}
+
+async function applyRunFilters() {
+  runPage.value = 1
+  selectedRunIds.value = []
+  await fetchRunsPage()
+}
+
+async function resetRunFilters() {
+  runFilters.value = {
+    keyword: '',
+    scopeType: '',
+    operations: [],
+    statuses: [],
+    timeRange: []
+  }
+  await applyRunFilters()
 }
 
 async function handleRunPageChange(page) {
@@ -258,7 +299,76 @@ async function handleRunPageChange(page) {
 async function handleRunPageSizeChange(pageSize) {
   runPageSize.value = pageSize
   runPage.value = 1
+  selectedRunIds.value = []
   await fetchRunsPage()
+}
+
+function handleRunSelectionChange(rows) {
+  selectedRunIds.value = rows.map((run) => run.id)
+}
+
+async function openRunDetail(run) {
+  isRunDetailDialogOpen.value = true
+  await healthStore.fetchRunDetail(run.id)
+}
+
+async function deleteRun(run) {
+  if (!isTerminalRun(run)) {
+    ElMessage.warning('只能删除已完成、失败或已取消的历史记录。')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确定删除“${runScopeLabel(run)} · ${runOperationLabel(run)}”这条维护记录吗？该操作不会删除目录、文档或索引。`,
+      '删除维护记录',
+      {
+        type: 'warning',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        confirmButtonClass: 'el-button--danger'
+      }
+    )
+  } catch (err) {
+    if (err === 'cancel' || err === 'close') {
+      return
+    }
+    throw err
+  }
+  const result = await healthStore.deleteRun(run.id)
+  ElMessage.success(result.deletedCount ? '维护记录已删除。' : '该记录暂未删除。')
+  await refreshAfterRunHistoryChanged()
+}
+
+async function batchDeleteRuns() {
+  if (!selectedRunIds.value.length) {
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确定删除选中的 ${selectedRunIds.value.length} 条维护记录吗？排队或运行中的任务会自动跳过。`,
+      '批量删除维护记录',
+      {
+        type: 'warning',
+        confirmButtonText: '批量删除',
+        cancelButtonText: '取消',
+        confirmButtonClass: 'el-button--danger'
+      }
+    )
+  } catch (err) {
+    if (err === 'cancel' || err === 'close') {
+      return
+    }
+    throw err
+  }
+  const result = await healthStore.batchDeleteRuns(selectedRunIds.value)
+  ElMessage.success(`已删除 ${result.deletedCount} 条维护记录${result.skippedCount ? `，跳过 ${result.skippedCount} 条` : ''}。`)
+  selectedRunIds.value = []
+  await refreshAfterRunHistoryChanged()
+}
+
+async function refreshAfterRunHistoryChanged() {
+  await fetchRunsPage()
+  await maintenanceStore.refreshKnowledgeSnapshots()
 }
 
 function runScopeLabel(run) {
@@ -307,6 +417,22 @@ function runCountSummary(run) {
     pieces.push(`失败 ${failedCount}`)
   }
   return pieces.length ? pieces.join(' · ') : '无计数'
+}
+
+function isTerminalRun(run) {
+  return TERMINAL_STATUSES.has(run?.status)
+}
+
+function runTimeLabel(run) {
+  return formatTime(run?.completedAt || run?.startedAt || run?.queuedAt || run?.createdAt)
+}
+
+function runDurationLabel(run) {
+  return run?.durationMs != null ? `${run.durationMs} ms` : '运行中'
+}
+
+function runFailureCount(run) {
+  return (run?.failedCount || 0) + (run?.failedDocumentCount || 0)
 }
 
 function uniqueRuns(runs) {
@@ -592,42 +718,143 @@ defineExpose({
       v-model="isRunsDialogOpen"
       class="knowledge-health-runs-dialog"
       title="维护记录"
-      width="min(920px, calc(100vw - 32px))"
+      width="min(1120px, calc(100vw - 32px))"
       align-center
     >
-      <p v-if="healthStore.isLoadingRuns" class="panel-message">正在读取维护记录...</p>
-      <p v-else-if="!healthStore.runsPage.items.length" class="knowledge-health-empty">
-        <Activity aria-hidden="true" />
-        <span>暂无维护记录。</span>
-      </p>
-
-      <section v-else class="knowledge-health-run-dialog-list" aria-label="维护记录列表">
-        <header aria-hidden="true">
-          <span>操作</span>
-          <span>状态</span>
-          <span>范围</span>
-          <span>计数</span>
-          <span>时间</span>
-          <span>耗时</span>
-        </header>
-        <article v-for="run in healthStore.runsPage.items" :key="run.id">
-          <strong>{{ runOperationLabel(run) }}</strong>
-          <span :class="['knowledge-run-status', runStatusClass(run)]">
-            <Activity aria-hidden="true" />
-            <span>{{ runStatusLabel(run) }}</span>
-          </span>
-          <span>{{ runScopeLabel(run) }}</span>
-          <span>{{ runCountSummary(run) }}</span>
-          <span>{{ formatTime(run.completedAt || run.startedAt) }}</span>
-          <span>{{ run.durationMs != null ? `${run.durationMs} ms` : '运行中' }}</span>
-        </article>
+      <section class="knowledge-run-history-toolbar" aria-label="维护记录筛选">
+        <el-input
+          v-model="runFilters.keyword"
+          clearable
+          placeholder="搜索范围、目录、错误、任务 ID"
+          @keyup.enter="applyRunFilters"
+        >
+          <template #prefix>
+            <Search aria-hidden="true" />
+          </template>
+        </el-input>
+        <el-select v-model="runFilters.scopeType" clearable placeholder="范围">
+          <el-option label="全库" value="ALL" />
+          <el-option label="目录" value="KNOWLEDGE_FOLDER" />
+        </el-select>
+        <el-select v-model="runFilters.operations" multiple collapse-tags collapse-tags-tooltip placeholder="操作">
+          <el-option
+            v-for="option in RUN_OPERATION_OPTIONS"
+            :key="option.value"
+            :label="option.label"
+            :value="option.value"
+          />
+        </el-select>
+        <el-select v-model="runFilters.statuses" multiple collapse-tags collapse-tags-tooltip placeholder="状态">
+          <el-option
+            v-for="option in RUN_STATUS_OPTIONS"
+            :key="option.value"
+            :label="option.label"
+            :value="option.value"
+          />
+        </el-select>
+        <el-date-picker
+          v-model="runFilters.timeRange"
+          type="datetimerange"
+          value-format="x"
+          start-placeholder="开始时间"
+          end-placeholder="结束时间"
+          range-separator="至"
+        />
+        <div class="knowledge-run-history-toolbar__actions">
+          <el-button type="primary" :loading="healthStore.isLoadingRuns" @click="applyRunFilters">
+            查询
+          </el-button>
+          <el-button @click="resetRunFilters">重置</el-button>
+        </div>
       </section>
+
+      <section class="knowledge-run-history-bulkbar" aria-label="维护记录批量操作">
+        <span>已选 {{ selectedRunIds.length }} 条</span>
+        <el-button
+          type="danger"
+          plain
+          :disabled="!selectedRunIds.length"
+          @click="batchDeleteRuns"
+        >
+          <Trash2 aria-hidden="true" />
+          <span>批量删除</span>
+        </el-button>
+      </section>
+
+      <el-table
+        v-loading="healthStore.isLoadingRuns"
+        class="knowledge-run-history-table"
+        :data="healthStore.runsPage.items"
+        :max-height="440"
+        empty-text="暂无维护记录"
+        row-key="id"
+        @selection-change="handleRunSelectionChange"
+      >
+        <el-table-column type="selection" width="48" :selectable="isTerminalRun" />
+        <el-table-column label="操作" min-width="88">
+          <template #default="{ row }">
+            <strong class="knowledge-run-history-table__operation">{{ runOperationLabel(row) }}</strong>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" min-width="116">
+          <template #default="{ row }">
+            <span :class="['knowledge-run-status', runStatusClass(row)]">
+              <Activity aria-hidden="true" />
+              <span>{{ runStatusLabel(row) }}</span>
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column label="范围" min-width="190" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ runScopeLabel(row) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="计数" min-width="170" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ runCountSummary(row) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="时间" min-width="160">
+          <template #default="{ row }">
+            {{ runTimeLabel(row) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="耗时" min-width="96">
+          <template #default="{ row }">
+            {{ runDurationLabel(row) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" fixed="right" width="128">
+          <template #default="{ row }">
+            <div class="knowledge-run-history-table__actions">
+              <el-button
+                text
+                title="查看详情"
+                aria-label="查看详情"
+                @click="openRunDetail(row)"
+              >
+                <Eye aria-hidden="true" />
+              </el-button>
+              <el-button
+                text
+                type="danger"
+                title="删除记录"
+                aria-label="删除记录"
+                :disabled="!isTerminalRun(row)"
+                @click="deleteRun(row)"
+              >
+                <Trash2 aria-hidden="true" />
+              </el-button>
+            </div>
+          </template>
+        </el-table-column>
+      </el-table>
 
       <template #footer>
         <el-pagination
           v-model:current-page="runPage"
           v-model:page-size="runPageSize"
-          :page-sizes="[10, 20, 50]"
+          :page-sizes="[10, 20, 50, 100]"
           :total="healthStore.runsPage.total"
           background
           layout="total, sizes, prev, pager, next"
@@ -635,6 +862,89 @@ defineExpose({
           @size-change="handleRunPageSizeChange"
         />
       </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="isRunDetailDialogOpen"
+      class="knowledge-run-detail-dialog"
+      title="维护记录详情"
+      width="min(720px, calc(100vw - 32px))"
+      align-center
+    >
+      <p v-if="healthStore.isLoadingRuns && !healthStore.selectedRunDetail" class="panel-message">
+        正在读取维护记录详情...
+      </p>
+      <section v-else-if="healthStore.selectedRunDetail" class="knowledge-run-detail">
+        <div class="knowledge-run-detail__header">
+          <strong>{{ runOperationLabel(healthStore.selectedRunDetail) }}</strong>
+          <span :class="['knowledge-run-status', runStatusClass(healthStore.selectedRunDetail)]">
+            <Activity aria-hidden="true" />
+            <span>{{ runStatusLabel(healthStore.selectedRunDetail) }}</span>
+          </span>
+        </div>
+        <dl class="knowledge-run-detail__grid">
+          <div>
+            <dt>范围</dt>
+            <dd>{{ runScopeLabel(healthStore.selectedRunDetail) }}</dd>
+          </div>
+          <div>
+            <dt>任务 ID</dt>
+            <dd>{{ healthStore.selectedRunDetail.id }}</dd>
+          </div>
+          <div v-if="healthStore.selectedRunDetail.folderPath">
+            <dt>目录路径</dt>
+            <dd>{{ healthStore.selectedRunDetail.folderPath }}</dd>
+          </div>
+          <div>
+            <dt>阶段</dt>
+            <dd>{{ healthStore.selectedRunDetail.phase || '无' }}</dd>
+          </div>
+          <div>
+            <dt>排队时间</dt>
+            <dd>{{ formatTime(healthStore.selectedRunDetail.queuedAt) }}</dd>
+          </div>
+          <div>
+            <dt>开始时间</dt>
+            <dd>{{ formatTime(healthStore.selectedRunDetail.startedAt) }}</dd>
+          </div>
+          <div>
+            <dt>完成时间</dt>
+            <dd>{{ formatTime(healthStore.selectedRunDetail.completedAt) }}</dd>
+          </div>
+          <div>
+            <dt>耗时</dt>
+            <dd>{{ runDurationLabel(healthStore.selectedRunDetail) }}</dd>
+          </div>
+        </dl>
+        <dl class="knowledge-run-detail__metrics">
+          <div>
+            <dt>扫描</dt>
+            <dd>{{ healthStore.selectedRunDetail.scannedCount }}</dd>
+          </div>
+          <div>
+            <dt>解析</dt>
+            <dd>{{ healthStore.selectedRunDetail.parsedCount }}</dd>
+          </div>
+          <div>
+            <dt>索引文档</dt>
+            <dd>{{ healthStore.selectedRunDetail.indexedDocumentCount }}</dd>
+          </div>
+          <div :class="{ 'knowledge-run-detail__metric--error': runFailureCount(healthStore.selectedRunDetail) }">
+            <dt>失败</dt>
+            <dd>{{ runFailureCount(healthStore.selectedRunDetail) }}</dd>
+          </div>
+        </dl>
+        <p v-if="healthStore.selectedRunDetail.errorMessage" class="knowledge-run-detail__message">
+          {{ healthStore.selectedRunDetail.errorMessage }}
+        </p>
+        <section v-if="healthStore.selectedRunDetail.failures?.length" class="knowledge-run-detail__failures">
+          <h5>失败明细</h5>
+          <article v-for="failure in healthStore.selectedRunDetail.failures" :key="`${failure.sourcePath}-${failure.message}`">
+            <strong>{{ failure.sourcePath }}</strong>
+            <span>{{ failure.message }}</span>
+          </article>
+        </section>
+      </section>
     </el-dialog>
 
     <KnowledgeHealthDrawer />

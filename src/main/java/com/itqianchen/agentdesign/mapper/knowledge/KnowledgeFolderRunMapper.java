@@ -49,6 +49,11 @@ public interface KnowledgeFolderRunMapper {
      *
      * @param scopeType 范围类型；为空时不限制
      * @param scopeId 范围 ID；全库范围为空
+     * @param operations 操作类型过滤；为空时不限制
+     * @param statuses 状态过滤；为空时不限制
+     * @param keyword 模糊关键词，匹配任务 ID、目录名、目录路径、当前项和错误信息
+     * @param timeFrom 起始时间戳；为空时不限制
+     * @param timeTo 结束时间戳；为空时不限制
      * @param limit 每页数量
      * @param offset 偏移量
      * @return 当前页运行记录
@@ -56,6 +61,11 @@ public interface KnowledgeFolderRunMapper {
     List<KnowledgeFolderRun> findRunsPage(
             @Param("scopeType") String scopeType,
             @Param("scopeId") String scopeId,
+            @Param("operations") List<String> operations,
+            @Param("statuses") List<String> statuses,
+            @Param("keyword") String keyword,
+            @Param("timeFrom") Long timeFrom,
+            @Param("timeTo") Long timeTo,
             @Param("limit") int limit,
             @Param("offset") int offset
     );
@@ -65,11 +75,21 @@ public interface KnowledgeFolderRunMapper {
      *
      * @param scopeType 范围类型；为空时不限制
      * @param scopeId 范围 ID；全库范围为空
+     * @param operations 操作类型过滤；为空时不限制
+     * @param statuses 状态过滤；为空时不限制
+     * @param keyword 模糊关键词，匹配任务 ID、目录名、目录路径、当前项和错误信息
+     * @param timeFrom 起始时间戳；为空时不限制
+     * @param timeTo 结束时间戳；为空时不限制
      * @return 记录数量
      */
     long countRuns(
             @Param("scopeType") String scopeType,
-            @Param("scopeId") String scopeId
+            @Param("scopeId") String scopeId,
+            @Param("operations") List<String> operations,
+            @Param("statuses") List<String> statuses,
+            @Param("keyword") String keyword,
+            @Param("timeFrom") Long timeFrom,
+            @Param("timeTo") Long timeTo
     );
 
     /**
@@ -148,4 +168,22 @@ public interface KnowledgeFolderRunMapper {
             @Param("scopeType") String scopeType,
             @Param("scopeId") String scopeId
     );
+
+    /**
+     * 删除一条终态维护历史记录。
+     *
+     * <p>QUEUED/RUNNING/CANCELLING 是队列事实源，不能通过历史清理接口删除。</p>
+     *
+     * @param id 运行记录 ID
+     * @return 受影响行数
+     */
+    int deleteTerminalById(@Param("id") String id);
+
+    /**
+     * 批量删除终态维护历史记录。
+     *
+     * @param ids 运行记录 ID 列表
+     * @return 受影响行数
+     */
+    int deleteTerminalByIds(@Param("ids") List<String> ids);
 }

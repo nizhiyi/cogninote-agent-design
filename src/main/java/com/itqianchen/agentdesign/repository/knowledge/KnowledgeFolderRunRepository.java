@@ -81,6 +81,11 @@ public class KnowledgeFolderRunRepository {
      *
      * @param scopeType 范围类型；为空时不限制
      * @param scopeId 范围 ID；全库范围为空
+     * @param operations 操作类型过滤；为空时不限制
+     * @param statuses 状态过滤；为空时不限制
+     * @param keyword 模糊关键词，匹配任务 ID、目录名、目录路径、当前项和错误信息
+     * @param timeFrom 起始时间戳；为空时不限制
+     * @param timeTo 结束时间戳；为空时不限制
      * @param page 页码，从 1 开始
      * @param pageSize 每页数量
      * @return 当前页运行记录
@@ -88,6 +93,11 @@ public class KnowledgeFolderRunRepository {
     public List<KnowledgeFolderRun> findRunsPage(
             KnowledgeFolderRunScopeType scopeType,
             String scopeId,
+            List<KnowledgeFolderRunOperation> operations,
+            List<KnowledgeFolderRunStatus> statuses,
+            String keyword,
+            Long timeFrom,
+            Long timeTo,
             Integer page,
             Integer pageSize
     ) {
@@ -96,6 +106,11 @@ public class KnowledgeFolderRunRepository {
         return mapper.findRunsPage(
                 scopeType == null ? null : scopeType.name(),
                 scopeId,
+                enumNames(operations),
+                enumNames(statuses),
+                normalizeKeyword(keyword),
+                timeFrom,
+                timeTo,
                 normalizedPageSize,
                 offset
         );
@@ -108,8 +123,24 @@ public class KnowledgeFolderRunRepository {
      * @param scopeId 范围 ID；全库范围为空
      * @return 记录数量
      */
-    public long countRuns(KnowledgeFolderRunScopeType scopeType, String scopeId) {
-        return mapper.countRuns(scopeType == null ? null : scopeType.name(), scopeId);
+    public long countRuns(
+            KnowledgeFolderRunScopeType scopeType,
+            String scopeId,
+            List<KnowledgeFolderRunOperation> operations,
+            List<KnowledgeFolderRunStatus> statuses,
+            String keyword,
+            Long timeFrom,
+            Long timeTo
+    ) {
+        return mapper.countRuns(
+                scopeType == null ? null : scopeType.name(),
+                scopeId,
+                enumNames(operations),
+                enumNames(statuses),
+                normalizeKeyword(keyword),
+                timeFrom,
+                timeTo
+        );
     }
 
     /**
@@ -195,6 +226,25 @@ public class KnowledgeFolderRunRepository {
         return mapper.deleteByScope(scopeType.name(), scopeId);
     }
 
+    /**
+     * 删除一条终态维护历史记录。
+     *
+     * <p>运行中和排队中的记录是队列状态源，必须通过维护队列接口流转，不能被历史清理入口移除。</p>
+     *
+     * @param id 运行记录 ID
+     * @return 是否删除成功
+     */
+    public boolean deleteTerminalById(String id) {
+        return mapper.deleteTerminalById(id) > 0;
+    }
+
+    public int deleteTerminalByIds(List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return 0;
+        }
+        return mapper.deleteTerminalByIds(ids);
+    }
+
     private static int normalizeLimit(Integer limit) {
         if (limit == null || limit <= 0) {
             return DEFAULT_LIMIT;
@@ -212,5 +262,21 @@ public class KnowledgeFolderRunRepository {
     private static int normalizeOffset(Integer page, int pageSize) {
         int normalizedPage = page == null || page <= 0 ? 1 : page;
         return (normalizedPage - 1) * pageSize;
+    }
+
+    private static <E extends Enum<E>> List<String> enumNames(List<E> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        return values.stream()
+                .map(Enum::name)
+                .toList();
+    }
+
+    private static String normalizeKeyword(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return null;
+        }
+        return keyword.trim().toLowerCase();
     }
 }

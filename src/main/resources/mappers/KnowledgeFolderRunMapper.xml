@@ -34,30 +34,63 @@
     </resultMap>
 
     <sql id="RunColumns">
-        id,
-        scope_type,
-        scope_id,
-        operation,
-        status,
-        scanned_count,
-        parsed_count,
-        skipped_count,
-        failed_count,
-        indexed_document_count,
-        indexed_chunk_count,
-        failed_document_count,
-        failures_json,
-        phase,
-        progress_current,
-        progress_total,
-        current_item,
-        queued_at,
-        started_at,
-        completed_at,
-        duration_ms,
-        error_message,
-        created_at,
-        updated_at
+        run.id AS id,
+        run.scope_type AS scope_type,
+        run.scope_id AS scope_id,
+        run.operation AS operation,
+        run.status AS status,
+        run.scanned_count AS scanned_count,
+        run.parsed_count AS parsed_count,
+        run.skipped_count AS skipped_count,
+        run.failed_count AS failed_count,
+        run.indexed_document_count AS indexed_document_count,
+        run.indexed_chunk_count AS indexed_chunk_count,
+        run.failed_document_count AS failed_document_count,
+        run.failures_json AS failures_json,
+        run.phase AS phase,
+        run.progress_current AS progress_current,
+        run.progress_total AS progress_total,
+        run.current_item AS current_item,
+        run.queued_at AS queued_at,
+        run.started_at AS started_at,
+        run.completed_at AS completed_at,
+        run.duration_ms AS duration_ms,
+        run.error_message AS error_message,
+        run.created_at AS created_at,
+        run.updated_at AS updated_at
+    </sql>
+
+    <sql id="RunFilters">
+        WHERE (#{scopeType} IS NULL OR run.scope_type = #{scopeType})
+          AND (#{scopeId} IS NULL OR run.scope_id = #{scopeId})
+        <if test="operations != null and operations.size() > 0">
+          AND run.operation IN
+          <foreach collection="operations" item="operation" open="(" separator="," close=")">
+              #{operation}
+          </foreach>
+        </if>
+        <if test="statuses != null and statuses.size() > 0">
+          AND run.status IN
+          <foreach collection="statuses" item="status" open="(" separator="," close=")">
+              #{status}
+          </foreach>
+        </if>
+        <if test="timeFrom != null">
+          AND COALESCE(run.completed_at, run.started_at, run.queued_at, run.created_at) &gt;= #{timeFrom}
+        </if>
+        <if test="timeTo != null">
+          AND COALESCE(run.completed_at, run.started_at, run.queued_at, run.created_at) &lt;= #{timeTo}
+        </if>
+        <if test="keyword != null and keyword != ''">
+          AND (
+              lower(run.id) LIKE '%' || #{keyword} || '%'
+              OR lower(COALESCE(run.scope_id, '')) LIKE '%' || #{keyword} || '%'
+              OR lower(COALESCE(run.current_item, '')) LIKE '%' || #{keyword} || '%'
+              OR lower(COALESCE(run.error_message, '')) LIKE '%' || #{keyword} || '%'
+              OR lower(COALESCE(folder.display_name, '')) LIKE '%' || #{keyword} || '%'
+              OR lower(COALESCE(folder.folder_path, '')) LIKE '%' || #{keyword} || '%'
+          )
+        </if>
     </sql>
 
     <insert id="insertRun">
@@ -79,86 +112,90 @@
 
     <select id="findById" resultMap="KnowledgeFolderRunMap">
         SELECT <include refid="RunColumns"/>
-        FROM knowledge_folder_runs
-        WHERE id = #{id}
+        FROM knowledge_folder_runs run
+        WHERE run.id = #{id}
     </select>
 
     <select id="findActiveByScopeAndOperation" resultMap="KnowledgeFolderRunMap">
         SELECT <include refid="RunColumns"/>
-        FROM knowledge_folder_runs
-        WHERE scope_type = #{scopeType}
-          AND ((#{scopeId} IS NULL AND scope_id IS NULL) OR scope_id = #{scopeId})
-          AND operation = #{operation}
-          AND status IN ('QUEUED', 'RUNNING', 'CANCELLING')
-        ORDER BY created_at ASC
+        FROM knowledge_folder_runs run
+        WHERE run.scope_type = #{scopeType}
+          AND ((#{scopeId} IS NULL AND run.scope_id IS NULL) OR run.scope_id = #{scopeId})
+          AND run.operation = #{operation}
+          AND run.status IN ('QUEUED', 'RUNNING', 'CANCELLING')
+        ORDER BY run.created_at ASC
         LIMIT 1
     </select>
 
     <select id="findActiveRuns" resultMap="KnowledgeFolderRunMap">
         SELECT <include refid="RunColumns"/>
-        FROM knowledge_folder_runs
-        WHERE status IN ('RUNNING', 'CANCELLING')
-        ORDER BY started_at ASC, created_at ASC
+        FROM knowledge_folder_runs run
+        WHERE run.status IN ('RUNNING', 'CANCELLING')
+        ORDER BY run.started_at ASC, run.created_at ASC
     </select>
 
     <select id="findQueuedRuns" resultMap="KnowledgeFolderRunMap">
         SELECT <include refid="RunColumns"/>
-        FROM knowledge_folder_runs
-        WHERE status = 'QUEUED'
-        ORDER BY queued_at ASC, created_at ASC
+        FROM knowledge_folder_runs run
+        WHERE run.status = 'QUEUED'
+        ORDER BY run.queued_at ASC, run.created_at ASC
     </select>
 
     <select id="findQueueRuns" resultMap="KnowledgeFolderRunMap">
         SELECT <include refid="RunColumns"/>
-        FROM knowledge_folder_runs
-        WHERE status IN ('QUEUED', 'RUNNING', 'CANCELLING')
+        FROM knowledge_folder_runs run
+        WHERE run.status IN ('QUEUED', 'RUNNING', 'CANCELLING')
         ORDER BY
-            CASE status WHEN 'RUNNING' THEN 0 WHEN 'CANCELLING' THEN 0 ELSE 1 END,
-            COALESCE(started_at, queued_at, created_at) ASC
+            CASE run.status WHEN 'RUNNING' THEN 0 WHEN 'CANCELLING' THEN 0 ELSE 1 END,
+            COALESCE(run.started_at, run.queued_at, run.created_at) ASC
     </select>
 
     <select id="findRuns" resultMap="KnowledgeFolderRunMap">
         SELECT <include refid="RunColumns"/>
-        FROM knowledge_folder_runs
-        WHERE (#{scopeType} IS NULL OR scope_type = #{scopeType})
-          AND (#{scopeId} IS NULL OR scope_id = #{scopeId})
-        ORDER BY created_at DESC
+        FROM knowledge_folder_runs run
+        WHERE (#{scopeType} IS NULL OR run.scope_type = #{scopeType})
+          AND (#{scopeId} IS NULL OR run.scope_id = #{scopeId})
+        ORDER BY run.created_at DESC
         LIMIT #{limit}
     </select>
 
     <select id="findRunsPage" resultMap="KnowledgeFolderRunMap">
         SELECT <include refid="RunColumns"/>
-        FROM knowledge_folder_runs
-        WHERE (#{scopeType} IS NULL OR scope_type = #{scopeType})
-          AND (#{scopeId} IS NULL OR scope_id = #{scopeId})
-        ORDER BY created_at DESC
+        FROM knowledge_folder_runs run
+        LEFT JOIN knowledge_folders folder
+          ON run.scope_type = 'KNOWLEDGE_FOLDER'
+         AND folder.id = run.scope_id
+        <include refid="RunFilters"/>
+        ORDER BY run.created_at DESC
         LIMIT #{limit}
         OFFSET #{offset}
     </select>
 
     <select id="countRuns" resultType="_long">
         SELECT COUNT(1)
-        FROM knowledge_folder_runs
-        WHERE (#{scopeType} IS NULL OR scope_type = #{scopeType})
-          AND (#{scopeId} IS NULL OR scope_id = #{scopeId})
+        FROM knowledge_folder_runs run
+        LEFT JOIN knowledge_folders folder
+          ON run.scope_type = 'KNOWLEDGE_FOLDER'
+         AND folder.id = run.scope_id
+        <include refid="RunFilters"/>
     </select>
 
     <select id="findLatestRunsByScope" resultMap="KnowledgeFolderRunMap">
         SELECT <include refid="RunColumns"/>
         FROM knowledge_folder_runs run
-        WHERE created_at = (
+        WHERE run.created_at = (
             SELECT MAX(inner_run.created_at)
             FROM knowledge_folder_runs inner_run
             WHERE inner_run.scope_type = run.scope_type
               AND ((inner_run.scope_id IS NULL AND run.scope_id IS NULL) OR inner_run.scope_id = run.scope_id)
         )
-        ORDER BY created_at DESC
+        ORDER BY run.created_at DESC
     </select>
 
     <select id="findLatestRun" resultMap="KnowledgeFolderRunMap">
         SELECT <include refid="RunColumns"/>
-        FROM knowledge_folder_runs
-        ORDER BY created_at DESC
+        FROM knowledge_folder_runs run
+        ORDER BY run.created_at DESC
         LIMIT 1
     </select>
 
@@ -275,5 +312,20 @@
         DELETE FROM knowledge_folder_runs
         WHERE scope_type = #{scopeType}
           AND ((#{scopeId} IS NULL AND scope_id IS NULL) OR scope_id = #{scopeId})
+    </delete>
+
+    <delete id="deleteTerminalById">
+        DELETE FROM knowledge_folder_runs
+        WHERE id = #{id}
+          AND status NOT IN ('QUEUED', 'RUNNING', 'CANCELLING')
+    </delete>
+
+    <delete id="deleteTerminalByIds">
+        DELETE FROM knowledge_folder_runs
+        WHERE status NOT IN ('QUEUED', 'RUNNING', 'CANCELLING')
+          AND id IN
+          <foreach collection="ids" item="id" open="(" separator="," close=")">
+              #{id}
+          </foreach>
     </delete>
 </mapper>

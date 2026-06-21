@@ -1,10 +1,12 @@
 package com.itqianchen.agentdesign.service.knowledge;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itqianchen.agentdesign.common.api.ResourceNotFoundException;
 import com.itqianchen.agentdesign.domain.document.DocumentStatus;
 import com.itqianchen.agentdesign.domain.document.KnowledgeDocument;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolder;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRun;
+import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunOperation;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunScopeType;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunStatus;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderSummary;
@@ -12,8 +14,11 @@ import com.itqianchen.agentdesign.domain.knowledge.KnowledgeHealthIssueCode;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeHealthStatus;
 import com.itqianchen.agentdesign.domain.search.KnowledgeStore;
 import com.itqianchen.agentdesign.dto.index.IndexStatusResponse;
+import com.itqianchen.agentdesign.dto.document.IngestFailureResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderHealthResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderHealthSummaryResponse;
+import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunDeleteResponse;
+import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunDetailResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunPageResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeHealthIssueResponse;
@@ -57,6 +62,7 @@ public class KnowledgeHealthService {
     private final KnowledgeFolderRunRepository runRepository;
     private final KnowledgeStore knowledgeStore;
     private final DocumentIngestionService ingestionService;
+    private final ObjectMapper objectMapper;
 
     /**
      * 注入知识库健康诊断依赖。
@@ -66,19 +72,22 @@ public class KnowledgeHealthService {
      * @param runRepository 维护运行记录仓储
      * @param knowledgeStore 检索索引边界
      * @param ingestionService 文档扫描边界
+     * @param objectMapper JSON 失败明细解析器
      */
     public KnowledgeHealthService(
             KnowledgeFolderRepository folderRepository,
             DocumentRepository documentRepository,
             KnowledgeFolderRunRepository runRepository,
             KnowledgeStore knowledgeStore,
-            DocumentIngestionService ingestionService
+            DocumentIngestionService ingestionService,
+            ObjectMapper objectMapper
     ) {
         this.folderRepository = folderRepository;
         this.documentRepository = documentRepository;
         this.runRepository = runRepository;
         this.knowledgeStore = knowledgeStore;
         this.ingestionService = ingestionService;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -213,6 +222,11 @@ public class KnowledgeHealthService {
      *
      * @param scopeType 范围类型；为空时查询全部
      * @param scopeId 范围 ID；全库为空
+     * @param operations 操作类型过滤；为空时不限制
+     * @param statuses 状态过滤；为空时不限制
+     * @param keyword 模糊关键词，匹配任务 ID、目录名、目录路径、当前项和错误信息
+     * @param timeFrom 起始时间戳；为空时不限制
+     * @param timeTo 结束时间戳；为空时不限制
      * @param page 页码，从 1 开始
      * @param pageSize 每页数量
      * @return 分页运行记录响应
@@ -221,6 +235,11 @@ public class KnowledgeHealthService {
     public KnowledgeFolderRunPageResponse runsPage(
             KnowledgeFolderRunScopeType scopeType,
             String scopeId,
+            List<KnowledgeFolderRunOperation> operations,
+            List<KnowledgeFolderRunStatus> statuses,
+            String keyword,
+            Long timeFrom,
+            Long timeTo,
             Integer page,
             Integer pageSize
     ) {
@@ -229,6 +248,11 @@ public class KnowledgeHealthService {
         List<KnowledgeFolderRunResponse> items = runRepository.findRunsPage(
                         scopeType,
                         scopeId,
+                        operations,
+                        statuses,
+                        keyword,
+                        timeFrom,
+                        timeTo,
                         normalizedPage,
                         normalizedPageSize
                 )
@@ -237,10 +261,83 @@ public class KnowledgeHealthService {
                 .toList();
         return new KnowledgeFolderRunPageResponse(
                 items,
-                runRepository.countRuns(scopeType, scopeId),
+                runRepository.countRuns(scopeType, scopeId, operations, statuses, keyword, timeFrom, timeTo),
                 normalizedPage,
                 normalizedPageSize
         );
+    }
+
+    /**
+     * 查询单条维护记录详情。
+     *
+     * <p>失败明细只在详情接口解析，避免分页列表携带过大的 failures_json。</p>
+     *
+     * @param runId 运行记录 ID
+     * @return 维护记录详情
+     */
+    @Transactional(readOnly = true)
+    public KnowledgeFolderRunDetailResponse runDetail(String runId) {
+        KnowledgeFolderRun run = runRepository.findById(runId)
+                .orElseThrow(() -> new ResourceNotFoundException("Knowledge maintenance run not found: " + runId));
+        KnowledgeFolder folder = run.scopeType() == KnowledgeFolderRunScopeType.KNOWLEDGE_FOLDER && run.scopeId() != null
+                ? folderRepository.findById(run.scopeId()).orElse(null)
+                : null;
+        return KnowledgeFolderRunDetailResponse.from(run, folder, parseFailures(run));
+    }
+
+    /**
+     * 删除单条终态维护历史。
+     *
+     * @param runId 运行记录 ID
+     * @return 删除结果
+     */
+    @Transactional
+    public KnowledgeFolderRunDeleteResponse deleteRun(String runId) {
+        KnowledgeFolderRun run = runRepository.findById(runId)
+                .orElseThrow(() -> new ResourceNotFoundException("Knowledge maintenance run not found: " + runId));
+        if (!isTerminalRun(run.status())) {
+            return new KnowledgeFolderRunDeleteResponse(0, 1, List.of(runId));
+        }
+        boolean deleted = runRepository.deleteTerminalById(runId);
+        return new KnowledgeFolderRunDeleteResponse(deleted ? 1 : 0, deleted ? 0 : 1, deleted ? List.of() : List.of(runId));
+    }
+
+    /**
+     * 批量删除终态维护历史。
+     *
+     * <p>活跃任务会被跳过而不是强删，保证维护队列事实源不被历史清理入口破坏。</p>
+     *
+     * @param runIds 运行记录 ID 列表
+     * @return 删除结果
+     */
+    @Transactional
+    public KnowledgeFolderRunDeleteResponse deleteRuns(List<String> runIds) {
+        if (runIds == null || runIds.isEmpty()) {
+            return new KnowledgeFolderRunDeleteResponse(0, 0, List.of());
+        }
+        List<String> normalizedIds = runIds.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(id -> !id.isBlank())
+                .distinct()
+                .toList();
+        List<String> deletableIds = new ArrayList<>();
+        List<String> skippedIds = new ArrayList<>();
+        for (String id : normalizedIds) {
+            runRepository.findById(id)
+                    .ifPresentOrElse(run -> {
+                        if (isTerminalRun(run.status())) {
+                            deletableIds.add(id);
+                        } else {
+                            skippedIds.add(id);
+                        }
+                    }, () -> skippedIds.add(id));
+        }
+        int deletedCount = runRepository.deleteTerminalByIds(deletableIds);
+        if (deletedCount < deletableIds.size()) {
+            skippedIds.addAll(deletableIds.subList(deletedCount, deletableIds.size()));
+        }
+        return new KnowledgeFolderRunDeleteResponse(deletedCount, skippedIds.size(), skippedIds);
     }
 
     /**
@@ -258,6 +355,24 @@ public class KnowledgeHealthService {
             }
         }
         return runs;
+    }
+
+    private List<IngestFailureResponse> parseFailures(KnowledgeFolderRun run) {
+        if (run.failuresJson() == null || run.failuresJson().isBlank()) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readerForListOf(IngestFailureResponse.class).readValue(run.failuresJson());
+        } catch (IOException ex) {
+            log.warn("knowledge_folder_run_failures_json_decode_failed runId={}", run.id(), ex);
+            return List.of();
+        }
+    }
+
+    private static boolean isTerminalRun(KnowledgeFolderRunStatus status) {
+        return status != KnowledgeFolderRunStatus.QUEUED
+                && status != KnowledgeFolderRunStatus.RUNNING
+                && status != KnowledgeFolderRunStatus.CANCELLING;
     }
 
     /**

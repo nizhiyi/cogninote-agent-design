@@ -1,15 +1,24 @@
 package com.itqianchen.agentdesign.controller.knowledge;
 
 import com.itqianchen.agentdesign.common.api.ApiResponse;
+import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunOperation;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunScopeType;
+import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunStatus;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderHealthResponse;
+import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunBatchDeleteRequest;
+import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunDeleteResponse;
+import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunDetailResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunPageResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeHealthResponse;
 import com.itqianchen.agentdesign.service.knowledge.KnowledgeHealthService;
+import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -77,6 +86,11 @@ public class KnowledgeHealthController {
      *
      * @param scopeType 范围类型；为空时查询全部
      * @param scopeId 范围 ID；全库范围为空
+     * @param operations 操作类型列表；为空时不限制
+     * @param statuses 状态列表；为空时不限制
+     * @param keyword 模糊关键词，匹配任务 ID、目录名、路径和错误信息
+     * @param timeFrom 起始时间戳；为空时不限制
+     * @param timeTo 结束时间戳；为空时不限制
      * @param page 页码，从 1 开始
      * @param pageSize 每页数量
      * @return 分页运行记录
@@ -85,9 +99,59 @@ public class KnowledgeHealthController {
     public ApiResponse<KnowledgeFolderRunPageResponse> runsPage(
             @RequestParam(required = false) KnowledgeFolderRunScopeType scopeType,
             @RequestParam(required = false) String scopeId,
+            @RequestParam(required = false) List<KnowledgeFolderRunOperation> operations,
+            @RequestParam(required = false) List<KnowledgeFolderRunStatus> statuses,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Long timeFrom,
+            @RequestParam(required = false) Long timeTo,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer pageSize
     ) {
-        return ApiResponse.ok(healthService.runsPage(scopeType, scopeId, page, pageSize));
+        return ApiResponse.ok(healthService.runsPage(
+                scopeType,
+                scopeId,
+                operations,
+                statuses,
+                keyword,
+                timeFrom,
+                timeTo,
+                page,
+                pageSize
+        ));
+    }
+
+    /**
+     * 查询单条维护记录详情。
+     *
+     * @param runId 运行记录 ID
+     * @return 维护记录详情
+     */
+    @GetMapping("/runs/{runId}")
+    public ApiResponse<KnowledgeFolderRunDetailResponse> runDetail(@PathVariable String runId) {
+        return ApiResponse.ok(healthService.runDetail(runId));
+    }
+
+    /**
+     * 删除一条终态维护历史记录。
+     *
+     * @param runId 运行记录 ID
+     * @return 删除结果
+     */
+    @DeleteMapping("/runs/{runId}")
+    public ApiResponse<KnowledgeFolderRunDeleteResponse> deleteRun(@PathVariable String runId) {
+        return ApiResponse.ok(healthService.deleteRun(runId));
+    }
+
+    /**
+     * 批量删除终态维护历史记录。
+     *
+     * @param request 批量删除请求
+     * @return 删除结果
+     */
+    @PostMapping("/runs/batch-delete")
+    public ApiResponse<KnowledgeFolderRunDeleteResponse> deleteRuns(
+            @Valid @RequestBody KnowledgeFolderRunBatchDeleteRequest request
+    ) {
+        return ApiResponse.ok(healthService.deleteRuns(request.ids()));
     }
 }

@@ -9,8 +9,11 @@
   .knowledge-health-command-center,
   .knowledge-health-signal-grid,
   .knowledge-health-main-grid,
+  .knowledge-run-history-toolbar,
   .knowledge-health-run-dialog-list header,
   .knowledge-health-run-dialog-list article,
+  .knowledge-run-detail__grid,
+  .knowledge-run-detail__metrics,
   .knowledge-overview-grid,
   .knowledge-directory-summary,
   .knowledge-directory-entry,
@@ -87,6 +90,7 @@
   .knowledge-folder-import__controls,
   .knowledge-health-drawer__actions,
   .knowledge-directory-toolbar__actions,
+  .knowledge-run-history-toolbar__actions,
   .search-form__controls {
     align-items: stretch;
     flex-direction: column;
