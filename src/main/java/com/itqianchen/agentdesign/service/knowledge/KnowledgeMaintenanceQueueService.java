@@ -5,6 +5,7 @@ import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRun;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunOperation;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunScopeType;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunStatus;
+import com.itqianchen.agentdesign.domain.knowledge.KnowledgeMaintenanceException;
 import com.itqianchen.agentdesign.domain.ingestion.DocumentParseException;
 import com.itqianchen.agentdesign.domain.ingestion.DocumentIdentity;
 import com.itqianchen.agentdesign.dto.document.IngestDocumentsResponse;
@@ -163,14 +164,7 @@ public class KnowledgeMaintenanceQueueService implements ApplicationListener<App
             publisher.publishQueueUpdated(queue());
             return true;
         }
-        if (run.status() == KnowledgeFolderRunStatus.RUNNING) {
-            runRepository.markCancelling(runId);
-            publisher.cancel(runId);
-            runRepository.findById(runId).map(KnowledgeFolderRunResponse::from)
-                    .ifPresent(response -> publisher.publishProgress(runId, response));
-            return true;
-        }
-        return false;
+        throw new KnowledgeMaintenanceException("只能取消等待中的维护任务；正在运行的任务会自动执行到安全完成点。");
     }
 
     private synchronized KnowledgeFolderRunResponse enqueue(MaintenanceTaskRequest request) {
@@ -369,8 +363,8 @@ public class KnowledgeMaintenanceQueueService implements ApplicationListener<App
 
     private void ensureNotCancelledBeforeSideEffects(String runId) {
         /*
-         * 取消是协作式的：只在进入 SQLite/Lucene 写入前的安全点停止。
-         * 已经进入底层导入或重建后不强杀线程，避免留下半写入索引或未提交事务。
+         * 这里只处理历史兼容或极短窗口内的取消标记。
+         * 用户入口只允许取消 QUEUED，避免运行中任务被误认为可以随时安全中断。
          */
         if (publisher.isCancelled(runId)) {
             throw new CancelledMaintenanceRunException("用户取消维护任务。");

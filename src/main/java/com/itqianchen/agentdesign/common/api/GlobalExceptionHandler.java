@@ -2,6 +2,7 @@ package com.itqianchen.agentdesign.common.api;
 
 import com.itqianchen.agentdesign.domain.ingestion.DocumentParseException;
 import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphException;
+import com.itqianchen.agentdesign.domain.knowledge.KnowledgeMaintenanceException;
 import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
 import com.itqianchen.agentdesign.domain.search.EmbeddingUnavailableException;
 import com.itqianchen.agentdesign.domain.search.SearchIndexException;
@@ -86,6 +87,21 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(KnowledgeGraphException.class)
     public ResponseEntity<?> handleKnowledgeGraphException(KnowledgeGraphException ex, HttpServletResponse response) {
+        return errorResponse(response, HttpStatus.BAD_REQUEST, ApiErrorCode.BAD_REQUEST, ex.getMessage());
+    }
+
+    /**
+     * 维护队列操作失败属于用户可恢复状态，直接返回原因给前端展示。
+     *
+     * @param ex 维护任务异常
+     * @param response 当前 HTTP 响应
+     * @return API 错误响应
+     */
+    @ExceptionHandler(KnowledgeMaintenanceException.class)
+    public ResponseEntity<?> handleKnowledgeMaintenanceException(
+            KnowledgeMaintenanceException ex,
+            HttpServletResponse response
+    ) {
         return errorResponse(response, HttpStatus.BAD_REQUEST, ApiErrorCode.BAD_REQUEST, ex.getMessage());
     }
 

@@ -97,10 +97,10 @@ function runOperationLabel(run) {
 </script>
 
 <template>
-  <section class="knowledge-pane knowledge-pane--folders" aria-label="知识库资料管理">
+  <section class="knowledge-pane knowledge-pane--folders" aria-label="知识库资料总览">
     <header class="knowledge-pane__header knowledge-pane__header--compact">
       <div>
-        <p class="eyebrow">资料管理</p>
+        <p class="eyebrow">资料总览</p>
         <h3>知识库总览</h3>
         <p class="muted-text">导入本地资料，查看全局健康状态；目录维护在独立列表中处理。</p>
       </div>

@@ -104,6 +104,11 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
     if (!runId) {
       return
     }
+    const run = allActiveRuns().find((item) => item.id === runId)
+    if (run?.status !== 'QUEUED') {
+      error.value = '只能取消等待中的维护任务；正在运行的任务会自动执行到安全完成点。'
+      return
+    }
     setCancelling(runId, true)
     error.value = ''
     try {

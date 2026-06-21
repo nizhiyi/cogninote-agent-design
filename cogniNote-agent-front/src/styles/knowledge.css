@@ -962,6 +962,12 @@
   min-height: 36px;
 }
 
+.knowledge-maintenance-task__hint {
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .knowledge-maintenance-queue-list {
   display: grid;
   gap: 8px;

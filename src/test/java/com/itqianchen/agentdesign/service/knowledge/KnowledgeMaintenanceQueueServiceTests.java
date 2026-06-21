@@ -1,7 +1,9 @@
 package com.itqianchen.agentdesign.service.knowledge;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -11,6 +13,7 @@ import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRun;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunOperation;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunScopeType;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunStatus;
+import com.itqianchen.agentdesign.domain.knowledge.KnowledgeMaintenanceException;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunResponse;
 import com.itqianchen.agentdesign.repository.knowledge.KnowledgeFolderRunRepository;
 import com.itqianchen.agentdesign.service.index.IndexService;
@@ -86,6 +89,25 @@ class KnowledgeMaintenanceQueueServiceTests {
         assertThat(accepted).isTrue();
         verify(runRepository).markCancelled("run-queued", "用户取消排队中的维护任务。");
         verify(publisher).publishCancelled("run-queued", KnowledgeFolderRunResponse.from(cancelledRun));
+    }
+
+    @Test
+    void cancelRunningRunIsRejectedWithoutChangingState() {
+        KnowledgeFolderRun runningRun = run(
+                "run-running",
+                KnowledgeFolderRunStatus.RUNNING,
+                KnowledgeFolderRunOperation.REBUILD_INDEX,
+                KnowledgeFolderRunScopeType.ALL,
+                null
+        );
+        when(runRepository.findById("run-running")).thenReturn(Optional.of(runningRun));
+
+        assertThatThrownBy(() -> service.cancel("run-running"))
+                .isInstanceOf(KnowledgeMaintenanceException.class)
+                .hasMessageContaining("只能取消等待中的维护任务");
+
+        verify(runRepository, never()).markCancelling("run-running");
+        verify(publisher, never()).cancel("run-running");
     }
 
     private static KnowledgeFolderRun run(

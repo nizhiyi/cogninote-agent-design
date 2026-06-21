@@ -481,13 +481,9 @@ function runCountSummary(run) {
           :indeterminate="!currentRuns[0].progressTotal"
           :show-text="Boolean(currentRuns[0].progressTotal)"
         />
-        <el-button
-          :disabled="currentRuns[0].status === 'CANCELLING'"
-          :loading="maintenanceStore.isRunCancelling(currentRuns[0].id)"
-          @click="maintenanceStore.cancelRun(currentRuns[0].id)"
-        >
-          取消任务
-        </el-button>
+        <span class="knowledge-maintenance-task__hint">
+          运行中任务不可取消，等待队列中的任务可取消。
+        </span>
       </article>
 
       <p v-else class="knowledge-health-empty">
