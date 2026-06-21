@@ -1,12 +1,17 @@
 <script setup>
 import { computed, ref } from 'vue'
 import {
+  Activity,
   AlertTriangle,
+  BrainCircuit,
   ChevronRight,
+  Database,
   FolderPlus,
-  ListTree,
   RefreshCw,
-  RotateCcw
+  RotateCcw,
+  ShieldAlert,
+  ShieldCheck,
+  Wrench
 } from 'lucide-vue-next'
 import KnowledgeFolderImportDialog from './knowledge-folder-import-dialog.vue'
 import KnowledgeHealthDrawer from './knowledge-health-drawer.vue'
@@ -43,6 +48,44 @@ const issueFolders = computed(() =>
   (knowledgeHealthStore.health?.folders || []).filter((folderHealthSummary) => folderHealthIssueCount(folderHealthSummary))
 )
 const recentFolders = computed(() => knowledgeStore.folders.slice(0, 4))
+const healthIssues = computed(() => knowledgeHealthStore.health?.issues || [])
+const systemIssues = computed(() => healthIssues.value.filter((issue) => issue.scopeType === 'ALL' && !issue.scopeId))
+const hasIndexIssue = computed(() => systemIssues.value.some((issue) => issue.code === 'INDEX_INCONSISTENT'))
+const hasEmbeddingIssue = computed(() => systemIssues.value.some((issue) => issue.code === 'EMBEDDING_UNCONFIGURED'))
+const issueEntryCount = computed(() => issueFolders.value.length + systemIssues.value.length)
+const runningRuns = computed(() =>
+  (knowledgeHealthStore.health?.folders || [])
+    .map((folder) => ({ folder, run: folder.lastRun }))
+    .filter((entry) => entry.run?.status === 'RUNNING')
+)
+const trustSignals = computed(() => [
+  {
+    key: 'lucene',
+    icon: Database,
+    label: 'Lucene 一致性',
+    value: healthSummary.value?.indexConsistent ? '一致' : '不一致',
+    state: healthSummary.value?.indexConsistent ? 'ok' : 'error',
+    detail: `${healthSummary.value?.luceneDocumentCount || 0} 文档 / ${healthSummary.value?.luceneChunkCount || 0} chunks`
+  },
+  {
+    key: 'embedding',
+    icon: BrainCircuit,
+    label: 'Embedding',
+    value: healthSummary.value?.embeddingConfigured ? '可用' : '未配置',
+    state: healthSummary.value?.embeddingConfigured ? 'ok' : 'warning',
+    detail: healthSummary.value?.embeddingConfigured ? '向量和混合检索可用' : '向量/混合检索会提示配置'
+  },
+  {
+    key: 'running',
+    icon: Activity,
+    label: '当前任务',
+    value: runningRuns.value.length ? '运行中' : '空闲',
+    state: runningRuns.value.length ? 'warning' : 'ok',
+    detail: runningRuns.value.length
+      ? runningRuns.value.map((entry) => `${entry.folder.displayName} ${runOperationLabel(entry.run)}`).join('、')
+      : '没有目录维护任务'
+  }
+])
 
 /**
  * 全量重建会触发高成本索引操作，只在用户明确点击时执行。
@@ -55,6 +98,14 @@ async function rebuildAllIndexes() {
       knowledgeHealthStore.fetchHealth()
     ])
   }
+}
+
+async function handlePrimaryRepair() {
+  if (hasIndexIssue.value) {
+    await rebuildAllIndexes()
+    return
+  }
+  openHealthIssuesDialog()
 }
 
 function openImportDialog() {
@@ -116,13 +167,6 @@ function runOperationLabel(run) {
           <FolderPlus aria-hidden="true" />
           <span>导入目录</span>
         </el-button>
-<!--        <RouterLink-->
-<!--          class="knowledge-header-link"-->
-<!--          :to="{ name: 'knowledge', query: { panel: 'directories' } }"-->
-<!--        >-->
-<!--          <ListTree aria-hidden="true" />-->
-<!--          <span>目录管理</span>-->
-<!--        </RouterLink>-->
         <el-button :loading="searchStore.isRebuildingIndex" @click="rebuildAllIndexes">
           <RotateCcw aria-hidden="true" />
           <span>重建索引</span>
@@ -130,15 +174,19 @@ function runOperationLabel(run) {
       </div>
     </header>
 
-    <section v-if="knowledgeHealthStore.health" class="knowledge-health-overview">
-      <div class="knowledge-health-overview__main">
-        <span :class="['status-chip', healthStatusClass(knowledgeHealthStore.health.status)]">
-          {{ healthStatusLabel(knowledgeHealthStore.health.status) }}
-        </span>
+    <section v-if="knowledgeHealthStore.health" class="knowledge-health-overview knowledge-health-console">
+      <div class="knowledge-health-console__main">
+        <component
+          :is="knowledgeHealthStore.health.status === 'HEALTHY' ? ShieldCheck : ShieldAlert"
+          aria-hidden="true"
+        />
         <div>
-          <strong>知识库可信状态</strong>
+          <span :class="['status-chip', healthStatusClass(knowledgeHealthStore.health.status)]">
+            {{ healthStatusLabel(knowledgeHealthStore.health.status) }}
+          </span>
+          <strong>可信状态控制台</strong>
           <p class="muted-text">
-            {{ healthSummary?.enabledFolderCount || 0 }} 个启用目录 · {{ healthSummary?.documentCount || 0 }} 个文档
+            {{ healthSummary?.enabledFolderCount || 0 }} 个启用目录 · {{ healthSummary?.documentCount || 0 }} 个文档 · {{ healthSummary?.chunkCount || 0 }} chunks
           </p>
         </div>
       </div>
@@ -148,14 +196,38 @@ function runOperationLabel(run) {
         <span>缺失 {{ healthSummary?.missingLocalFileCount || 0 }}</span>
         <span>变化 {{ healthSummary?.staleLocalFileCount || 0 }}</span>
       </div>
+      <div class="knowledge-health-console__signals" aria-label="可信状态信号">
+        <div
+          v-for="signal in trustSignals"
+          :key="signal.key"
+          :class="['knowledge-health-signal', `knowledge-health-signal--${signal.state}`]"
+        >
+          <component :is="signal.icon" aria-hidden="true" />
+          <div>
+            <span>{{ signal.label }}</span>
+            <strong>{{ signal.value }}</strong>
+            <em>{{ signal.detail }}</em>
+          </div>
+        </div>
+      </div>
       <div class="knowledge-health-overview__actions">
         <el-button
-          :disabled="issueFolders.length === 0"
-          @click="openHealthIssuesDialog"
+          :disabled="!hasIndexIssue && issueEntryCount === 0"
+          :loading="searchStore.isRebuildingIndex"
+          @click="handlePrimaryRepair"
         >
-          <AlertTriangle aria-hidden="true" />
-          <span>查看问题</span>
+          <Wrench v-if="hasIndexIssue" aria-hidden="true" />
+          <AlertTriangle v-else aria-hidden="true" />
+          <span>{{ hasIndexIssue ? '重建索引' : '查看问题' }}</span>
         </el-button>
+        <RouterLink
+          v-if="hasEmbeddingIssue"
+          class="knowledge-header-link"
+          :to="{ name: 'settings', query: { item: 'model-embedding' } }"
+        >
+          <BrainCircuit aria-hidden="true" />
+          <span>配置向量模型</span>
+        </RouterLink>
         <el-button :loading="knowledgeHealthStore.isLoading" @click="knowledgeHealthStore.fetchHealth">
           <RefreshCw aria-hidden="true" />
           <span>刷新诊断</span>
@@ -296,8 +368,35 @@ function runOperationLabel(run) {
       width="min(720px, calc(100vw - 32px))"
       align-center
     >
-      <p v-if="issueFolders.length === 0" class="panel-message">当前没有需要处理的问题目录。</p>
+      <p v-if="issueEntryCount === 0" class="panel-message">当前没有需要处理的问题。</p>
       <section v-else class="knowledge-health-issue-folders">
+        <article
+          v-for="issue in systemIssues"
+          :key="issue.code"
+          class="knowledge-health-issue-folder knowledge-health-issue-folder--system"
+        >
+          <div>
+            <strong>{{ issue.message }}</strong>
+            <div class="folder-meta">
+              <span :class="['status-chip', issue.severity === 'ERROR' ? 'status-chip--health-error' : 'status-chip--health-warning']">
+                {{ issue.severity }}
+              </span>
+              <span>{{ issue.action }}</span>
+            </div>
+          </div>
+          <el-button v-if="issue.code === 'INDEX_INCONSISTENT'" :loading="searchStore.isRebuildingIndex" @click="rebuildAllIndexes">
+            <RotateCcw aria-hidden="true" />
+            <span>重建索引</span>
+          </el-button>
+          <RouterLink
+            v-else-if="issue.code === 'EMBEDDING_UNCONFIGURED'"
+            class="knowledge-directory-entry__link"
+            :to="{ name: 'settings', query: { item: 'model-embedding' } }"
+          >
+            <span>配置向量模型</span>
+            <ChevronRight aria-hidden="true" />
+          </RouterLink>
+        </article>
         <article
           v-for="folder in issueFolders"
           :key="folder.id"

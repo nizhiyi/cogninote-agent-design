@@ -14,6 +14,10 @@ public record KnowledgeHealthSummaryResponse(
         int staleLocalFileCount,
         int chunkCount,
         Long lastIngestedAt,
-        Long lastIndexedAt
+        Long lastIndexedAt,
+        long luceneDocumentCount,
+        long luceneChunkCount,
+        boolean embeddingConfigured,
+        boolean indexConsistent
 ) {
 }

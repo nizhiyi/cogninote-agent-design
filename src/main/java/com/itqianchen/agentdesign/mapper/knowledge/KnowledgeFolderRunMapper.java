@@ -36,4 +36,16 @@ public interface KnowledgeFolderRunMapper {
      * @return 每个 scope 的最近维护记录
      */
     List<KnowledgeFolderRun> findLatestRunsByScope();
+
+    /**
+     * 删除指定 scope 的维护运行记录。
+     *
+     * @param scopeType 范围类型
+     * @param scopeId 范围 ID；全库范围为空
+     * @return 删除的记录数量
+     */
+    int deleteByScope(
+            @Param("scopeType") String scopeType,
+            @Param("scopeId") String scopeId
+    );
 }

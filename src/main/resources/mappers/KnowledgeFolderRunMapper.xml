@@ -83,4 +83,10 @@
         )
         ORDER BY created_at DESC
     </select>
+
+    <delete id="deleteByScope">
+        DELETE FROM knowledge_folder_runs
+        WHERE scope_type = #{scopeType}
+          AND ((#{scopeId} IS NULL AND scope_id IS NULL) OR scope_id = #{scopeId})
+    </delete>
 </mapper>

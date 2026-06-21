@@ -22,10 +22,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.cn.smart.SmartChineseAnalyzer;
@@ -40,6 +42,7 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
@@ -50,6 +53,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.util.Bits;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -217,7 +221,7 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
         IndexStatistics statistics = documentRepository.indexStatistics();
         try {
             ensureIndexDirectory();
-            IndexCounts indexCounts = readIndexCounts(statistics);
+            IndexCounts indexCounts = readIndexCounts();
             return new IndexStatusResponse(
                     appStorage.luceneIndexDir().toString(),
                     indexCounts.documentCount(),
@@ -583,16 +587,29 @@ public class LuceneKnowledgeStore implements KnowledgeStore {
      * @return 索引计数
      * @throws IOException 当 Lucene reader 打开失败时抛出
      */
-    private IndexCounts readIndexCounts(IndexStatistics statistics) throws IOException {
+    private IndexCounts readIndexCounts() throws IOException {
         if (!indexExists()) {
             return new IndexCounts(0, 0);
         }
 
         return searchWithReader(searcher -> {
-            long documentCount = Math.max(0L,
-                    statistics.parsedDocumentCount() - statistics.unindexedDocumentCount()
-            );
-            return new IndexCounts(documentCount, searcher.getIndexReader().numDocs());
+            Set<String> documentIds = new HashSet<>();
+            for (LeafReaderContext leaf : searcher.getIndexReader().leaves()) {
+                Bits liveDocs = leaf.reader().getLiveDocs();
+                for (int docId = 0; docId < leaf.reader().maxDoc(); docId++) {
+                    if (liveDocs != null && !liveDocs.get(docId)) {
+                        continue;
+                    }
+                    Document document = searcher.storedFields().document(
+                            leaf.docBase + docId,
+                            Set.of(SearchFieldNames.DOCUMENT_ID)
+                    );
+                    if (StringUtils.hasText(document.get(SearchFieldNames.DOCUMENT_ID))) {
+                        documentIds.add(document.get(SearchFieldNames.DOCUMENT_ID));
+                    }
+                }
+            }
+            return new IndexCounts(documentIds.size(), searcher.getIndexReader().numDocs());
         });
     }
 

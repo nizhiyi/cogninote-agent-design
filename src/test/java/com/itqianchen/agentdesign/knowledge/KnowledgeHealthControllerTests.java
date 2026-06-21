@@ -1,5 +1,6 @@
 package com.itqianchen.agentdesign.knowledge;
 
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -67,19 +68,42 @@ class KnowledgeHealthControllerTests {
     }
 
     @Test
-    void healthReturnsHealthySnapshotAfterImport() throws Exception {
+    void healthReturnsTrustSnapshotAfterImport() throws Exception {
         Files.writeString(tempDir.resolve("healthy.md"), "# Healthy\n\nhealthchecktoken");
 
         String folderId = importFolder(tempDir);
 
         mockMvc.perform(get("/api/knowledge-health"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("HEALTHY"))
+                .andExpect(jsonPath("$.data.status").value("WARNING"))
                 .andExpect(jsonPath("$.data.summary.folderCount").value(1))
                 .andExpect(jsonPath("$.data.summary.documentCount").value(1))
+                .andExpect(jsonPath("$.data.summary.luceneDocumentCount").value(1))
+                .andExpect(jsonPath("$.data.summary.luceneChunkCount").value(1))
+                .andExpect(jsonPath("$.data.summary.embeddingConfigured").value(false))
+                .andExpect(jsonPath("$.data.summary.indexConsistent").value(true))
+                .andExpect(jsonPath("$.data.issues[*].code", hasItem("EMBEDDING_UNCONFIGURED")))
                 .andExpect(jsonPath("$.data.folders[0].id").value(folderId))
                 .andExpect(jsonPath("$.data.folders[0].status").value("HEALTHY"))
                 .andExpect(jsonPath("$.data.folders[0].lastRun.operation").value("IMPORT"));
+    }
+
+    @Test
+    void healthReportsLuceneIndexInconsistentWhenIndexedDocumentIsMissing() throws Exception {
+        Files.writeString(tempDir.resolve("inconsistent.md"), "# Inconsistent\n\nlucene-drift-token");
+        String folderId = importFolder(tempDir);
+        KnowledgeDocument document = documentRepository.findByKnowledgeFolderIdOrderByUpdatedAtDesc(folderId)
+                .get(0);
+
+        knowledgeStore.deleteByDocumentId(document.id());
+
+        mockMvc.perform(get("/api/knowledge-health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("ERROR"))
+                .andExpect(jsonPath("$.data.summary.luceneDocumentCount").value(0))
+                .andExpect(jsonPath("$.data.summary.luceneChunkCount").value(0))
+                .andExpect(jsonPath("$.data.summary.indexConsistent").value(false))
+                .andExpect(jsonPath("$.data.issues[*].code", hasItem("INDEX_INCONSISTENT")));
     }
 
     @Test
@@ -155,12 +179,14 @@ class KnowledgeHealthControllerTests {
 
         mockMvc.perform(get("/api/knowledge-health"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("HEALTHY"))
+                .andExpect(jsonPath("$.data.status").value("WARNING"))
                 .andExpect(jsonPath("$.data.summary.folderCount").value(2))
                 .andExpect(jsonPath("$.data.summary.enabledFolderCount").value(1))
                 .andExpect(jsonPath("$.data.summary.documentCount").value(1))
+                .andExpect(jsonPath("$.data.summary.indexConsistent").value(true))
                 .andExpect(jsonPath("$.data.summary.unindexedCount").value(0))
-                .andExpect(jsonPath("$.data.issues.length()").value(0));
+                .andExpect(jsonPath("$.data.issues.length()").value(1))
+                .andExpect(jsonPath("$.data.issues[0].code").value("EMBEDDING_UNCONFIGURED"));
 
         mockMvc.perform(get("/api/knowledge-health/folders/{id}", disabledFolderId))
                 .andExpect(status().isOk())

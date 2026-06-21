@@ -30,6 +30,10 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .knowledge-health-console__signals {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .field--full,
   .model-form__actions {
     grid-column: auto;

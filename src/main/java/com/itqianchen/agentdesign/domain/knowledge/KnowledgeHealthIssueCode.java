@@ -25,5 +25,11 @@ public enum KnowledgeHealthIssueCode {
     MISSING_LOCAL_FILES,
 
     /** 目录已停用。 */
-    DISABLED_FOLDER
+    DISABLED_FOLDER,
+
+    /** SQLite 事实与 Lucene 索引统计不一致。 */
+    INDEX_INCONSISTENT,
+
+    /** 当前未配置可用 Embedding，向量或混合检索会降级。 */
+    EMBEDDING_UNCONFIGURED
 }

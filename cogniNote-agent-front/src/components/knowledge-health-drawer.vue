@@ -1,52 +1,87 @@
 <script setup>
 import { computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Copy, FolderSync, RotateCcw } from 'lucide-vue-next'
+import { BrainCircuit, Copy, Database, FolderSync, RotateCcw } from 'lucide-vue-next'
 import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
 import { useKnowledgeHealthStore } from '../stores/knowledge-health'
+import { useSearchStore } from '../stores/search'
 import { formatTime } from '../utils/formatters'
 
 const knowledgeStore = useKnowledgeFoldersStore()
 const healthStore = useKnowledgeHealthStore()
+const searchStore = useSearchStore()
 
 const currentFolder = computed(() =>
   (healthStore.health?.folders || []).find((folder) => folder.id === healthStore.selectedFolderId) || null
 )
-const drawerTitle = computed(() => currentFolder.value?.displayName || '知识库问题')
+const drawerTitle = computed(() => currentFolder.value?.displayName ? `${currentFolder.value.displayName} · 诊断与修复` : '知识库诊断与修复')
 const folderHealth = computed(() => healthStore.folderHealth)
 // 后端按问题来源拆分文档列表，前端只负责分区展示，不在这里重新推导健康状态。
 const problemSections = computed(() => [
   {
     key: 'failed',
     title: '解析失败',
+    action: 'SYNC_FOLDER',
     items: folderHealth.value?.failedDocuments || []
   },
   {
     key: 'unindexed',
     title: '未进入索引',
+    action: 'REBUILD_INDEX',
     items: folderHealth.value?.unindexedDocuments || []
   },
   {
     key: 'missing',
     title: '本地文件缺失',
+    action: 'SYNC_FOLDER',
     items: folderHealth.value?.missingLocalFiles || []
   },
   {
     key: 'stale',
     title: '疑似已变化',
+    action: 'SYNC_FOLDER',
     items: folderHealth.value?.staleLocalFiles || []
   }
 ].filter((section) => section.items.length))
 const issueCount = computed(() => folderHealth.value?.issues?.reduce((total, issue) => total + issue.count, 0) || 0)
 const canRepairFolder = computed(() => Boolean(currentFolder.value?.enabled && healthStore.selectedFolderId))
+const globalIssues = computed(() => (healthStore.health?.issues || []).filter((issue) => issue.scopeType === 'ALL' && !issue.scopeId))
+const hasFolderSyncIssues = computed(() => problemSections.value.some((section) => section.action === 'SYNC_FOLDER'))
+const hasFolderIndexIssues = computed(() => problemSections.value.some((section) => section.action === 'REBUILD_INDEX'))
+const hasIndexIssue = computed(() => globalIssues.value.some((issue) => issue.code === 'INDEX_INCONSISTENT'))
+const hasEmbeddingIssue = computed(() => globalIssues.value.some((issue) => issue.code === 'EMBEDDING_UNCONFIGURED'))
+const systemProblemSections = computed(() => [
+  {
+    key: 'INDEX_INCONSISTENT',
+    title: '索引不一致',
+    icon: Database,
+    action: 'REBUILD_INDEX',
+    issues: globalIssues.value.filter((issue) => issue.code === 'INDEX_INCONSISTENT')
+  },
+  {
+    key: 'EMBEDDING_UNCONFIGURED',
+    title: 'Embedding 不可用',
+    icon: BrainCircuit,
+    action: 'CONFIGURE_EMBEDDING',
+    issues: globalIssues.value.filter((issue) => issue.code === 'EMBEDDING_UNCONFIGURED')
+  }
+].filter((section) => section.issues.length))
 
-// issue.action 是后端建议，不在抽屉中自动执行；删除、启停等破坏性动作仍交给目录面板显式确认。
+// issue.action 是后端建议；抽屉只映射到同步、重建、配置这类显式且可恢复的操作。
 async function syncSelectedFolder() {
   if (!healthStore.selectedFolderId) {
     return
   }
   await knowledgeStore.syncFolder(healthStore.selectedFolderId)
   await healthStore.fetchFolderHealth(healthStore.selectedFolderId)
+}
+
+async function rebuildGlobalIndex() {
+  await searchStore.rebuildIndex()
+  await healthStore.fetchHealth()
+  if (healthStore.selectedFolderId) {
+    await healthStore.fetchFolderHealth(healthStore.selectedFolderId)
+  }
 }
 
 async function rebuildSelectedFolder() {
@@ -99,19 +134,39 @@ function fallbackCopy(text) {
 
     <div class="knowledge-health-drawer__actions">
       <el-button
+        v-if="hasFolderSyncIssues"
         :disabled="!canRepairFolder || knowledgeStore.isFolderBusy(healthStore.selectedFolderId)"
+        :loading="knowledgeStore.isFolderBusy(healthStore.selectedFolderId)"
         @click="syncSelectedFolder"
       >
         <FolderSync aria-hidden="true" />
-        <span>同步目录</span>
+        <span>同步/重试</span>
       </el-button>
       <el-button
+        v-if="hasFolderIndexIssues"
         :disabled="!canRepairFolder || knowledgeStore.isFolderBusy(healthStore.selectedFolderId)"
+        :loading="knowledgeStore.isFolderBusy(healthStore.selectedFolderId)"
         @click="rebuildSelectedFolder"
       >
         <RotateCcw aria-hidden="true" />
-        <span>重建索引</span>
+        <span>重建目录索引</span>
       </el-button>
+      <el-button
+        v-if="hasIndexIssue"
+        :loading="searchStore.isRebuildingIndex"
+        @click="rebuildGlobalIndex"
+      >
+        <Database aria-hidden="true" />
+        <span>重建全库索引</span>
+      </el-button>
+      <RouterLink
+        v-if="hasEmbeddingIssue"
+        class="knowledge-header-link"
+        :to="{ name: 'settings', query: { item: 'model-embedding' } }"
+      >
+        <BrainCircuit aria-hidden="true" />
+        <span>配置向量模型</span>
+      </RouterLink>
     </div>
 
     <el-alert
@@ -130,9 +185,28 @@ function fallbackCopy(text) {
         <span>{{ issue.severity }} · {{ issue.action }}</span>
       </article>
     </section>
-    <p v-if="!healthStore.isLoadingFolder && !problemSections.length" class="panel-message">
+    <p v-if="!healthStore.isLoadingFolder && !problemSections.length && !systemProblemSections.length" class="panel-message">
       当前目录没有需要处理的文件问题。
     </p>
+
+    <section
+      v-for="section in systemProblemSections"
+      :key="section.key"
+      class="knowledge-problem-section knowledge-problem-section--system"
+    >
+      <h4>
+        <component :is="section.icon" aria-hidden="true" />
+        <span>{{ section.title }}</span>
+      </h4>
+      <article
+        v-for="issue in section.issues"
+        :key="issue.code"
+        class="knowledge-issue-item"
+      >
+        <strong>{{ issue.message }}</strong>
+        <span>{{ issue.severity }} · {{ issue.action }}</span>
+      </article>
+    </section>
 
     <section
       v-for="section in problemSections"

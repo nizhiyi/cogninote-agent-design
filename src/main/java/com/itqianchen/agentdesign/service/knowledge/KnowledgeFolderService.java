@@ -293,7 +293,6 @@ public class KnowledgeFolderService {
      */
     @Transactional
     public void deleteFolder(String id) {
-        long startedAt = System.currentTimeMillis();
         requireFolder(id);
         deleteFolderIndexEntries(id);
         knowledgeGraphRepository.deleteByKnowledgeFolderId(id);
@@ -301,8 +300,12 @@ public class KnowledgeFolderService {
         if (!knowledgeFolderRepository.deleteById(id)) {
             throw new ResourceNotFoundException("Knowledge folder not found: " + id);
         }
+        /*
+         * 目录删除后不再保留该目录 scope 的维护历史。否则健康页和运行记录查询会继续暴露
+         * 已不存在的目录 ID，让用户误以为还有可信状态数据需要处理。
+         */
+        runService.deleteFolderRuns(id);
         log.info("knowledge_folder_deleted folderId={} deletedDocuments={}", id, deletedDocuments);
-        runService.recordDelete(id, deletedDocuments, startedAt);
     }
 
     /**

@@ -57,6 +57,17 @@ public class KnowledgeFolderRunRepository {
         return mapper.findLatestRunsByScope();
     }
 
+    /**
+     * 删除指定范围的运行记录。
+     *
+     * @param scopeType 范围类型
+     * @param scopeId 范围 ID；全库范围为空
+     * @return 删除的记录数量
+     */
+    public int deleteByScope(KnowledgeFolderRunScopeType scopeType, String scopeId) {
+        return mapper.deleteByScope(scopeType.name(), scopeId);
+    }
+
     private static int normalizeLimit(Integer limit) {
         if (limit == null || limit <= 0) {
             return DEFAULT_LIMIT;

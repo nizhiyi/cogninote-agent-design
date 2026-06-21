@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import {
+  Activity,
   AlertTriangle,
   ChevronDown,
   ChevronRight,
@@ -10,6 +11,7 @@ import {
   FolderPlus,
   FolderSync,
   RefreshCw,
+  RotateCcw,
   Search,
   SlidersHorizontal
 } from 'lucide-vue-next'
@@ -43,6 +45,13 @@ const RUN_OPERATION_LABELS = {
   ENABLE: '启用',
   DISABLE: '停用',
   DELETE: '删除'
+}
+
+const RUN_STATUS_LABELS = {
+  RUNNING: '运行中',
+  COMPLETED: '完成',
+  COMPLETED_WITH_WARNINGS: '有失败项',
+  FAILED: '失败'
 }
 
 const normalizedFolderSearchKeyword = computed(() => normalizeSearchText(folderSearchKeyword.value))
@@ -164,6 +173,54 @@ function runOperationLabel(run) {
   return RUN_OPERATION_LABELS[run?.operation] || run?.operation || ''
 }
 
+function runStatusLabel(run) {
+  return RUN_STATUS_LABELS[run?.status] || run?.status || '无记录'
+}
+
+function runStatusClass(run) {
+  return `knowledge-run-status--${String(run?.status || 'unknown').toLowerCase()}`
+}
+
+function lastRun(folder) {
+  return folderHealth(folder)?.lastRun || null
+}
+
+function isFolderRunning(folder) {
+  return lastRun(folder)?.status === 'RUNNING' || knowledgeStore.isFolderBusy(folder.id)
+}
+
+function repairAction(folder) {
+  const health = folderHealth(folder)
+  if (!health || !folder.enabled) {
+    return 'sync'
+  }
+  if (health.unindexedCount > 0) {
+    return 'rebuild'
+  }
+  return 'sync'
+}
+
+function repairLabel(folder) {
+  if (isFolderRunning(folder)) {
+    return '运行中'
+  }
+  if (repairAction(folder) === 'rebuild') {
+    return '重建索引'
+  }
+  return folderIssueCount(folder) ? '重试同步' : '同步'
+}
+
+async function repairFolder(folder) {
+  if (!folder.enabled || isFolderRunning(folder)) {
+    return
+  }
+  if (repairAction(folder) === 'rebuild') {
+    await knowledgeStore.rebuildFolder(folder.id)
+    return
+  }
+  await knowledgeStore.syncFolder(folder.id)
+}
+
 function clearFilters() {
   folderSearchKeyword.value = ''
   folderStatusFilter.value = 'all'
@@ -177,7 +234,7 @@ async function confirmDeleteFolder(folder) {
 
   try {
     await ElMessageBox.confirm(
-      `确定删除“${folder.displayName}”这个知识库目录记录吗？本地原始文件不会被删除。`,
+      `确定删除“${folder.displayName}”这个知识库目录记录吗？会删除应用内目录、文档、索引、图谱派生数据和该目录维护记录；本地原始文件不会被删除。`,
       '删除知识库目录',
       {
         confirmButtonText: '删除',
@@ -339,24 +396,39 @@ async function refreshDirectories() {
             </div>
 
             <div class="knowledge-directory-row__time">
-              <span v-if="folderHealth(folder)?.lastRun">
-                最近{{ runOperationLabel(folderHealth(folder).lastRun) }} {{ formatTime(folderHealth(folder).lastRun.completedAt) }}
-              </span>
+              <div
+                v-if="lastRun(folder)"
+                :class="['knowledge-run-status', runStatusClass(lastRun(folder))]"
+              >
+                <Activity aria-hidden="true" />
+                <span>{{ runStatusLabel(lastRun(folder)) }}</span>
+                <em>最近{{ runOperationLabel(lastRun(folder)) }} {{ formatTime(lastRun(folder).completedAt) }}</em>
+              </div>
+              <el-progress
+                v-if="isFolderRunning(folder)"
+                :percentage="50"
+                :show-text="false"
+                :indeterminate="true"
+                :duration="1.6"
+                aria-label="目录维护运行中"
+              />
               <span>导入 {{ formatTime(folder.lastIngestedAt) }}</span>
               <span>索引 {{ formatTime(folder.lastIndexedAt) }}</span>
             </div>
 
             <div class="knowledge-directory-row__actions">
               <el-button
-                :disabled="knowledgeStore.isFolderBusy(folder.id) || !folder.enabled"
+                :disabled="isFolderRunning(folder) || !folder.enabled"
+                :loading="isFolderRunning(folder)"
                 title="扫描新增、修改和删除的文件，只处理差异"
-                @click="knowledgeStore.syncFolder(folder.id)"
+                @click="repairFolder(folder)"
               >
-                <FolderSync aria-hidden="true" />
-                <span>同步</span>
+                <RotateCcw v-if="repairAction(folder) === 'rebuild'" aria-hidden="true" />
+                <FolderSync v-else aria-hidden="true" />
+                <span>{{ repairLabel(folder) }}</span>
               </el-button>
               <el-button
-                :disabled="knowledgeStore.isFolderBusy(folder.id)"
+                :disabled="isFolderRunning(folder)"
                 @click="knowledgeStore.toggleFolderEnabled(folder)"
               >
                 {{ folder.enabled ? '停用' : '启用' }}
@@ -364,8 +436,9 @@ async function refreshDirectories() {
               <el-dropdown trigger="click">
                 <el-button
                   class="knowledge-directory-more-button"
-                  :disabled="knowledgeStore.isFolderBusy(folder.id)"
+                  :disabled="isFolderRunning(folder)"
                   aria-label="更多目录操作"
+                  title="更多目录操作"
                 >
                   <EllipsisVertical aria-hidden="true" />
                 </el-button>

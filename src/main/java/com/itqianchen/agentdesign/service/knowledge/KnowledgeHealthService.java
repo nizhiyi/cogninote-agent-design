@@ -9,6 +9,8 @@ import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunScopeType;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderSummary;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeHealthIssueCode;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeHealthStatus;
+import com.itqianchen.agentdesign.domain.search.KnowledgeStore;
+import com.itqianchen.agentdesign.dto.index.IndexStatusResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderHealthResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderHealthSummaryResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunResponse;
@@ -48,6 +50,7 @@ public class KnowledgeHealthService {
     private final KnowledgeFolderRepository folderRepository;
     private final DocumentRepository documentRepository;
     private final KnowledgeFolderRunRepository runRepository;
+    private final KnowledgeStore knowledgeStore;
 
     /**
      * 注入知识库健康诊断依赖。
@@ -55,15 +58,18 @@ public class KnowledgeHealthService {
      * @param folderRepository 知识库目录仓储
      * @param documentRepository 文档仓储
      * @param runRepository 维护运行记录仓储
+     * @param knowledgeStore 检索索引边界
      */
     public KnowledgeHealthService(
             KnowledgeFolderRepository folderRepository,
             DocumentRepository documentRepository,
-            KnowledgeFolderRunRepository runRepository
+            KnowledgeFolderRunRepository runRepository,
+            KnowledgeStore knowledgeStore
     ) {
         this.folderRepository = folderRepository;
         this.documentRepository = documentRepository;
         this.runRepository = runRepository;
+        this.knowledgeStore = knowledgeStore;
     }
 
     /**
@@ -79,8 +85,9 @@ public class KnowledgeHealthService {
                 .map(summary -> folderSnapshot(summary, latestRuns.get(scopeKey(summary.folder().id()))))
                 .toList();
 
-        KnowledgeHealthSummaryResponse summary = totalSummary(folderSnapshots);
-        List<KnowledgeHealthIssueResponse> issues = aggregateIssues(folderSnapshots);
+        IndexHealthSnapshot indexHealth = indexHealth(folderSnapshots);
+        KnowledgeHealthSummaryResponse summary = totalSummary(folderSnapshots, indexHealth);
+        List<KnowledgeHealthIssueResponse> issues = allIssues(folderSnapshots, summary, indexHealth);
         KnowledgeHealthStatus status = overallStatus(folderSnapshots, summary, issues);
         List<KnowledgeFolderHealthSummaryResponse> folders = folderSnapshots.stream()
                 .map(FolderHealthSnapshot::toSummaryResponse)
@@ -211,6 +218,7 @@ public class KnowledgeHealthService {
                     KnowledgeHealthStatus.DISABLED,
                     0,
                     0,
+                    0,
                     latestRun == null ? null : KnowledgeFolderRunResponse.from(latestRun),
                     List.of()
             );
@@ -226,6 +234,7 @@ public class KnowledgeHealthService {
                 folderStatus(summary, probe, issues),
                 probe.missingLocalFiles().size(),
                 probe.staleLocalFiles().size(),
+                indexedChunkCount(documents),
                 latestRun == null ? null : KnowledgeFolderRunResponse.from(latestRun),
                 issues
         );
@@ -416,7 +425,10 @@ public class KnowledgeHealthService {
      * @param snapshots 目录健康快照列表
      * @return 全库统计摘要
      */
-    private KnowledgeHealthSummaryResponse totalSummary(List<FolderHealthSnapshot> snapshots) {
+    private KnowledgeHealthSummaryResponse totalSummary(
+            List<FolderHealthSnapshot> snapshots,
+            IndexHealthSnapshot indexHealth
+    ) {
         int folderCount = snapshots.size();
         int enabledFolderCount = 0;
         int documentCount = 0;
@@ -460,8 +472,56 @@ public class KnowledgeHealthService {
                 staleLocalFileCount,
                 chunkCount,
                 lastIngestedAt,
-                lastIndexedAt
+                lastIndexedAt,
+                indexHealth.luceneDocumentCount(),
+                indexHealth.luceneChunkCount(),
+                indexHealth.embeddingConfigured(),
+                indexHealth.indexConsistent()
         );
+    }
+
+    /**
+     * 读取 Lucene 和 Embedding 状态并与 SQLite 快照做一致性判断。
+     *
+     * <p>SQLite 仍是业务事实来源；Lucene 统计只用于发现索引目录损坏或漏写。</p>
+     *
+     * @param snapshots 当前目录健康快照
+     * @return 索引健康快照
+     */
+    private IndexHealthSnapshot indexHealth(List<FolderHealthSnapshot> snapshots) {
+        long expectedIndexedDocumentCount = 0;
+        long expectedIndexedChunkCount = 0;
+
+        for (FolderHealthSnapshot snapshot : snapshots) {
+            if (!snapshot.summary().folder().enabled()) {
+                continue;
+            }
+            expectedIndexedDocumentCount += Math.max(0, snapshot.summary().parsedCount() - snapshot.summary().unindexedCount());
+            expectedIndexedChunkCount += snapshot.indexedChunkCount();
+        }
+        List<KnowledgeDocument> unassignedDocuments = documentRepository.findUnassignedOrderByUpdatedAtDesc();
+        expectedIndexedDocumentCount += unassignedDocuments.stream()
+                .filter(document -> document.status() == DocumentStatus.PARSED)
+                .filter(document -> document.indexedAt() != null)
+                .count();
+        expectedIndexedChunkCount += indexedChunkCount(unassignedDocuments);
+
+        try {
+            IndexStatusResponse status = knowledgeStore.status();
+            boolean consistent = status.indexedDocumentCount() == expectedIndexedDocumentCount
+                    && status.indexedChunkCount() == expectedIndexedChunkCount;
+            return new IndexHealthSnapshot(
+                    status.indexedDocumentCount(),
+                    status.indexedChunkCount(),
+                    status.embeddingConfigured(),
+                    consistent,
+                    true,
+                    null
+            );
+        } catch (RuntimeException ex) {
+            log.warn("knowledge_health_index_probe_failed", ex);
+            return new IndexHealthSnapshot(0, 0, false, false, false, ex.getMessage());
+        }
     }
 
     /**
@@ -472,6 +532,57 @@ public class KnowledgeHealthService {
      * @param snapshots 目录健康快照列表
      * @return 全库聚合问题列表
      */
+    private List<KnowledgeHealthIssueResponse> allIssues(
+            List<FolderHealthSnapshot> snapshots,
+            KnowledgeHealthSummaryResponse summary,
+            IndexHealthSnapshot indexHealth
+    ) {
+        List<KnowledgeHealthIssueResponse> issues = new ArrayList<>();
+        issues.addAll(aggregateIssues(snapshots));
+        issues.addAll(systemIssues(summary, indexHealth));
+        return issues.stream()
+                .sorted(Comparator.comparing(KnowledgeHealthIssueResponse::severity))
+                .toList();
+    }
+
+    /**
+     * 生成不属于单个目录的全局诊断问题。
+     *
+     * @param summary 全库统计摘要
+     * @param indexHealth 索引健康快照
+     * @return 全局问题列表
+     */
+    private List<KnowledgeHealthIssueResponse> systemIssues(
+            KnowledgeHealthSummaryResponse summary,
+            IndexHealthSnapshot indexHealth
+    ) {
+        List<KnowledgeHealthIssueResponse> issues = new ArrayList<>();
+        if (!indexHealth.indexConsistent()) {
+            String message = indexHealth.readable()
+                    ? "Lucene 索引与 SQLite 文档记录不一致，搜索和 RAG 可能缺失内容。"
+                    : "Lucene 索引状态读取失败，建议重建索引。";
+            issues.add(issue(
+                    KnowledgeHealthIssueCode.INDEX_INCONSISTENT,
+                    "ERROR",
+                    message,
+                    "REBUILD_INDEX",
+                    null,
+                    1
+            ));
+        }
+        if (summary.documentCount() > 0 && !indexHealth.embeddingConfigured()) {
+            issues.add(issue(
+                    KnowledgeHealthIssueCode.EMBEDDING_UNCONFIGURED,
+                    "WARNING",
+                    "尚未配置可用向量模型；向量或混合检索会降级为关键词检索。",
+                    "CONFIGURE_EMBEDDING",
+                    null,
+                    1
+            ));
+        }
+        return List.copyOf(issues);
+    }
+
     private List<KnowledgeHealthIssueResponse> aggregateIssues(List<FolderHealthSnapshot> snapshots) {
         Map<KnowledgeHealthIssueCode, IssueAggregate> aggregates = new LinkedHashMap<>();
         for (FolderHealthSnapshot snapshot : snapshots) {
@@ -552,6 +663,22 @@ public class KnowledgeHealthService {
     }
 
     /**
+     * 统计已经完成索引的 SQLite chunk 数。
+     *
+     * <p>Lucene 一致性校验只能和已索引文档比较；未索引文档会单独形成 UNINDEXED_DOCUMENTS 问题。</p>
+     *
+     * @param documents 目录下的文档记录
+     * @return 已索引文档包含的 chunk 数
+     */
+    private static int indexedChunkCount(List<KnowledgeDocument> documents) {
+        return documents.stream()
+                .filter(document -> document.status() == DocumentStatus.PARSED)
+                .filter(document -> document.indexedAt() != null)
+                .mapToInt(KnowledgeDocument::chunkCount)
+                .sum();
+    }
+
+    /**
      * 构造目录范围的问题响应。
      *
      * @param code 问题类型
@@ -575,7 +702,7 @@ public class KnowledgeHealthService {
                 severity,
                 message,
                 action,
-                KnowledgeFolderRunScopeType.KNOWLEDGE_FOLDER,
+                scopeId == null ? KnowledgeFolderRunScopeType.ALL : KnowledgeFolderRunScopeType.KNOWLEDGE_FOLDER,
                 scopeId,
                 count
         );
@@ -640,6 +767,7 @@ public class KnowledgeHealthService {
             KnowledgeHealthStatus status,
             int missingLocalFileCount,
             int staleLocalFileCount,
+            int indexedChunkCount,
             KnowledgeFolderRunResponse lastRun,
             List<KnowledgeHealthIssueResponse> issues
     ) {
@@ -667,6 +795,21 @@ public class KnowledgeHealthService {
                     lastRun
             );
         }
+    }
+
+    /**
+     * Lucene 和 Embedding 的全局诊断快照。
+     *
+     * <p>readable=false 表示索引状态读取失败，此时 indexConsistent 固定为 false。</p>
+     */
+    private record IndexHealthSnapshot(
+            long luceneDocumentCount,
+            long luceneChunkCount,
+            boolean embeddingConfigured,
+            boolean indexConsistent,
+            boolean readable,
+            String errorMessage
+    ) {
     }
 
     /**

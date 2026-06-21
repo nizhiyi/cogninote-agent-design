@@ -7,6 +7,9 @@ package com.itqianchen.agentdesign.domain.knowledge;
  * COMPLETED_WITH_WARNINGS。</p>
  */
 public enum KnowledgeFolderRunStatus {
+    /** 操作正在执行，前端应禁用重复触发并展示运行中状态。 */
+    RUNNING,
+
     /** 操作完成且没有报告失败项。 */
     COMPLETED,
 

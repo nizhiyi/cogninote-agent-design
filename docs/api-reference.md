@@ -215,6 +215,8 @@ DELETE /api/knowledge-folders/{id}
 
 删除目录记录、关联文档、chunks 和 Lucene 条目。不会删除用户本机原始文件。
 
+第 32 阶段后，删除目录还会清理该目录 scope 下的 `knowledge_folder_runs` 维护记录，避免删除后继续显示孤儿可信状态数据。`ALL` scope 和其他目录的运行记录不受影响。
+
 ## 知识库健康
 
 知识库健康接口只做诊断，不会自动同步、重建、启停或删除。状态由 SQLite 文档记录、目录配置、索引字段和本地文件元数据即时派生；维护运行记录保存在 `knowledge_folder_runs` 中。
@@ -241,7 +243,11 @@ GET /api/knowledge-health
     "staleLocalFileCount": 2,
     "chunkCount": 560,
     "lastIngestedAt": 1780000000000,
-    "lastIndexedAt": 1780000005000
+    "lastIndexedAt": 1780000005000,
+    "luceneDocumentCount": 40,
+    "luceneChunkCount": 560,
+    "embeddingConfigured": false,
+    "indexConsistent": true
   },
   "issues": [],
   "folders": []
@@ -249,6 +255,8 @@ GET /api/knowledge-health
 ```
 
 `status` 支持 `HEALTHY`、`WARNING`、`ERROR`、`DISABLED`、`EMPTY`。`issues[].action` 是建议动作，例如 `SYNC_FOLDER`、`REBUILD_INDEX`、`DELETE_FOLDER`，前端仍需调用对应目录或索引接口执行。停用目录返回 `DISABLED`，作为用户主动排除检索范围的维护状态，不计入全库问题数量或 `WARNING/ERROR`。
+
+第 32 阶段新增的 `summary.luceneDocumentCount` 和 `summary.luceneChunkCount` 来自 Lucene reader 实际统计；`summary.indexConsistent=false` 表示 SQLite 中应已索引的文档/chunk 与 Lucene reader 统计不一致；`summary.embeddingConfigured=false` 表示当前没有可用 Embedding，向量或混合检索需要配置向量模型。
 
 当前问题代码：
 
@@ -261,6 +269,8 @@ GET /api/knowledge-health
 | `STALE_LOCAL_FILES` | `WARNING` | 本地文件大小或修改时间已变化 | 同步目录 |
 | `MISSING_LOCAL_FILES` | `WARNING` | 已记录文件在本地不存在 | 同步目录清理应用内记录 |
 | `DISABLED_FOLDER` | `INFO` | 目录已停用；当前实现仅作为状态语义保留，不进入问题列表 | 在目录管理列表中启用目录 |
+| `INDEX_INCONSISTENT` | `ERROR` | SQLite 事实与 Lucene reader 统计不一致 | 重建索引 |
+| `EMBEDDING_UNCONFIGURED` | `WARNING` | 未配置可用 Embedding，向量或混合检索不可用 | 配置向量模型或切换关键词检索 |
 
 ### 查询目录健康详情
 
@@ -303,7 +313,7 @@ GET /api/knowledge-health/runs?scopeType=KNOWLEDGE_FOLDER&scopeId=folder-xxx&lim
 
 `scopeType` 可省略；支持 `ALL`、`KNOWLEDGE_FOLDER`、`UNASSIGNED`。返回导入、同步、重建索引、启停和删除的最近记录。
 
-运行记录 `operation` 支持 `IMPORT`、`SYNC`、`REBUILD_INDEX`、`ENABLE`、`DISABLE`、`DELETE`；`status` 支持 `COMPLETED`、`COMPLETED_WITH_WARNINGS`、`FAILED`。记录写入失败只会写 warning 日志，不影响原导入、同步或重建操作的主流程。
+运行记录 `operation` 支持 `IMPORT`、`SYNC`、`REBUILD_INDEX`、`ENABLE`、`DISABLE`、`DELETE`；`status` 支持 `RUNNING`、`COMPLETED`、`COMPLETED_WITH_WARNINGS`、`FAILED`。记录写入失败只会写 warning 日志，不影响原导入、同步或重建操作的主流程。
 
 ## 检索与索引
 

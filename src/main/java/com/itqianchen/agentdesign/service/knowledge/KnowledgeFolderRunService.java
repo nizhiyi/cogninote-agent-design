@@ -188,6 +188,22 @@ public class KnowledgeFolderRunService {
         ));
     }
 
+    /**
+     * 删除某个目录的维护运行记录。
+     *
+     * <p>目录删除后，该 scope 已不再有可展示对象；保留历史会让健康页出现孤儿可信状态数据。</p>
+     *
+     * @param folderId 目录 ID
+     */
+    public void deleteFolderRuns(String folderId) {
+        try {
+            int deleted = runRepository.deleteByScope(KnowledgeFolderRunScopeType.KNOWLEDGE_FOLDER, folderId);
+            log.info("knowledge_folder_runs_deleted folderId={} deleted={}", folderId, deleted);
+        } catch (RuntimeException ex) {
+            log.warn("knowledge_folder_runs_delete_failed folderId={}", folderId, ex);
+        }
+    }
+
     private void recordIngestRun(
             KnowledgeFolderRunOperation operation,
             String folderId,

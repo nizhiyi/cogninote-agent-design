@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itqianchen.agentdesign.domain.search.KnowledgeStore;
 import com.itqianchen.agentdesign.support.TestDatabaseCleaner;
@@ -111,7 +112,68 @@ class KnowledgeFolderControllerTests {
         mockMvc.perform(get("/api/knowledge-folders"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.folders.length()").value(0));
+        mockMvc.perform(get("/api/knowledge-health/runs")
+                        .queryParam("scopeType", "KNOWLEDGE_FOLDER")
+                        .queryParam("scopeId", folderId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0));
         searchKeyword("local file", 0);
+    }
+
+    @Test
+    void deleteFolderCleansOnlyItsMaintenanceRuns() throws Exception {
+        Path first = Files.createDirectory(tempDir.resolve("first"));
+        Path second = Files.createDirectory(tempDir.resolve("second"));
+        // 文件系统访问可能抛出 IO 异常，调用方需要保留失败上下文。
+        Files.writeString(first.resolve("first.txt"), "first-maintenance-token");
+        // 文件系统访问可能抛出 IO 异常，调用方需要保留失败上下文。
+        Files.writeString(second.resolve("second.txt"), "second-maintenance-token");
+        String firstFolderId = importFolder(first);
+        String secondFolderId = importFolder(second);
+
+        mockMvc.perform(get("/api/knowledge-health/runs")
+                        .queryParam("scopeType", "KNOWLEDGE_FOLDER")
+                        .queryParam("scopeId", firstFolderId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1));
+
+        mockMvc.perform(delete("/api/knowledge-folders/{id}", firstFolderId))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/knowledge-health/runs")
+                        .queryParam("scopeType", "KNOWLEDGE_FOLDER")
+                        .queryParam("scopeId", firstFolderId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0));
+        mockMvc.perform(get("/api/knowledge-health/runs")
+                        .queryParam("scopeType", "KNOWLEDGE_FOLDER")
+                        .queryParam("scopeId", secondFolderId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].operation").value("IMPORT"));
+        searchKeyword("second-maintenance-token", 1);
+    }
+
+    @Test
+    void smokeImportSearchHealthDeleteAndRunCleanup() throws Exception {
+        // 文件系统访问可能抛出 IO 异常，调用方需要保留失败上下文。
+        Files.writeString(tempDir.resolve("smoke.txt"), "phase32-smoke-token");
+        String folderId = importFolder(tempDir);
+
+        searchKeyword("phase32-smoke-token", 1);
+        mockMvc.perform(get("/api/knowledge-health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.summary.indexConsistent").value(true));
+
+        mockMvc.perform(delete("/api/knowledge-folders/{id}", folderId))
+                .andExpect(status().isNoContent());
+
+        searchKeyword("phase32-smoke-token", 0);
+        mockMvc.perform(get("/api/knowledge-health/runs")
+                        .queryParam("scopeType", "KNOWLEDGE_FOLDER")
+                        .queryParam("scopeId", folderId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0));
     }
 
     @Test
@@ -173,7 +235,23 @@ class KnowledgeFolderControllerTests {
                 .andReturn();
 
         assertThat(result.getResponse().getContentAsString()).contains("parsedCount");
-        return databaseCleaner.findAnyKnowledgeFolderId();
+        return findFolderIdByPath(folder);
+    }
+
+    private String findFolderIdByPath(Path folder) throws Exception {
+        String normalizedPath = folder.toAbsolutePath().normalize().toString();
+        MvcResult result = mockMvc.perform(get("/api/knowledge-folders"))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode folders = objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data")
+                .path("folders");
+        for (JsonNode node : folders) {
+            if (normalizedPath.equals(node.path("folderPath").asText())) {
+                return node.path("id").asText();
+            }
+        }
+        throw new AssertionError("Imported folder was not listed: " + normalizedPath);
     }
 
     private void searchKeyword(String query, int expectedHitCount) throws Exception {
