@@ -2,6 +2,7 @@ package com.itqianchen.agentdesign.dto.knowledge;
 
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeHealthIssueCode;
 import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunScopeType;
+import java.util.List;
 
 /**
  * 知识库健康诊断问题。
@@ -15,6 +16,22 @@ public record KnowledgeHealthIssueResponse(
         String action,
         KnowledgeFolderRunScopeType scopeType,
         String scopeId,
-        int count
+        int count,
+        List<String> examples
 ) {
+    public KnowledgeHealthIssueResponse {
+        examples = examples == null ? List.of() : List.copyOf(examples);
+    }
+
+    public KnowledgeHealthIssueResponse(
+            KnowledgeHealthIssueCode code,
+            String severity,
+            String message,
+            String action,
+            KnowledgeFolderRunScopeType scopeType,
+            String scopeId,
+            int count
+    ) {
+        this(code, severity, message, action, scopeType, scopeId, count, List.of());
+    }
 }

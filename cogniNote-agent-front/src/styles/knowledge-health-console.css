@@ -296,6 +296,24 @@
   line-height: 1.45;
 }
 
+.knowledge-health-issue-row__examples {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.knowledge-health-issue-row__examples li {
+  padding: 5px 8px;
+  border-radius: 6px;
+  color: #526071;
+  background: #f6f8fb;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .knowledge-health-issue-row svg,
 .knowledge-health-folder-row .el-button svg {
   width: 16px;

@@ -4,7 +4,7 @@ import {
   ChevronRight,
   FolderPlus,
   RotateCcw,
-  ShieldCheck
+  SearchCheck
 } from 'lucide-vue-next'
 import KnowledgeFolderImportDialog from './knowledge-folder-import-dialog.vue'
 import { confirmRebuildAllIndex } from '../composables/use-knowledge-maintenance-confirm'
@@ -21,7 +21,7 @@ const searchStore = useSearchStore()
 const isImportDialogOpen = ref(false)
 
 const HEALTH_STATUS_LABELS = {
-  HEALTHY: '可信',
+  HEALTHY: '可用',
   WARNING: '需关注',
   ERROR: '需修复',
   DISABLED: '已停用',
@@ -132,14 +132,14 @@ function runOperationLabel(run) {
       </article>
     </section>
 
-    <section v-if="knowledgeHealthStore.health" class="knowledge-directory-entry knowledge-directory-entry--health" aria-label="可信状态入口">
+    <section v-if="knowledgeHealthStore.health" class="knowledge-directory-entry knowledge-directory-entry--health" aria-label="问答可用性入口">
       <div class="knowledge-directory-entry__main">
         <span :class="['knowledge-directory-entry__icon', healthStatusClass(knowledgeHealthStore.health.status)]">
-          <ShieldCheck aria-hidden="true" />
+          <SearchCheck aria-hidden="true" />
         </span>
         <div>
-          <p class="eyebrow">可信状态</p>
-          <h4>诊断和维护集中处理</h4>
+          <p class="eyebrow">问答可用性</p>
+          <h4>检查资料能否被问答命中</h4>
           <p class="muted-text">
             {{ healthStatusLabel(knowledgeHealthStore.health.status) }} ·
             {{ healthIssueCount }} 个入口需关注 ·
@@ -149,7 +149,7 @@ function runOperationLabel(run) {
         </div>
       </div>
       <RouterLink class="knowledge-directory-entry__link" :to="{ name: 'knowledge', query: { panel: 'health' } }">
-        <span>打开可信状态</span>
+        <span>打开问答可用性</span>
         <ChevronRight aria-hidden="true" />
       </RouterLink>
     </section>

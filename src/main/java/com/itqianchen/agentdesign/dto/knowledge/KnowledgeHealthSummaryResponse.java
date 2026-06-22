@@ -21,6 +21,12 @@ public record KnowledgeHealthSummaryResponse(
         boolean embeddingConfigured,
         boolean indexConsistent,
         int runningRunCount,
-        int queuedRunCount
+        int queuedRunCount,
+        boolean answerReady,
+        int searchableDocumentCount,
+        int syncIssueCount,
+        int retrievalIssueCount,
+        int conflictIssueCount,
+        int graphStaleCount
 ) {
 }

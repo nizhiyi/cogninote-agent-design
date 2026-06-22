@@ -9,9 +9,11 @@ import {
   Database,
   Eye,
   FolderOpen,
+  GitBranch,
   RefreshCw,
   RotateCcw,
   Search,
+  SearchCheck,
   ShieldAlert,
   ShieldCheck,
   Trash2,
@@ -21,12 +23,14 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import KnowledgeHealthDrawer from './knowledge-health-drawer.vue'
 import { confirmRebuildAllIndex } from '../composables/use-knowledge-maintenance-confirm'
 import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
+import { useKnowledgeGraphStore } from '../stores/knowledge-graph'
 import { useKnowledgeHealthStore } from '../stores/knowledge-health'
 import { useKnowledgeMaintenanceStore } from '../stores/knowledge-maintenance'
 import { useSearchStore } from '../stores/search'
 import { formatTime } from '../utils/formatters'
 
 const knowledgeStore = useKnowledgeFoldersStore()
+const graphStore = useKnowledgeGraphStore()
 const healthStore = useKnowledgeHealthStore()
 const maintenanceStore = useKnowledgeMaintenanceStore()
 const searchStore = useSearchStore()
@@ -44,7 +48,7 @@ const runFilters = ref({
 })
 
 const HEALTH_STATUS_LABELS = {
-  HEALTHY: '可信',
+  HEALTHY: '可用',
   WARNING: '需关注',
   ERROR: '需修复',
   DISABLED: '已停用',
@@ -110,7 +114,6 @@ const folderDisplayById = computed(() => {
   return entries
 })
 const hasIndexIssue = computed(() => globalIssues.value.some((issue) => issue.code === 'INDEX_INCONSISTENT'))
-const hasEmbeddingIssue = computed(() => globalIssues.value.some((issue) => issue.code === 'EMBEDDING_UNCONFIGURED'))
 const totalIssueEntries = computed(() => globalIssues.value.length + folderIssues.value.length)
 const primaryActionLabel = computed(() => {
   if (hasIndexIssue.value) {
@@ -126,43 +129,45 @@ const statusIcon = computed(() => (healthStore.health?.status === 'HEALTHY' ? Sh
 const summaryText = computed(() => {
   const summary = healthSummary.value
   if (!summary) {
-    return '正在读取知识库可信状态'
+    return '正在读取知识库问答状态'
   }
-  return `${summary.enabledFolderCount || 0} 个启用目录 · ${summary.documentCount || 0} 个文档 · ${summary.chunkCount || 0} chunks`
+  return `${summary.searchableDocumentCount || 0} 个可检索文档 · ${summary.enabledFolderCount || 0} 个启用目录 · ${summary.chunkCount || 0} chunks`
 })
 const issueMetrics = computed(() => [
   {
-    key: 'failed',
-    label: '解析失败',
-    value: healthSummary.value?.failedCount || 0,
-    tone: (healthSummary.value?.failedCount || 0) > 0 ? 'warning' : 'muted'
+    key: 'sync',
+    label: '需要同步',
+    value: healthSummary.value?.syncIssueCount || 0,
+    tone: (healthSummary.value?.syncIssueCount || 0) > 0 ? 'warning' : 'muted'
   },
   {
-    key: 'unindexed',
-    label: '未索引',
-    value: healthSummary.value?.unindexedCount || 0,
-    tone: (healthSummary.value?.unindexedCount || 0) > 0 ? 'error' : 'muted'
+    key: 'retrieval',
+    label: '检索问题',
+    value: healthSummary.value?.retrievalIssueCount || 0,
+    tone: (healthSummary.value?.retrievalIssueCount || 0) > 0 ? 'error' : 'muted'
   },
   {
-    key: 'missing',
-    label: '本地缺失',
-    value: healthSummary.value?.missingLocalFileCount || 0,
-    tone: (healthSummary.value?.missingLocalFileCount || 0) > 0 ? 'warning' : 'muted'
+    key: 'conflict',
+    label: '资料风险',
+    value: healthSummary.value?.conflictIssueCount || 0,
+    tone: (healthSummary.value?.conflictIssueCount || 0) > 0 ? 'warning' : 'muted'
   },
   {
-    key: 'stale',
-    label: '疑似变化',
-    value: healthSummary.value?.staleLocalFileCount || 0,
-    tone: (healthSummary.value?.staleLocalFileCount || 0) > 0 ? 'warning' : 'muted'
-  },
-  {
-    key: 'new-local',
-    label: '本地新增',
-    value: healthSummary.value?.newLocalFileCount || 0,
-    tone: (healthSummary.value?.newLocalFileCount || 0) > 0 ? 'warning' : 'muted'
+    key: 'graph',
+    label: '图谱过期',
+    value: healthSummary.value?.graphStaleCount || 0,
+    tone: (healthSummary.value?.graphStaleCount || 0) > 0 ? 'warning' : 'muted'
   }
 ])
 const systemSignals = computed(() => [
+  {
+    key: 'answer',
+    icon: SearchCheck,
+    label: '问答可用性',
+    value: healthSummary.value?.answerReady ? '可直接提问' : '需要处理',
+    state: healthSummary.value?.answerReady ? 'ok' : 'warning',
+    detail: `${healthSummary.value?.searchableDocumentCount || 0} 个文档可被检索命中`
+  },
   {
     key: 'lucene',
     icon: Database,
@@ -178,6 +183,18 @@ const systemSignals = computed(() => [
     value: healthSummary.value?.embeddingConfigured ? '可用' : '未配置',
     state: healthSummary.value?.embeddingConfigured ? 'ok' : 'warning',
     detail: healthSummary.value?.embeddingConfigured ? '向量和混合检索可用' : '向量/混合检索会降级提示'
+  },
+  {
+    key: 'risk',
+    icon: GitBranch,
+    label: '资料变化与冲突',
+    value: (healthSummary.value?.syncIssueCount || 0) + (healthSummary.value?.conflictIssueCount || 0)
+      ? '需关注'
+      : '无明显风险',
+    state: (healthSummary.value?.syncIssueCount || 0) + (healthSummary.value?.conflictIssueCount || 0)
+      ? 'warning'
+      : 'ok',
+    detail: `同步 ${healthSummary.value?.syncIssueCount || 0} · 资料风险 ${healthSummary.value?.conflictIssueCount || 0} · 图谱 ${healthSummary.value?.graphStaleCount || 0}`
   },
   {
     key: 'running',
@@ -233,6 +250,27 @@ async function rebuildAllIndexes() {
     return
   }
   await searchStore.rebuildIndex()
+}
+
+async function rebuildAllGraph() {
+  try {
+    await ElMessageBox.confirm(
+      '全库图谱会基于当前已解析资料重新抽取实体和关系，资料较多时可能运行较久。该操作不会修改原始文件。',
+      '重建全库图谱',
+      {
+        confirmButtonText: '开始重建',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+  } catch (err) {
+    if (err === 'cancel' || err === 'close') {
+      return
+    }
+    throw err
+  }
+  graphStore.setScopeForGeneration('ALL', '')
+  await graphStore.rebuild()
 }
 
 async function handlePrimaryAction() {
@@ -451,12 +489,12 @@ defineExpose({
 </script>
 
 <template>
-  <section class="knowledge-pane knowledge-pane--health" aria-label="知识库可信状态">
+  <section class="knowledge-pane knowledge-pane--health" aria-label="知识库问答可用性">
     <header class="knowledge-health-page-header">
       <div>
-        <p class="eyebrow">可信状态</p>
-        <h3>诊断与维护控制台</h3>
-        <p class="muted-text">集中查看索引一致性、Embedding 可用性、目录问题和最近维护记录。</p>
+        <p class="eyebrow">问答可用性</p>
+        <h3>问答诊断与维护</h3>
+        <p class="muted-text">检查资料是否已同步、能否被搜索命中，以及是否存在过期或冲突风险。</p>
       </div>
       <div class="header-actions">
         <el-button
@@ -499,7 +537,7 @@ defineExpose({
       show-icon
     />
 
-    <section class="knowledge-health-command-center" aria-label="可信状态摘要">
+    <section class="knowledge-health-command-center" aria-label="问答可用性摘要">
       <div class="knowledge-health-command-card">
         <span :class="['knowledge-health-command-card__icon', healthStatusClass(healthStore.health?.status)]">
           <component :is="statusIcon" aria-hidden="true" />
@@ -508,17 +546,17 @@ defineExpose({
           <span :class="['status-chip', healthStatusClass(healthStore.health?.status)]">
             {{ healthStatusLabel(healthStore.health?.status) }}
           </span>
-          <strong>全库可信状态</strong>
+          <strong>全库问答状态</strong>
           <p>{{ summaryText }}</p>
           <div class="knowledge-health-command-card__signals">
             <span>Lucene {{ healthSummary?.indexConsistent ? '一致' : '不一致' }}</span>
             <span>Embedding {{ healthSummary?.embeddingConfigured ? '可用' : '未配置' }}</span>
-            <span>{{ currentRuns.length ? `${currentRuns.length} 个任务运行中` : '维护空闲' }}</span>
+            <span>{{ healthSummary?.answerReady ? '可直接提问' : '需要处理后再提问' }}</span>
           </div>
         </div>
       </div>
 
-      <dl class="knowledge-health-command-metrics" aria-label="问题计数">
+      <dl class="knowledge-health-command-metrics" aria-label="问答可用性问题计数">
         <div
           v-for="metric in issueMetrics"
           :key="metric.key"
@@ -550,14 +588,14 @@ defineExpose({
         <header>
           <div>
             <p class="eyebrow">全局诊断</p>
-            <h4>索引与模型</h4>
+            <h4>问答能力</h4>
           </div>
           <span>{{ globalIssues.length }} 项</span>
         </header>
 
         <p v-if="!globalIssues.length" class="knowledge-health-empty">
           <CheckCircle2 aria-hidden="true" />
-          <span>没有全局诊断问题。</span>
+          <span>没有影响问答能力的全局问题。</span>
         </p>
 
         <article
@@ -568,6 +606,9 @@ defineExpose({
           <div>
             <strong>{{ issue.message }}</strong>
             <p>{{ issue.severity }} · {{ issue.action }}</p>
+            <ul v-if="issue.examples?.length" class="knowledge-health-issue-row__examples">
+              <li v-for="example in issue.examples" :key="example">{{ example }}</li>
+            </ul>
           </div>
           <el-button
             v-if="issue.code === 'INDEX_INCONSISTENT'"
@@ -586,6 +627,23 @@ defineExpose({
             <span>配置向量模型</span>
             <ChevronRight aria-hidden="true" />
           </RouterLink>
+          <el-button
+            v-else-if="issue.code === 'GRAPH_STALE'"
+            :loading="graphStore.isRebuilding"
+            :disabled="graphStore.isRunActive"
+            @click="rebuildAllGraph"
+          >
+            <GitBranch aria-hidden="true" />
+            <span>重建全库图谱</span>
+          </el-button>
+          <RouterLink
+            v-else-if="issue.code === 'DUPLICATE_DOCUMENT_CONTENT' || issue.code === 'POSSIBLE_VERSION_CONFLICT'"
+            class="knowledge-directory-entry__link"
+            :to="{ name: 'knowledge', query: { panel: 'directories' } }"
+          >
+            <span>查看目录资料</span>
+            <ChevronRight aria-hidden="true" />
+          </RouterLink>
         </article>
       </section>
 
@@ -600,7 +658,7 @@ defineExpose({
 
         <p v-if="!folderIssues.length" class="knowledge-health-empty">
           <CheckCircle2 aria-hidden="true" />
-          <span>所有启用目录当前可信。</span>
+          <span>所有启用目录当前可用于问答。</span>
         </p>
 
         <article

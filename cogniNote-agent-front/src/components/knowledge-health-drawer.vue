@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { BrainCircuit, Copy, Database, FolderSync, RotateCcw } from 'lucide-vue-next'
+import { BrainCircuit, Copy, Database, FolderSync, GitBranch, RotateCcw } from 'lucide-vue-next'
 import {
   confirmRebuildAllIndex,
   confirmRebuildFolderIndex,
@@ -21,37 +21,37 @@ const searchStore = useSearchStore()
 const currentFolder = computed(() =>
   (healthStore.health?.folders || []).find((folder) => folder.id === healthStore.selectedFolderId) || null
 )
-const drawerTitle = computed(() => currentFolder.value?.displayName ? `${currentFolder.value.displayName} · 诊断与修复` : '知识库诊断与修复')
+const drawerTitle = computed(() => currentFolder.value?.displayName ? `${currentFolder.value.displayName} · 问答诊断` : '问答可用性诊断')
 const folderHealth = computed(() => healthStore.folderHealth)
 // 后端按问题来源拆分文档列表，前端只负责分区展示，不在这里重新推导健康状态。
 const problemSections = computed(() => [
   {
     key: 'failed',
-    title: '解析失败',
+    title: '可能搜不到：解析失败',
     action: 'SYNC_FOLDER',
     items: folderHealth.value?.failedDocuments || []
   },
   {
     key: 'unindexed',
-    title: '未进入索引',
+    title: '可能搜不到：未进入索引',
     action: 'REBUILD_INDEX',
     items: folderHealth.value?.unindexedDocuments || []
   },
   {
     key: 'missing',
-    title: '本地文件缺失',
+    title: '需要同步：本地文件缺失',
     action: 'SYNC_FOLDER',
     items: folderHealth.value?.missingLocalFiles || []
   },
   {
     key: 'stale',
-    title: '疑似已变化',
+    title: '需要同步：疑似已变化',
     action: 'SYNC_FOLDER',
     items: folderHealth.value?.staleLocalFiles || []
   },
   {
     key: 'new-local',
-    title: '本地新增',
+    title: '需要同步：本地新增',
     action: 'SYNC_FOLDER',
     items: folderHealth.value?.newLocalFiles || []
   }
@@ -63,6 +63,10 @@ const hasFolderSyncIssues = computed(() => problemSections.value.some((section) 
 const hasFolderIndexIssues = computed(() => problemSections.value.some((section) => section.action === 'REBUILD_INDEX'))
 const hasIndexIssue = computed(() => globalIssues.value.some((issue) => issue.code === 'INDEX_INCONSISTENT'))
 const hasEmbeddingIssue = computed(() => globalIssues.value.some((issue) => issue.code === 'EMBEDDING_UNCONFIGURED'))
+const hasGraphStaleIssue = computed(() => globalIssues.value.some((issue) => issue.code === 'GRAPH_STALE'))
+const hasContentRiskIssue = computed(() => globalIssues.value.some((issue) =>
+  issue.code === 'DUPLICATE_DOCUMENT_CONTENT' || issue.code === 'POSSIBLE_VERSION_CONFLICT'
+))
 const selectedFolderRun = computed(() => maintenanceStore.activeRunForFolder(healthStore.selectedFolderId))
 const systemProblemSections = computed(() => [
   {
@@ -74,10 +78,24 @@ const systemProblemSections = computed(() => [
   },
   {
     key: 'EMBEDDING_UNCONFIGURED',
-    title: 'Embedding 不可用',
+    title: '检索能力降级',
     icon: BrainCircuit,
     action: 'CONFIGURE_EMBEDDING',
     issues: globalIssues.value.filter((issue) => issue.code === 'EMBEDDING_UNCONFIGURED')
+  },
+  {
+    key: 'GRAPH_STALE',
+    title: '辅助图谱过期',
+    icon: GitBranch,
+    action: 'REBUILD_GRAPH',
+    issues: globalIssues.value.filter((issue) => issue.code === 'GRAPH_STALE')
+  },
+  {
+    key: 'CONTENT_RISK',
+    title: '可能干扰回答',
+    icon: GitBranch,
+    action: 'VIEW_CONFLICTS',
+    issues: globalIssues.value.filter((issue) => issue.code === 'DUPLICATE_DOCUMENT_CONTENT' || issue.code === 'POSSIBLE_VERSION_CONFLICT')
   }
 ].filter((section) => section.issues.length))
 
@@ -185,6 +203,22 @@ function fallbackCopy(text) {
         <BrainCircuit aria-hidden="true" />
         <span>配置向量模型</span>
       </RouterLink>
+      <RouterLink
+        v-if="hasGraphStaleIssue"
+        class="knowledge-header-link"
+        :to="{ name: 'knowledge', query: { panel: 'graph' } }"
+      >
+        <GitBranch aria-hidden="true" />
+        <span>查看知识图谱</span>
+      </RouterLink>
+      <RouterLink
+        v-if="hasContentRiskIssue"
+        class="knowledge-header-link"
+        :to="{ name: 'knowledge', query: { panel: 'directories' } }"
+      >
+        <GitBranch aria-hidden="true" />
+        <span>查看目录资料</span>
+      </RouterLink>
     </div>
 
     <el-alert
@@ -204,7 +238,7 @@ function fallbackCopy(text) {
       </article>
     </section>
     <p v-if="!healthStore.isLoadingFolder && !problemSections.length && !systemProblemSections.length" class="panel-message">
-      当前目录没有需要处理的文件问题。
+      当前没有影响问答可用性的诊断问题。
     </p>
 
     <section
@@ -223,6 +257,9 @@ function fallbackCopy(text) {
       >
         <strong>{{ issue.message }}</strong>
         <span>{{ issue.severity }} · {{ issue.action }}</span>
+        <ul v-if="issue.examples?.length" class="knowledge-health-drawer__examples">
+          <li v-for="example in issue.examples" :key="example">{{ example }}</li>
+        </ul>
       </article>
     </section>
 

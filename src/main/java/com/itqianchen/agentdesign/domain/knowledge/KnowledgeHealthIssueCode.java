@@ -34,5 +34,14 @@ public enum KnowledgeHealthIssueCode {
     INDEX_INCONSISTENT,
 
     /** 当前未配置可用 Embedding，向量或混合检索会降级。 */
-    EMBEDDING_UNCONFIGURED
+    EMBEDDING_UNCONFIGURED,
+
+    /** 已生成图谱早于资料同步或索引结果，辅助视图可能过期。 */
+    GRAPH_STALE,
+
+    /** 多个已解析资料内容完全相同，可能增加检索噪音。 */
+    DUPLICATE_DOCUMENT_CONTENT,
+
+    /** 疑似同一资料存在多个内容不同的版本。 */
+    POSSIBLE_VERSION_CONFLICT
 }

@@ -250,7 +250,13 @@ GET /api/knowledge-health
     "embeddingConfigured": false,
     "indexConsistent": true,
     "runningRunCount": 1,
-    "queuedRunCount": 2
+    "queuedRunCount": 2,
+    "answerReady": false,
+    "searchableDocumentCount": 39,
+    "syncIssueCount": 3,
+    "retrievalIssueCount": 3,
+    "conflictIssueCount": 1,
+    "graphStaleCount": 1
   },
   "issues": [],
   "folders": [],
@@ -263,6 +269,8 @@ GET /api/knowledge-health
 `status` 支持 `HEALTHY`、`WARNING`、`ERROR`、`DISABLED`、`EMPTY`。`issues[].action` 是建议动作，例如 `SYNC_FOLDER`、`REBUILD_INDEX`、`DELETE_FOLDER`，前端仍需调用对应目录或索引接口执行。停用目录返回 `DISABLED`，作为用户主动排除检索范围的维护状态，不计入全库问题数量或 `WARNING/ERROR`。
 
 第 32 阶段新增的 `summary.luceneDocumentCount` 和 `summary.luceneChunkCount` 来自 Lucene reader 实际统计；`summary.indexConsistent=false` 表示 SQLite 中应已索引的文档/chunk 与 Lucene reader 统计不一致；`summary.embeddingConfigured=false` 表示当前没有可用 Embedding，向量或混合检索需要配置向量模型。
+
+第 34 阶段新增的 `summary.answerReady` 表示当前资料是否具备基础问答条件；`searchableDocumentCount` 表示已解析且已索引的文档数；`syncIssueCount` 汇总本地新增、变化和缺失；`retrievalIssueCount` 汇总解析失败、未索引、索引不一致和 Embedding 降级；`conflictIssueCount` 汇总重复内容和疑似版本冲突；`graphStaleCount` 表示已生成图谱落后于当前资料状态的 scope 数量。
 
 当前问题代码：
 
@@ -277,6 +285,9 @@ GET /api/knowledge-health
 | `DISABLED_FOLDER` | `INFO` | 目录已停用；当前实现仅作为状态语义保留，不进入问题列表 | 在目录管理列表中启用目录 |
 | `INDEX_INCONSISTENT` | `ERROR` | SQLite 事实与 Lucene reader 统计不一致 | 重建索引 |
 | `EMBEDDING_UNCONFIGURED` | `WARNING` | 未配置可用 Embedding，向量或混合检索不可用 | 配置向量模型或切换关键词检索 |
+| `GRAPH_STALE` | `INFO` | 已生成图谱早于最新资料同步或索引状态 | 重建图谱或进入知识图谱页查看 |
+| `DUPLICATE_DOCUMENT_CONTENT` | `INFO` | 多个已解析资料内容完全相同，可能增加检索噪音 | 查看目录资料 |
+| `POSSIBLE_VERSION_CONFLICT` | `WARNING` | 疑似同一资料存在多个不同内容版本 | 查看目录资料 |
 
 ### 查询目录健康详情
 

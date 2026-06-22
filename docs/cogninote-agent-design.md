@@ -1051,7 +1051,7 @@ POST   /api/chat/stream/{requestId}/cancel
 
 `POST /api/chat/stream` 支持可选 `references` 数组。每个引用包含 `id`、`messageId` 和 `snippet`，用于把用户选中的助手回复片段注入本轮模型上下文。服务端会限制最多 5 个片段、单片段 1200 字符、总片段 4000 字符，并按 `messageId + snippet` 去重。会话详情中的消息响应会返回 `references`，用于刷新后恢复用户消息上的引用标签和预览。
 
-`GET /api/knowledge-health`、`GET /api/knowledge-health/folders/{id}`、`GET /api/knowledge-health/runs` 和 `GET /api/knowledge-health/runs/page` 用于知识库可信状态诊断和维护历史查询。它们只读当前 SQLite、Lucene 索引字段和本地文件元数据，不会自动同步、重建、启停或删除。`issues[].action` 只表达建议动作，前端需要继续调用 `/api/knowledge-maintenance/runs/**` 把修复动作加入维护队列。
+`GET /api/knowledge-health`、`GET /api/knowledge-health/folders/{id}`、`GET /api/knowledge-health/runs` 和 `GET /api/knowledge-health/runs/page` 用于知识库问答可用性诊断和维护历史查询。它们只读当前 SQLite、Lucene 索引字段、本地文件元数据和图谱派生视图时间，不会自动同步、重建、启停或删除。`issues[].action` 只表达建议动作，前端需要继续调用 `/api/knowledge-maintenance/runs/**`、图谱接口或设置页入口执行用户确认后的修复动作。
 
 `/api/knowledge-maintenance/runs/**` 是知识库维护任务队列接口。导入目录、同步目录、重建目录索引、重建全部索引、启用、停用和删除目录都通过该接口入队。`GET /queue` 用于页面刷新后恢复当前任务和等待队列；`GET /{runId}/events` 使用 SSE 推送 `maintenance-run-snapshot`、`maintenance-run-started`、`maintenance-run-progress`、`maintenance-run-completed`、`maintenance-run-failed` 和 `maintenance-queue-updated` 等事件；`POST /{runId}/cancel` 只允许取消 `QUEUED` 任务，运行中的任务执行到安全完成点。
 
@@ -1350,6 +1350,14 @@ POST   /api/chat/stream/{requestId}/cancel
 - 导入、同步、重建、停用和删除等维护动作补充结构化二次确认；导入和重建类任务完成后进入用户确认式结果弹窗。
 - 维护记录改为分页弹窗；可信状态首页只保留当前队列和主要诊断信息。
 - SQLite 连接池调整为 4 个连接，启用 WAL 和 `busy_timeout`，并移除知识库目录长维护方法外层事务，避免后台维护任务阻塞健康页和 SSE 快照读取。
+
+### Milestone 34：问答可用性诊断与资料变化/冲突提示
+
+- 健康总览从“可信认证”语义收敛为“问答可用性”，重点展示资料是否已同步、是否可检索、是否可能过期或冲突。
+- `GET /api/knowledge-health` summary 新增 `answerReady`、`searchableDocumentCount`、同步问题数、检索问题数、资料风险数和图谱过期数。
+- 新增 `GRAPH_STALE`、`DUPLICATE_DOCUMENT_CONTENT`、`POSSIBLE_VERSION_CONFLICT`，分别提示图谱过期、重复内容和疑似多版本资料。
+- 重复和冲突只作为问答噪音诊断展示少量样例，不自动删除、合并或标记资料可信等级。
+- 前端问答可用性页和诊断抽屉按“需要同步、可能搜不到、检索能力降级、辅助图谱过期、可能干扰回答”分组展示问题和动作入口。
 
 ## 12. 后续版本规划
 

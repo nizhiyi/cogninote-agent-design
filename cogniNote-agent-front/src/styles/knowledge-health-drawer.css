@@ -83,6 +83,21 @@
   background: #fff8e8;
 }
 
+.knowledge-health-drawer__examples {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.knowledge-health-drawer__examples li {
+  color: #7a4a08;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .knowledge-problem-item strong,
 .knowledge-issue-item strong,
 .knowledge-run-item strong {

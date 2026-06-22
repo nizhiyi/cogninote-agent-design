@@ -25,7 +25,9 @@ import com.itqianchen.agentdesign.dto.knowledge.KnowledgeHealthIssueResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeHealthResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeHealthSummaryResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeProblemDocumentResponse;
+import com.itqianchen.agentdesign.mapper.graph.KnowledgeGraphSummaryRow;
 import com.itqianchen.agentdesign.repository.document.DocumentRepository;
+import com.itqianchen.agentdesign.repository.graph.KnowledgeGraphRepository;
 import com.itqianchen.agentdesign.repository.knowledge.KnowledgeFolderRepository;
 import com.itqianchen.agentdesign.repository.knowledge.KnowledgeFolderRunRepository;
 import com.itqianchen.agentdesign.service.document.DocumentIngestionService;
@@ -34,10 +36,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -56,10 +62,12 @@ public class KnowledgeHealthService {
     private static final int DETAIL_RUN_LIMIT = 20;
     private static final int DEFAULT_RUN_PAGE_SIZE = 10;
     private static final int MAX_RUN_PAGE_SIZE = 100;
+    private static final int MAX_ISSUE_EXAMPLES = 5;
 
     private final KnowledgeFolderRepository folderRepository;
     private final DocumentRepository documentRepository;
     private final KnowledgeFolderRunRepository runRepository;
+    private final KnowledgeGraphRepository graphRepository;
     private final KnowledgeStore knowledgeStore;
     private final DocumentIngestionService ingestionService;
     private final ObjectMapper objectMapper;
@@ -70,6 +78,7 @@ public class KnowledgeHealthService {
      * @param folderRepository 知识库目录仓储
      * @param documentRepository 文档仓储
      * @param runRepository 维护运行记录仓储
+     * @param graphRepository 图谱派生数据仓储
      * @param knowledgeStore 检索索引边界
      * @param ingestionService 文档扫描边界
      * @param objectMapper JSON 失败明细解析器
@@ -78,6 +87,7 @@ public class KnowledgeHealthService {
             KnowledgeFolderRepository folderRepository,
             DocumentRepository documentRepository,
             KnowledgeFolderRunRepository runRepository,
+            KnowledgeGraphRepository graphRepository,
             KnowledgeStore knowledgeStore,
             DocumentIngestionService ingestionService,
             ObjectMapper objectMapper
@@ -85,6 +95,7 @@ public class KnowledgeHealthService {
         this.folderRepository = folderRepository;
         this.documentRepository = documentRepository;
         this.runRepository = runRepository;
+        this.graphRepository = graphRepository;
         this.knowledgeStore = knowledgeStore;
         this.ingestionService = ingestionService;
         this.objectMapper = objectMapper;
@@ -108,13 +119,23 @@ public class KnowledgeHealthService {
                 .toList();
 
         IndexHealthSnapshot indexHealth = indexHealth(folderSnapshots);
+        ContentQualitySnapshot contentQuality = contentQuality(folderSnapshots);
+        GraphFreshnessSnapshot graphFreshness = graphFreshness(folderSnapshots);
         KnowledgeHealthSummaryResponse summary = totalSummary(
                 folderSnapshots,
                 indexHealth,
+                contentQuality,
+                graphFreshness,
                 currentRuns.size(),
                 queuedRuns.size()
         );
-        List<KnowledgeHealthIssueResponse> issues = allIssues(folderSnapshots, summary, indexHealth);
+        List<KnowledgeHealthIssueResponse> issues = allIssues(
+                folderSnapshots,
+                summary,
+                indexHealth,
+                contentQuality,
+                graphFreshness
+        );
         KnowledgeHealthStatus status = overallStatus(folderSnapshots, summary, issues);
         List<KnowledgeFolderHealthSummaryResponse> folders = folderSnapshots.stream()
                 .map(FolderHealthSnapshot::toSummaryResponse)
@@ -394,6 +415,7 @@ public class KnowledgeHealthService {
                     0,
                     0,
                     latestRun == null ? null : KnowledgeFolderRunResponse.from(latestRun),
+                    List.of(),
                     List.of()
             );
         }
@@ -411,7 +433,8 @@ public class KnowledgeHealthService {
                 probe.newLocalFiles().size(),
                 indexedChunkCount(documents),
                 latestRun == null ? null : KnowledgeFolderRunResponse.from(latestRun),
-                issues
+                issues,
+                documents
         );
     }
 
@@ -653,6 +676,8 @@ public class KnowledgeHealthService {
     private KnowledgeHealthSummaryResponse totalSummary(
             List<FolderHealthSnapshot> snapshots,
             IndexHealthSnapshot indexHealth,
+            ContentQualitySnapshot contentQuality,
+            GraphFreshnessSnapshot graphFreshness,
             int runningRunCount,
             int queuedRunCount
     ) {
@@ -690,6 +715,21 @@ public class KnowledgeHealthService {
             lastIndexedAt = maxNullable(lastIndexedAt, summary.folder().lastIndexedAt());
         }
 
+        int searchableDocumentCount = Math.max(0, parsedCount - unindexedCount);
+        int syncIssueCount = missingLocalFileCount + staleLocalFileCount + newLocalFileCount;
+        int retrievalIssueCount = failedCount
+                + unindexedCount
+                + (indexHealth.indexConsistent() ? 0 : 1)
+                + (embeddingConfiguredIssue(documentCount, indexHealth) ? 1 : 0);
+        int conflictIssueCount = contentQuality.duplicateDocumentCount()
+                + contentQuality.versionConflictGroupCount();
+        boolean answerReady = documentCount > 0
+                && searchableDocumentCount > 0
+                && syncIssueCount == 0
+                && failedCount == 0
+                && unindexedCount == 0
+                && indexHealth.indexConsistent();
+
         return new KnowledgeHealthSummaryResponse(
                 folderCount,
                 enabledFolderCount,
@@ -708,7 +748,13 @@ public class KnowledgeHealthService {
                 indexHealth.embeddingConfigured(),
                 indexHealth.indexConsistent(),
                 runningRunCount,
-                queuedRunCount
+                queuedRunCount,
+                answerReady,
+                searchableDocumentCount,
+                syncIssueCount,
+                retrievalIssueCount,
+                conflictIssueCount,
+                graphFreshness.staleScopeCount()
         );
     }
 
@@ -778,13 +824,15 @@ public class KnowledgeHealthService {
     private List<KnowledgeHealthIssueResponse> allIssues(
             List<FolderHealthSnapshot> snapshots,
             KnowledgeHealthSummaryResponse summary,
-            IndexHealthSnapshot indexHealth
+            IndexHealthSnapshot indexHealth,
+            ContentQualitySnapshot contentQuality,
+            GraphFreshnessSnapshot graphFreshness
     ) {
         List<KnowledgeHealthIssueResponse> issues = new ArrayList<>();
         issues.addAll(aggregateIssues(snapshots));
-        issues.addAll(systemIssues(summary, indexHealth));
+        issues.addAll(systemIssues(summary, indexHealth, contentQuality, graphFreshness));
         return issues.stream()
-                .sorted(Comparator.comparing(KnowledgeHealthIssueResponse::severity))
+                .sorted(Comparator.comparingInt(issue -> severityRank(issue.severity())))
                 .toList();
     }
 
@@ -797,7 +845,9 @@ public class KnowledgeHealthService {
      */
     private List<KnowledgeHealthIssueResponse> systemIssues(
             KnowledgeHealthSummaryResponse summary,
-            IndexHealthSnapshot indexHealth
+            IndexHealthSnapshot indexHealth,
+            ContentQualitySnapshot contentQuality,
+            GraphFreshnessSnapshot graphFreshness
     ) {
         List<KnowledgeHealthIssueResponse> issues = new ArrayList<>();
         if (!indexHealth.indexConsistent()) {
@@ -813,7 +863,7 @@ public class KnowledgeHealthService {
                     1
             ));
         }
-        if (summary.documentCount() > 0 && !indexHealth.embeddingConfigured()) {
+        if (embeddingConfiguredIssue(summary.documentCount(), indexHealth)) {
             issues.add(issue(
                     KnowledgeHealthIssueCode.EMBEDDING_UNCONFIGURED,
                     "WARNING",
@@ -821,6 +871,39 @@ public class KnowledgeHealthService {
                     "CONFIGURE_EMBEDDING",
                     null,
                     1
+            ));
+        }
+        if (graphFreshness.staleScopeCount() > 0) {
+            issues.add(issue(
+                    KnowledgeHealthIssueCode.GRAPH_STALE,
+                    "INFO",
+                    "有 " + graphFreshness.staleScopeCount() + " 个已生成图谱早于最新资料状态。",
+                    "REBUILD_GRAPH",
+                    null,
+                    graphFreshness.staleScopeCount(),
+                    graphFreshness.examples()
+            ));
+        }
+        if (contentQuality.duplicateDocumentCount() > 0) {
+            issues.add(issue(
+                    KnowledgeHealthIssueCode.DUPLICATE_DOCUMENT_CONTENT,
+                    "INFO",
+                    "有 " + contentQuality.duplicateDocumentCount() + " 个已解析资料内容重复，可能增加检索噪音。",
+                    "VIEW_CONFLICTS",
+                    null,
+                    contentQuality.duplicateDocumentCount(),
+                    contentQuality.duplicateExamples()
+            ));
+        }
+        if (contentQuality.versionConflictGroupCount() > 0) {
+            issues.add(issue(
+                    KnowledgeHealthIssueCode.POSSIBLE_VERSION_CONFLICT,
+                    "WARNING",
+                    "有 " + contentQuality.versionConflictGroupCount() + " 组资料疑似存在多个内容版本。",
+                    "VIEW_CONFLICTS",
+                    null,
+                    contentQuality.versionConflictGroupCount(),
+                    contentQuality.versionConflictExamples()
             ));
         }
         return List.copyOf(issues);
@@ -836,8 +919,209 @@ public class KnowledgeHealthService {
         }
         return aggregates.values().stream()
                 .map(IssueAggregate::toResponse)
-                .sorted(Comparator.comparing(KnowledgeHealthIssueResponse::severity))
+                .sorted(Comparator.comparingInt(issue -> severityRank(issue.severity())))
                 .toList();
+    }
+
+    /**
+     * 诊断会影响问答命中质量的资料重复和版本冲突。
+     *
+     * <p>这里不写入“可信标签”，也不自动合并或删除资料；重复和版本判断只是从当前 SQLite 事实即时派生的
+     * 问答噪音信号，最终是否保留多个版本必须由用户决定。</p>
+     *
+     * @param snapshots 启用目录健康快照
+     * @return 内容质量诊断快照
+     */
+    private ContentQualitySnapshot contentQuality(List<FolderHealthSnapshot> snapshots) {
+        Map<String, List<KnowledgeDocument>> documentsByHash = new LinkedHashMap<>();
+        Map<String, List<KnowledgeDocument>> documentsByNormalizedName = new LinkedHashMap<>();
+        for (KnowledgeDocument document : parsedEnabledDocuments(snapshots)) {
+            if (document.contentHash() != null && !document.contentHash().isBlank()) {
+                documentsByHash.computeIfAbsent(document.contentHash(), ignored -> new ArrayList<>()).add(document);
+            }
+            String normalizedName = normalizeVersionFamilyName(document.fileName());
+            if (!normalizedName.isBlank()) {
+                documentsByNormalizedName.computeIfAbsent(normalizedName, ignored -> new ArrayList<>()).add(document);
+            }
+        }
+
+        int duplicateDocumentCount = 0;
+        List<String> duplicateExamples = new ArrayList<>();
+        for (List<KnowledgeDocument> documents : documentsByHash.values()) {
+            if (documents.size() <= 1) {
+                continue;
+            }
+            duplicateDocumentCount += documents.size();
+            addExample(duplicateExamples, exampleFileList("重复内容", documents));
+        }
+
+        int versionConflictGroupCount = 0;
+        List<String> versionConflictExamples = new ArrayList<>();
+        for (Map.Entry<String, List<KnowledgeDocument>> entry : documentsByNormalizedName.entrySet()) {
+            List<KnowledgeDocument> documents = entry.getValue();
+            if (documents.size() <= 1 || distinctContentHashCount(documents) <= 1) {
+                continue;
+            }
+            versionConflictGroupCount++;
+            addExample(versionConflictExamples, exampleFileList(entry.getKey(), documents));
+        }
+
+        return new ContentQualitySnapshot(
+                duplicateDocumentCount,
+                versionConflictGroupCount,
+                duplicateExamples,
+                versionConflictExamples
+        );
+    }
+
+    /**
+     * 诊断已生成图谱是否落后于当前资料状态。
+     *
+     * <p>图谱是问答的辅助视图，不是基础检索事实源；因此过期只提示重建，不把知识库直接判为不可问。</p>
+     *
+     * @param snapshots 启用目录健康快照
+     * @return 图谱新鲜度快照
+     */
+    private GraphFreshnessSnapshot graphFreshness(List<FolderHealthSnapshot> snapshots) {
+        Map<String, Long> folderMaterialUpdatedAt = new HashMap<>();
+        Map<String, Long> documentMaterialUpdatedAt = new HashMap<>();
+        Long allMaterialUpdatedAt = null;
+
+        for (FolderHealthSnapshot snapshot : snapshots) {
+            if (!snapshot.summary().folder().enabled()) {
+                continue;
+            }
+            String folderId = snapshot.summary().folder().id();
+            Long folderUpdatedAt = maxNullable(
+                    snapshot.summary().folder().lastIngestedAt(),
+                    snapshot.summary().folder().lastIndexedAt()
+            );
+            for (KnowledgeDocument document : snapshot.documents()) {
+                Long documentUpdatedAt = maxNullable(document.updatedAt(), document.indexedAt());
+                documentMaterialUpdatedAt.put(document.id(), documentUpdatedAt);
+                folderUpdatedAt = maxNullable(folderUpdatedAt, documentUpdatedAt);
+            }
+            folderMaterialUpdatedAt.put(folderId, folderUpdatedAt);
+            allMaterialUpdatedAt = maxNullable(allMaterialUpdatedAt, folderUpdatedAt);
+        }
+
+        int staleScopeCount = 0;
+        List<String> examples = new ArrayList<>();
+        for (KnowledgeGraphSummaryRow row : graphRepository.findGeneratedGraphSummaries()) {
+            Long materialUpdatedAt = graphMaterialUpdatedAt(row, allMaterialUpdatedAt, folderMaterialUpdatedAt, documentMaterialUpdatedAt);
+            if (materialUpdatedAt == null || row.generatedAt() == null || row.generatedAt() >= materialUpdatedAt) {
+                continue;
+            }
+            staleScopeCount++;
+            addExample(examples, graphScopeLabel(row));
+        }
+        return new GraphFreshnessSnapshot(staleScopeCount, examples);
+    }
+
+    private static List<KnowledgeDocument> parsedEnabledDocuments(List<FolderHealthSnapshot> snapshots) {
+        List<KnowledgeDocument> documents = new ArrayList<>();
+        for (FolderHealthSnapshot snapshot : snapshots) {
+            if (!snapshot.summary().folder().enabled()) {
+                continue;
+            }
+            snapshot.documents().stream()
+                    .filter(document -> document.status() == DocumentStatus.PARSED)
+                    .forEach(documents::add);
+        }
+        return documents;
+    }
+
+    private static int distinctContentHashCount(List<KnowledgeDocument> documents) {
+        Set<String> hashes = new HashSet<>();
+        for (KnowledgeDocument document : documents) {
+            if (document.contentHash() != null && !document.contentHash().isBlank()) {
+                hashes.add(document.contentHash());
+            }
+        }
+        return hashes.size();
+    }
+
+    private static void addExample(List<String> examples, String example) {
+        if (examples.size() < MAX_ISSUE_EXAMPLES && example != null && !example.isBlank()) {
+            examples.add(example);
+        }
+    }
+
+    private static String exampleFileList(String label, List<KnowledgeDocument> documents) {
+        String files = documents.stream()
+                .limit(3)
+                .map(KnowledgeDocument::fileName)
+                .filter(Objects::nonNull)
+                .reduce((left, right) -> left + " / " + right)
+                .orElse("未命名资料");
+        return label + "：" + files;
+    }
+
+    private static Long graphMaterialUpdatedAt(
+            KnowledgeGraphSummaryRow row,
+            Long allMaterialUpdatedAt,
+            Map<String, Long> folderMaterialUpdatedAt,
+            Map<String, Long> documentMaterialUpdatedAt
+    ) {
+        return switch (row.scopeType()) {
+            case "ALL" -> allMaterialUpdatedAt;
+            case "KNOWLEDGE_FOLDER" -> folderMaterialUpdatedAt.get(row.scopeId());
+            case "DOCUMENT" -> documentMaterialUpdatedAt.get(row.scopeId());
+            default -> null;
+        };
+    }
+
+    private static String graphScopeLabel(KnowledgeGraphSummaryRow row) {
+        if ("ALL".equals(row.scopeType())) {
+            return "全库图谱";
+        }
+        if ("KNOWLEDGE_FOLDER".equals(row.scopeType())) {
+            return "目录图谱：" + row.scopeId();
+        }
+        if ("DOCUMENT".equals(row.scopeType())) {
+            return "文档图谱：" + row.scopeId();
+        }
+        return row.scopeType() + "：" + row.scopeId();
+    }
+
+    /**
+     * 将文件名压缩成“疑似同一资料版本族”的比较键。
+     *
+     * <p>规则故意保守：只去掉扩展名、常见日期/版本后缀和分隔符，避免把完全不同的中文标题误判成同一资料。</p>
+     *
+     * @param fileName 原始文件名
+     * @return 版本族比较键；无法判断时为空字符串
+     */
+    private static String normalizeVersionFamilyName(String fileName) {
+        if (fileName == null || fileName.isBlank()) {
+            return "";
+        }
+        String baseName = fileName.strip();
+        int dotIndex = baseName.lastIndexOf('.');
+        if (dotIndex > 0) {
+            baseName = baseName.substring(0, dotIndex);
+        }
+        String normalized = baseName
+                .toLowerCase(Locale.ROOT)
+                .replace('（', ' ')
+                .replace('）', ' ')
+                .replace('(', ' ')
+                .replace(')', ' ')
+                .replace('[', ' ')
+                .replace(']', ' ')
+                .replace('_', ' ')
+                .replace('-', ' ')
+                .replace('.', ' ')
+                .replaceAll("(?i)\\b(v\\d+(?:\\.\\d+)*|final|draft)\\b", " ")
+                .replaceAll("\\b\\d{4}(?:\\d{2})?(?:\\d{2})?\\b", " ")
+                .replaceAll("(最新版|新版|旧版|修订版|终稿|草稿)$", " ")
+                .replaceAll("\\s+", " ")
+                .strip();
+        return normalized.length() < 2 ? "" : normalized;
+    }
+
+    private static boolean embeddingConfiguredIssue(int documentCount, IndexHealthSnapshot indexHealth) {
+        return documentCount > 0 && !indexHealth.embeddingConfigured();
     }
 
     /**
@@ -943,6 +1227,32 @@ public class KnowledgeHealthService {
             String scopeId,
             int count
     ) {
+        return issue(code, severity, message, action, scopeId, count, List.of());
+    }
+
+    /**
+     * 构造目录或全库范围的问题响应，并附带少量样例供前端解释诊断结果。
+     *
+     * <p>examples 只用于展示，不作为修复动作的输入；重复和冲突资料仍由用户显式进入资料页处理。</p>
+     *
+     * @param code 问题类型
+     * @param severity 严重级别
+     * @param message 用户可读说明
+     * @param action 推荐维护动作
+     * @param scopeId 目录 ID；为空表示全库
+     * @param count 受影响对象数量
+     * @param examples 诊断样例，数量应保持很小
+     * @return 健康问题响应
+     */
+    private static KnowledgeHealthIssueResponse issue(
+            KnowledgeHealthIssueCode code,
+            String severity,
+            String message,
+            String action,
+            String scopeId,
+            int count,
+            List<String> examples
+    ) {
         return new KnowledgeHealthIssueResponse(
                 code,
                 severity,
@@ -950,7 +1260,8 @@ public class KnowledgeHealthService {
                 action,
                 scopeId == null ? KnowledgeFolderRunScopeType.ALL : KnowledgeFolderRunScopeType.KNOWLEDGE_FOLDER,
                 scopeId,
-                count
+                count,
+                examples
         );
     }
 
@@ -963,6 +1274,15 @@ public class KnowledgeHealthService {
      */
     private static boolean hasSeverity(List<KnowledgeHealthIssueResponse> issues, String severity) {
         return issues.stream().anyMatch(issue -> severity.equals(issue.severity()));
+    }
+
+    private static int severityRank(String severity) {
+        return switch (String.valueOf(severity)) {
+            case "ERROR" -> 0;
+            case "WARNING" -> 1;
+            case "INFO" -> 2;
+            default -> 3;
+        };
     }
 
     /**
@@ -1028,7 +1348,8 @@ public class KnowledgeHealthService {
             int newLocalFileCount,
             int indexedChunkCount,
             KnowledgeFolderRunResponse lastRun,
-            List<KnowledgeHealthIssueResponse> issues
+            List<KnowledgeHealthIssueResponse> issues,
+            List<KnowledgeDocument> documents
     ) {
         /**
          * 转换为全库健康列表中的目录摘要响应。
@@ -1055,6 +1376,28 @@ public class KnowledgeHealthService {
                     lastRun
             );
         }
+    }
+
+    /**
+     * 问答资料质量诊断快照。
+     *
+     * <p>这些计数只表达“可能干扰检索或回答”的风险，不代表资料被系统认证或否定。</p>
+     */
+    private record ContentQualitySnapshot(
+            int duplicateDocumentCount,
+            int versionConflictGroupCount,
+            List<String> duplicateExamples,
+            List<String> versionConflictExamples
+    ) {
+    }
+
+    /**
+     * 图谱派生视图的新鲜度快照。
+     */
+    private record GraphFreshnessSnapshot(
+            int staleScopeCount,
+            List<String> examples
+    ) {
     }
 
     /**
