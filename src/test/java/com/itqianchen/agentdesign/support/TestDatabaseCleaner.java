@@ -40,7 +40,6 @@ public class TestDatabaseCleaner {
 
     public void clearModelConfigs() {
         testDatabaseMapper.deleteModelConfigs();
-        testDatabaseMapper.deleteLegacyModelConfig();
     }
 
     public String findAnyKnowledgeFolderId() {

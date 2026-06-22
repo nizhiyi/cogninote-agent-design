@@ -50,23 +50,6 @@
         )
     </update>
 
-    <update id="createLegacyModelConfigTable">
-        CREATE TABLE IF NOT EXISTS model_config (
-            id TEXT PRIMARY KEY,
-            provider TEXT NOT NULL,
-            display_name TEXT NOT NULL,
-            base_url TEXT NOT NULL,
-            api_key TEXT,
-            chat_model TEXT NOT NULL,
-            embedding_model TEXT NOT NULL,
-            embedding_dimensions INTEGER NOT NULL,
-            temperature REAL NOT NULL,
-            top_k INTEGER NOT NULL,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL
-        )
-    </update>
-
     <update id="createModelConfigsTable">
         CREATE TABLE IF NOT EXISTS model_configs (
             id TEXT PRIMARY KEY,
@@ -179,74 +162,6 @@
         )
     </update>
 
-    <update id="dropKnowledgeFolderRunsMigrationTable">
-        DROP TABLE IF EXISTS knowledge_folder_runs_migration
-    </update>
-
-    <update id="createKnowledgeFolderRunsMigrationTable">
-        CREATE TABLE knowledge_folder_runs_migration (
-            id TEXT PRIMARY KEY,
-            scope_type TEXT NOT NULL,
-            scope_id TEXT,
-            operation TEXT NOT NULL,
-            status TEXT NOT NULL,
-            scanned_count INTEGER NOT NULL DEFAULT 0,
-            parsed_count INTEGER NOT NULL DEFAULT 0,
-            skipped_count INTEGER NOT NULL DEFAULT 0,
-            failed_count INTEGER NOT NULL DEFAULT 0,
-            indexed_document_count INTEGER NOT NULL DEFAULT 0,
-            indexed_chunk_count INTEGER NOT NULL DEFAULT 0,
-            failed_document_count INTEGER NOT NULL DEFAULT 0,
-            failures_json TEXT,
-            phase TEXT,
-            progress_current INTEGER NOT NULL DEFAULT 0,
-            progress_total INTEGER NOT NULL DEFAULT 0,
-            current_item TEXT,
-            queued_at INTEGER,
-            started_at INTEGER,
-            completed_at INTEGER,
-            duration_ms INTEGER,
-            error_message TEXT,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL
-        )
-    </update>
-
-    <insert id="copyKnowledgeFolderRunsToMigrationTable">
-        INSERT INTO knowledge_folder_runs_migration (
-            id, scope_type, scope_id, operation, status,
-            scanned_count, parsed_count, skipped_count, failed_count,
-            indexed_document_count, indexed_chunk_count, failed_document_count,
-            failures_json, phase, progress_current, progress_total, current_item,
-            queued_at, started_at, completed_at, duration_ms, error_message, created_at, updated_at
-        )
-        SELECT
-            id, scope_type, scope_id, operation, status,
-            scanned_count, parsed_count, skipped_count, failed_count,
-            indexed_document_count, indexed_chunk_count, failed_document_count,
-            failures_json,
-            CASE WHEN status = 'RUNNING' THEN 'RUNNING' ELSE NULL END,
-            0,
-            0,
-            NULL,
-            created_at,
-            started_at,
-            completed_at,
-            duration_ms,
-            error_message,
-            created_at,
-            completed_at
-        FROM knowledge_folder_runs
-    </insert>
-
-    <update id="dropKnowledgeFolderRunsTable">
-        DROP TABLE IF EXISTS knowledge_folder_runs
-    </update>
-
-    <update id="renameKnowledgeFolderRunsMigrationTable">
-        ALTER TABLE knowledge_folder_runs_migration RENAME TO knowledge_folder_runs
-    </update>
-
     <update id="createKnowledgeGraphChunkExtractionsTable">
         CREATE TABLE IF NOT EXISTS knowledge_graph_chunk_extractions (
             chunk_id TEXT PRIMARY KEY,
@@ -323,14 +238,6 @@
         )
     </update>
 
-    <select id="tableInfo" resultType="map">
-        PRAGMA table_info(${tableName})
-    </select>
-
-    <update id="addColumn">
-        ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}
-    </update>
-
     <update id="createKnowledgeFoldersPathIndex">
         CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_folders_path ON knowledge_folders(folder_path)
     </update>
@@ -381,22 +288,9 @@
         ON knowledge_graph_edges(scope_type, scope_id)
     </update>
 
-    <update id="dropKnowledgeGraphEdgesScopeTripleIndex">
-        DROP INDEX IF EXISTS idx_kg_edges_scope_triple
-    </update>
-
     <update id="createKnowledgeGraphEdgesScopeTripleIndex">
         CREATE UNIQUE INDEX IF NOT EXISTS idx_kg_edges_scope_triple
         ON knowledge_graph_edges(scope_type, scope_id, source_node_id, target_node_id, relation_type, display_label)
-    </update>
-
-    <update id="createKnowledgeGraphEdgesScopeTripleMigrationIndex">
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_kg_edges_scope_triple_migration
-        ON knowledge_graph_edges(scope_type, scope_id, source_node_id, target_node_id, relation_type, display_label)
-    </update>
-
-    <update id="dropKnowledgeGraphEdgesScopeTripleMigrationIndex">
-        DROP INDEX IF EXISTS idx_kg_edges_scope_triple_migration
     </update>
 
     <update id="createKnowledgeGraphEvidenceNodeIndex">
@@ -436,26 +330,8 @@
         ON knowledge_graph_views(scope_type, scope_id, view_type)
     </update>
 
-    <delete id="deleteSoftDeletedChatMessages">
-        DELETE FROM chat_messages
-        WHERE conversation_id IN (
-            SELECT id FROM chat_sessions WHERE deleted = 1
-        )
-    </delete>
-
-    <delete id="deleteSoftDeletedChatSessions">
-        DELETE FROM chat_sessions WHERE deleted = 1
-    </delete>
-
     <select id="countModelConfigs" resultType="long">
         SELECT COUNT(*) FROM model_configs
-    </select>
-
-    <select id="findLegacyActiveModelConfig" resultType="map">
-        SELECT provider, display_name, base_url, api_key, chat_model, embedding_model,
-               embedding_dimensions, temperature, top_k, created_at, updated_at
-        FROM model_config
-        WHERE id = 'active'
     </select>
 
     <insert id="insertInitialModelConfig">

@@ -8,7 +8,6 @@ import com.itqianchen.agentdesign.domain.chat.ChatMessageStatus;
 import com.itqianchen.agentdesign.domain.chat.ChatSession;
 import com.itqianchen.agentdesign.domain.search.SearchMode;
 import com.itqianchen.agentdesign.mapper.test.TestDatabaseMapper;
-import com.itqianchen.agentdesign.service.system.DatabaseSchemaInitializer;
 import com.itqianchen.agentdesign.repository.chat.ChatSessionRepository;
 import com.itqianchen.agentdesign.support.TestDatabaseCleaner;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,9 +17,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
 /**
- * 覆盖聊天会话仓储的兼容边界。
+ * 覆盖聊天会话仓储的核心边界。
  *
- * <p>重点保护 SSE 预分配 conversationId、物理删除消息以及旧软删除数据启动清理这三类历史行为。</p>
+ * <p>重点保护 SSE 预分配 conversationId 和会话物理删除消息两类行为。</p>
  */
 @SpringBootTest
 @TestPropertySource(properties = {
@@ -38,9 +37,6 @@ class ChatSessionRepositoryTests {
 
     @Autowired
     private TestDatabaseMapper testDatabaseMapper;
-
-    @Autowired
-    private DatabaseSchemaInitializer databaseSchemaInitializer;
 
     @BeforeEach
     void clearDatabase() {
@@ -113,20 +109,5 @@ class ChatSessionRepositoryTests {
         assertThat(chatSessionRepository.findMessages(session.id())).isEmpty();
         assertThat(testDatabaseMapper.countChatSessionsById(session.id())).isZero();
         assertThat(testDatabaseMapper.countChatMessagesByConversationId(session.id())).isZero();
-    }
-
-    @Test
-    void schemaInitializerRemovesLegacySoftDeletedSessionRows() {
-        long now = System.currentTimeMillis();
-        testDatabaseMapper.insertSoftDeletedChatSession("legacy-deleted", "Legacy deleted", now, now);
-        testDatabaseMapper.insertChatMessage("legacy-message", "legacy-deleted", 1, "old message", now + 1);
-
-        assertThat(testDatabaseMapper.countChatSessionsById("legacy-deleted")).isEqualTo(1);
-        assertThat(testDatabaseMapper.countChatMessagesByConversationId("legacy-deleted")).isEqualTo(1);
-
-        databaseSchemaInitializer.initialize();
-
-        assertThat(testDatabaseMapper.countChatSessionsById("legacy-deleted")).isZero();
-        assertThat(testDatabaseMapper.countChatMessagesByConversationId("legacy-deleted")).isZero();
     }
 }

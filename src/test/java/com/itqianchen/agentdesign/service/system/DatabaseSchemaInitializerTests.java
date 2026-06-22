@@ -8,7 +8,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.junit.jupiter.api.Test;
@@ -19,30 +18,46 @@ import org.sqlite.SQLiteDataSource;
 class DatabaseSchemaInitializerTests {
 
     @Test
-    void initializeAddsKnowledgeGraphEdgeDisplayLabelAndRebuildsUniqueIndex() {
+    void initializeCreatesCurrentSchemaIndexesAndDefaultModelConfigs() {
         try (SqlSession sqlSession = sqliteSqlSession()) {
             DatabaseSchemaMapper mapper = sqlSession.getMapper(DatabaseSchemaMapper.class);
-            createLegacyKnowledgeFolderRunsTable(sqlSession);
-            createLegacyKnowledgeGraphEdgesTable(sqlSession);
+
             new DatabaseSchemaInitializer(mapper).initialize();
 
-            assertThat(columnNames(mapper.tableInfo("knowledge_folder_runs"))).contains(
-                    "id",
-                    "scope_type",
-                    "operation",
-                    "status",
-                    "failures_json",
+            assertThat(tableNames(sqlSession)).contains(
+                    "knowledge_folders",
+                    "documents",
+                    "chunks",
+                    "model_configs",
+                    "chat_sessions",
+                    "chat_messages",
+                    "app_settings",
+                    "knowledge_folder_runs",
+                    "knowledge_graph_runs",
+                    "knowledge_graph_chunk_extractions",
+                    "knowledge_graph_nodes",
+                    "knowledge_graph_edges",
+                    "knowledge_graph_evidence",
+                    "knowledge_graph_views"
+            ).doesNotContain(
+                    "model_config",
+                    "knowledge_folder_runs_migration"
+            );
+            assertThat(columnNames(sqlSession, "documents")).contains("knowledge_folder_id");
+            assertThat(columnNames(sqlSession, "model_configs")).contains("context_window_tokens");
+            assertThat(columnNames(sqlSession, "chat_messages")).contains("agent_type", "references_json");
+            assertThat(columnNames(sqlSession, "knowledge_graph_edges")).contains("display_label");
+            assertThat(columnNames(sqlSession, "knowledge_folder_runs")).contains(
                     "phase",
                     "progress_current",
                     "progress_total",
+                    "current_item",
                     "queued_at",
                     "updated_at"
             );
-            assertThat(isNotNullColumn(mapper.tableInfo("knowledge_folder_runs"), "started_at")).isFalse();
-            assertThat(isNotNullColumn(mapper.tableInfo("knowledge_folder_runs"), "completed_at")).isFalse();
-            assertThat(isNotNullColumn(mapper.tableInfo("knowledge_folder_runs"), "duration_ms")).isFalse();
-            assertThat(countRows(sqlSession, "knowledge_folder_runs")).isEqualTo(1);
-            assertThat(columnNames(mapper.tableInfo("knowledge_graph_edges"))).contains("display_label");
+            assertThat(isNotNullColumn(sqlSession, "knowledge_folder_runs", "started_at")).isFalse();
+            assertThat(isNotNullColumn(sqlSession, "knowledge_folder_runs", "completed_at")).isFalse();
+            assertThat(isNotNullColumn(sqlSession, "knowledge_folder_runs", "duration_ms")).isFalse();
             assertThat(indexColumnNames(sqlSession, "idx_kg_edges_scope_triple")).containsExactly(
                     "scope_type",
                     "scope_id",
@@ -52,72 +67,74 @@ class DatabaseSchemaInitializerTests {
                     "display_label"
             );
             assertThat(indexColumnNames(sqlSession, "idx_kg_edges_scope_triple_migration")).isEmpty();
+            assertThat(queryInt(sqlSession, "SELECT COUNT(*) FROM model_configs")).isEqualTo(2);
+            assertThat(queryInt(sqlSession, """
+                    SELECT COUNT(*)
+                    FROM model_configs
+                    WHERE id = 'active-chat'
+                      AND role = 'CHAT'
+                      AND provider = 'DASHSCOPE'
+                      AND model_name = 'qwen-plus'
+                      AND context_window_tokens = 128000
+                      AND is_active = 1
+                    """)).isEqualTo(1);
+            assertThat(queryInt(sqlSession, """
+                    SELECT COUNT(*)
+                    FROM model_configs
+                    WHERE id = 'active-embedding'
+                      AND role = 'EMBEDDING'
+                      AND provider = 'DASHSCOPE'
+                      AND model_name = 'text-embedding-v4'
+                      AND embedding_dimensions = 1024
+                      AND context_window_tokens IS NULL
+                      AND is_active = 1
+                    """)).isEqualTo(1);
         }
     }
 
-    private static void createLegacyKnowledgeFolderRunsTable(SqlSession sqlSession) {
-        try (Statement statement = sqlSession.getConnection().createStatement()) {
-            statement.executeUpdate("""
-                    CREATE TABLE knowledge_folder_runs (
-                        id TEXT PRIMARY KEY,
-                        scope_type TEXT NOT NULL,
-                        scope_id TEXT,
-                        operation TEXT NOT NULL,
-                        status TEXT NOT NULL,
-                        scanned_count INTEGER NOT NULL DEFAULT 0,
-                        parsed_count INTEGER NOT NULL DEFAULT 0,
-                        skipped_count INTEGER NOT NULL DEFAULT 0,
-                        failed_count INTEGER NOT NULL DEFAULT 0,
-                        indexed_document_count INTEGER NOT NULL DEFAULT 0,
-                        indexed_chunk_count INTEGER NOT NULL DEFAULT 0,
-                        failed_document_count INTEGER NOT NULL DEFAULT 0,
-                        failures_json TEXT,
-                        started_at INTEGER NOT NULL,
-                        completed_at INTEGER NOT NULL,
-                        duration_ms INTEGER NOT NULL DEFAULT 0,
-                        error_message TEXT,
-                        created_at INTEGER NOT NULL
-                    )
-                    """);
-            statement.executeUpdate("""
-                    INSERT INTO knowledge_folder_runs (
-                        id, scope_type, scope_id, operation, status,
-                        started_at, completed_at, duration_ms, created_at
-                    )
-                    VALUES (
-                        'run-legacy', 'KNOWLEDGE_FOLDER', 'folder-1', 'SYNC', 'COMPLETED',
-                        1000, 1200, 200, 1000
-                    )
-                    """);
+    private static List<String> tableNames(SqlSession sqlSession) {
+        List<String> names = new ArrayList<>();
+        try (Statement statement = sqlSession.getConnection().createStatement();
+             ResultSet resultSet = statement.executeQuery("""
+                     SELECT name
+                     FROM sqlite_master
+                     WHERE type = 'table'
+                     ORDER BY name
+                     """)) {
+            while (resultSet.next()) {
+                names.add(resultSet.getString("name"));
+            }
         } catch (SQLException ex) {
-            throw new IllegalStateException("Failed to create legacy knowledge folder run schema", ex);
+            throw new IllegalStateException("Failed to inspect SQLite tables", ex);
         }
+        return names;
     }
 
-    private static void createLegacyKnowledgeGraphEdgesTable(SqlSession sqlSession) {
-        try (Statement statement = sqlSession.getConnection().createStatement()) {
-            statement.executeUpdate("""
-                    CREATE TABLE knowledge_graph_edges (
-                        id TEXT PRIMARY KEY,
-                        scope_type TEXT NOT NULL,
-                        scope_id TEXT,
-                        source_node_id TEXT NOT NULL,
-                        target_node_id TEXT NOT NULL,
-                        relation_type TEXT NOT NULL,
-                        description TEXT,
-                        confidence REAL NOT NULL DEFAULT 0,
-                        mention_count INTEGER NOT NULL DEFAULT 0,
-                        created_at INTEGER NOT NULL,
-                        updated_at INTEGER NOT NULL
-                    )
-                    """);
-            statement.executeUpdate("""
-                    CREATE UNIQUE INDEX idx_kg_edges_scope_triple
-                    ON knowledge_graph_edges(scope_type, scope_id, source_node_id, target_node_id, relation_type)
-                    """);
+    private static List<String> columnNames(SqlSession sqlSession, String tableName) {
+        List<String> names = new ArrayList<>();
+        try (Statement statement = sqlSession.getConnection().createStatement();
+             ResultSet resultSet = statement.executeQuery("PRAGMA table_info(" + tableName + ")")) {
+            while (resultSet.next()) {
+                names.add(resultSet.getString("name"));
+            }
         } catch (SQLException ex) {
-            throw new IllegalStateException("Failed to create legacy knowledge graph edge schema", ex);
+            throw new IllegalStateException("Failed to inspect SQLite columns: " + tableName, ex);
         }
+        return names;
+    }
+
+    private static boolean isNotNullColumn(SqlSession sqlSession, String tableName, String columnName) {
+        try (Statement statement = sqlSession.getConnection().createStatement();
+             ResultSet resultSet = statement.executeQuery("PRAGMA table_info(" + tableName + ")")) {
+            while (resultSet.next()) {
+                if (columnName.equalsIgnoreCase(resultSet.getString("name"))) {
+                    return resultSet.getInt("notnull") != 0;
+                }
+            }
+        } catch (SQLException ex) {
+            throw new IllegalStateException("Failed to inspect SQLite column nullability: " + tableName, ex);
+        }
+        return false;
     }
 
     private static List<String> indexColumnNames(SqlSession sqlSession, String indexName) {
@@ -133,47 +150,13 @@ class DatabaseSchemaInitializerTests {
         return names;
     }
 
-    private static List<String> columnNames(List<Map<String, Object>> rows) {
-        return rows.stream()
-                .map(DatabaseSchemaInitializerTests::sqliteColumnName)
-                .toList();
-    }
-
-    private static boolean isNotNullColumn(List<Map<String, Object>> rows, String columnName) {
-        return rows.stream()
-                .filter(row -> columnName.equalsIgnoreCase(sqliteColumnName(row)))
-                .findFirst()
-                .map(DatabaseSchemaInitializerTests::sqliteNotNull)
-                .orElse(false);
-    }
-
-    private static boolean sqliteNotNull(Map<String, Object> row) {
-        return row.entrySet().stream()
-                .filter(entry -> "notnull".equalsIgnoreCase(entry.getKey()))
-                .map(Map.Entry::getValue)
-                .findFirst()
-                .map(value -> value instanceof Number number
-                        ? number.intValue() != 0
-                        : "1".equals(String.valueOf(value)))
-                .orElse(false);
-    }
-
-    private static int countRows(SqlSession sqlSession, String tableName) {
+    private static int queryInt(SqlSession sqlSession, String sql) {
         try (Statement statement = sqlSession.getConnection().createStatement();
-             ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) FROM " + tableName)) {
+             ResultSet resultSet = statement.executeQuery(sql)) {
             return resultSet.next() ? resultSet.getInt(1) : 0;
         } catch (SQLException ex) {
-            throw new IllegalStateException("Failed to count SQLite rows: " + tableName, ex);
+            throw new IllegalStateException("Failed to query SQLite scalar", ex);
         }
-    }
-
-    private static String sqliteColumnName(Map<String, Object> row) {
-        return row.entrySet().stream()
-                .filter(entry -> "name".equalsIgnoreCase(entry.getKey()))
-                .map(Map.Entry::getValue)
-                .map(String::valueOf)
-                .findFirst()
-                .orElse("");
     }
 
     private static SqlSession sqliteSqlSession() {

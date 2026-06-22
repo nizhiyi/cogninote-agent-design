@@ -13,21 +13,6 @@ public interface TestDatabaseMapper {
 
     void deleteChatSessions();
 
-    void insertSoftDeletedChatSession(
-            @Param("id") String id,
-            @Param("title") String title,
-            @Param("createdAt") long createdAt,
-            @Param("updatedAt") long updatedAt
-    );
-
-    void insertChatMessage(
-            @Param("id") String id,
-            @Param("conversationId") String conversationId,
-            @Param("sequence") int sequence,
-            @Param("content") String content,
-            @Param("createdAt") long createdAt
-    );
-
     int countChatSessionsById(@Param("id") String id);
 
     int countChatMessagesByConversationId(@Param("conversationId") String conversationId);
@@ -41,8 +26,6 @@ public interface TestDatabaseMapper {
     void deleteKnowledgeFolders();
 
     void deleteModelConfigs();
-
-    void deleteLegacyModelConfig();
 
     void deleteAppSettings();
 

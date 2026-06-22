@@ -1,7 +1,6 @@
 package com.itqianchen.agentdesign.repository.model;
 
 import com.itqianchen.agentdesign.domain.model.ModelConfig;
-import com.itqianchen.agentdesign.domain.model.ModelConfigDefaults;
 import com.itqianchen.agentdesign.domain.model.ModelConfigRole;
 import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
 import com.itqianchen.agentdesign.mapper.model.ModelConfigMapper;
@@ -12,8 +11,7 @@ import org.springframework.stereotype.Repository;
 /**
  * 模型配置仓储。
  *
- * <p>负责维护每个 role 只有一个 active 配置的应用层约束，并保留旧版 active_model_config
- * 接口的迁移兼容入口。</p>
+ * <p>负责维护每个 role 只有一个 active 配置的应用层约束。</p>
  */
 @Repository
 public class ModelConfigRepository {
@@ -140,45 +138,4 @@ public class ModelConfigRepository {
         return modelConfigMapper.countByRole(role.name());
     }
 
-    /**
-     * 查询旧版单行激活配置。
-     *
-     * <p>该入口只服务旧版 active_model_config 迁移；新代码必须按 Chat/Embedding 角色分别读取激活配置。</p>
-     *
-     * @return 旧版配置；不存在时为空
-     */
-    @Deprecated
-    public Optional<ModelConfig> findLegacyActive() {
-        return modelConfigMapper.findLegacyActive(ModelConfigDefaults.ACTIVE_CONFIG_ID).stream().findFirst();
-    }
-
-    /**
-     * 保存旧版单行激活配置。
-     *
-     * <p>用于兼容旧设置接口，迁移后的多角色配置不应通过该方法写入。</p>
-     *
-     * @param config 旧版配置
-     * @return 保存后的旧版配置
-     */
-    @Deprecated
-    public ModelConfig saveActive(ModelConfig config) {
-        modelConfigMapper.saveActive(new ModelConfig(
-                config.id(),
-                config.role(),
-                config.provider(),
-                config.displayName(),
-                config.baseUrl(),
-                config.apiKey(),
-                config.modelName(),
-                config.resolvedEmbeddingDimensions(),
-                config.resolvedTemperature(),
-                config.resolvedDefaultTopK(),
-                config.contextWindowTokens(),
-                config.active(),
-                config.createdAt(),
-                config.updatedAt()
-        ));
-        return findLegacyActive().orElseThrow(() ->
-                new IllegalStateException("Model config was not found after save"));
-    }
 }

@@ -1,14 +1,11 @@
 package com.itqianchen.agentdesign.mapper.schema;
 
-import java.util.List;
-import java.util.Map;
 import org.apache.ibatis.annotations.Param;
 
 /**
  * 启动期数据库 schema 初始化专用 Mapper。
  *
- * <p>该接口包含 DDL 和迁移 SQL，只能由 DatabaseSchemaInitializer 使用。动态表名、列名和字段定义
- * 必须来自内部白名单常量，不能暴露给外部请求。</p>
+ * <p>该接口只包含当前版本的幂等 DDL 和首次启动种子数据 SQL，只能由 DatabaseSchemaInitializer 使用。</p>
  */
 public interface DatabaseSchemaMapper {
 
@@ -26,11 +23,6 @@ public interface DatabaseSchemaMapper {
      * 创建文档 chunk 表。
      */
     void createChunksTable();
-
-    /**
-     * 创建旧版模型配置表，用于兼容迁移。
-     */
-    void createLegacyModelConfigTable();
 
     /**
      * 创建多角色模型配置表。
@@ -64,31 +56,6 @@ public interface DatabaseSchemaMapper {
     void createKnowledgeFolderRunsTable();
 
     /**
-     * 删除知识库维护任务迁移临时表。
-     */
-    void dropKnowledgeFolderRunsMigrationTable();
-
-    /**
-     * 创建知识库维护任务迁移临时表。
-     */
-    void createKnowledgeFolderRunsMigrationTable();
-
-    /**
-     * 将旧维护记录复制到迁移临时表。
-     */
-    void copyKnowledgeFolderRunsToMigrationTable();
-
-    /**
-     * 删除旧知识库维护任务表。
-     */
-    void dropKnowledgeFolderRunsTable();
-
-    /**
-     * 将迁移临时表重命名为正式维护任务表。
-     */
-    void renameKnowledgeFolderRunsMigrationTable();
-
-    /**
      * 创建图谱 chunk 抽取缓存表。
      */
     void createKnowledgeGraphChunkExtractionsTable();
@@ -112,30 +79,6 @@ public interface DatabaseSchemaMapper {
      * 创建图谱前端视图表。
      */
     void createKnowledgeGraphViewsTable();
-
-    /**
-     * 读取 SQLite 表结构信息。
-     *
-     * @param tableName 表名，必须来自初始化器内部白名单
-     * @return PRAGMA table_info 结果
-     */
-    List<Map<String, Object>> tableInfo(@Param("tableName") String tableName);
-
-    /**
-     * 为旧库补列。
-     *
-     * <p>SQLite 不支持用绑定参数替代标识符，调用方必须先校验 tableName、columnName 和 definition
-     * 都是应用内固定迁移项。</p>
-     *
-     * @param tableName 表名，必须来自内部迁移清单
-     * @param columnName 列名，必须来自内部迁移清单
-     * @param definition 列定义，必须来自内部迁移清单
-     */
-    void addColumn(
-            @Param("tableName") String tableName,
-            @Param("columnName") String columnName,
-            @Param("definition") String definition
-    );
 
     /**
      * 创建知识库路径唯一索引。
@@ -198,28 +141,9 @@ public interface DatabaseSchemaMapper {
     void createKnowledgeGraphEdgesScopeIndex();
 
     /**
-     * 删除旧版图谱边去重索引。
-     *
-     * <p>旧索引只包含 relation_type；关系中文谓词独立持久化后，需要先删除再用同名索引重建。</p>
-     */
-    void dropKnowledgeGraphEdgesScopeTripleIndex();
-
-    /**
      * 创建图谱边 scope 三元组去重索引。
      */
     void createKnowledgeGraphEdgesScopeTripleIndex();
-
-    /**
-     * 创建图谱边索引迁移保护索引。
-     *
-     * <p>替换同名索引前先创建临时唯一索引，保证旧索引被删除后仍有唯一约束保护写入。</p>
-     */
-    void createKnowledgeGraphEdgesScopeTripleMigrationIndex();
-
-    /**
-     * 删除图谱边索引迁移保护索引。
-     */
-    void dropKnowledgeGraphEdgesScopeTripleMigrationIndex();
 
     /**
      * 创建图谱证据 nodeId 索引。
@@ -262,16 +186,6 @@ public interface DatabaseSchemaMapper {
     void createKnowledgeGraphViewsScopeIndex();
 
     /**
-     * 删除已软删除会话下的消息。
-     */
-    void deleteSoftDeletedChatMessages();
-
-    /**
-     * 物理清理已软删除会话。
-     */
-    void deleteSoftDeletedChatSessions();
-
-    /**
      * 统计新模型配置表记录数。
      *
      * @return 配置数量
@@ -279,18 +193,9 @@ public interface DatabaseSchemaMapper {
     long countModelConfigs();
 
     /**
-     * 读取旧版 active_model_config 表。
-     *
-     * <p>仅用于一次性迁移到 model_configs，迁移完成后运行时不应再依赖旧表。</p>
-     *
-     * @return 旧版配置行
-     */
-    List<Map<String, Object>> findLegacyActiveModelConfig();
-
-    /**
      * 插入启动期初始模型配置。
      *
-     * <p>该方法只由迁移或首次启动初始化调用，参数均来自默认配置或旧表清洗结果。</p>
+     * <p>该方法只在当前版本空库首次启动时调用，参数来自应用默认模型配置。</p>
      *
      * @param id 配置 ID
      * @param role 模型角色

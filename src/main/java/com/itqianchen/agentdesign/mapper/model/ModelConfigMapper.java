@@ -75,21 +75,4 @@ public interface ModelConfigMapper {
      * @return 配置数量
      */
     long countByRole(@Param("role") String role);
-
-    /**
-     * 读取旧版单 active 配置。
-     *
-     * <p>仅用于启动迁移和兼容旧接口，新代码应按 role 查询 active 配置。</p>
-     *
-     * @param id 旧版固定配置 ID
-     * @return 旧版配置记录
-     */
-    List<ModelConfig> findLegacyActive(@Param("id") String id);
-
-    /**
-     * 保存旧版 active_model_config 记录。
-     *
-     * @param config 旧版兼容配置
-     */
-    void saveActive(ModelConfig config);
 }
