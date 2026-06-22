@@ -16,26 +16,28 @@ import {
   SearchCheck,
   ShieldAlert,
   ShieldCheck,
-  Trash2,
-  Wrench
+  Trash2
 } from 'lucide-vue-next'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import KnowledgeHealthDrawer from './knowledge-health-drawer.vue'
+import KnowledgeHealthIssueDetailDialog from './knowledge-health-issue-detail-dialog.vue'
 import { confirmRebuildAllIndex } from '../composables/use-knowledge-maintenance-confirm'
+import { useKnowledgeHealthIssueIgnore } from '../composables/use-knowledge-health-issue-ignore'
 import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
-import { useKnowledgeGraphStore } from '../stores/knowledge-graph'
 import { useKnowledgeHealthStore } from '../stores/knowledge-health'
 import { useKnowledgeMaintenanceStore } from '../stores/knowledge-maintenance'
 import { useSearchStore } from '../stores/search'
 import { formatTime } from '../utils/formatters'
+import { buildIssueCategories } from '../utils/knowledge-health-issues'
 
 const knowledgeStore = useKnowledgeFoldersStore()
-const graphStore = useKnowledgeGraphStore()
 const healthStore = useKnowledgeHealthStore()
 const maintenanceStore = useKnowledgeMaintenanceStore()
 const searchStore = useSearchStore()
 const isRunsDialogOpen = ref(false)
 const isRunDetailDialogOpen = ref(false)
+const isIssueDetailDialogOpen = ref(false)
+const selectedIssueSection = ref(null)
 const runPage = ref(1)
 const runPageSize = ref(10)
 const selectedRunIds = ref([])
@@ -77,10 +79,30 @@ const RUNNING_STATUSES = new Set(['RUNNING', 'CANCELLING'])
 const TERMINAL_STATUSES = new Set(['CANCELLED', 'COMPLETED', 'COMPLETED_WITH_WARNINGS', 'FAILED'])
 const RUN_OPERATION_OPTIONS = Object.entries(RUN_OPERATION_LABELS).map(([value, label]) => ({ value, label }))
 const RUN_STATUS_OPTIONS = Object.entries(RUN_STATUS_LABELS).map(([value, label]) => ({ value, label }))
+const ISSUE_CATEGORY_ICONS = {
+  retrieval: Database,
+  capability: BrainCircuit,
+  graph: GitBranch,
+  'content-risk': AlertTriangle
+}
+
+const { ignoredIssueKeys, restoreAllIgnoredIssues } = useKnowledgeHealthIssueIgnore()
 
 const healthSummary = computed(() => healthStore.health?.summary || null)
 const healthIssues = computed(() => healthStore.health?.issues || [])
 const globalIssues = computed(() => healthIssues.value.filter((issue) => issue.scopeType === 'ALL' && !issue.scopeId))
+const globalIssueSections = computed(() =>
+  buildIssueCategories(globalIssues.value, ignoredIssueKeys.value).map((section) => ({
+    ...section,
+    icon: ISSUE_CATEGORY_ICONS[section.key] || AlertTriangle
+  }))
+)
+const activeGlobalIssueCount = computed(() =>
+  globalIssueSections.value.reduce((total, section) => total + section.activeIssues.length, 0)
+)
+const ignoredGlobalIssueCount = computed(() =>
+  globalIssueSections.value.reduce((total, section) => total + section.ignoredCount, 0)
+)
 const folderIssues = computed(() =>
   (healthStore.health?.folders || []).filter((folder) => folderHealthIssueCount(folder))
 )
@@ -113,8 +135,12 @@ const folderDisplayById = computed(() => {
   })
   return entries
 })
-const hasIndexIssue = computed(() => globalIssues.value.some((issue) => issue.code === 'INDEX_INCONSISTENT'))
-const totalIssueEntries = computed(() => globalIssues.value.length + folderIssues.value.length)
+const hasIndexIssue = computed(() =>
+  globalIssueSections.value.some((section) =>
+    section.activeIssues.some((issue) => issue.code === 'INDEX_INCONSISTENT')
+  )
+)
+const totalIssueEntries = computed(() => activeGlobalIssueCount.value + folderIssues.value.length)
 const primaryActionLabel = computed(() => {
   if (hasIndexIssue.value) {
     return '重建索引'
@@ -252,27 +278,6 @@ async function rebuildAllIndexes() {
   await searchStore.rebuildIndex()
 }
 
-async function rebuildAllGraph() {
-  try {
-    await ElMessageBox.confirm(
-      '全库图谱会基于当前已解析资料重新抽取实体和关系，资料较多时可能运行较久。该操作不会修改原始文件。',
-      '重建全库图谱',
-      {
-        confirmButtonText: '开始重建',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-  } catch (err) {
-    if (err === 'cancel' || err === 'close') {
-      return
-    }
-    throw err
-  }
-  graphStore.setScopeForGeneration('ALL', '')
-  await graphStore.rebuild()
-}
-
 async function handlePrimaryAction() {
   if (hasIndexIssue.value) {
     await rebuildAllIndexes()
@@ -289,6 +294,11 @@ function openGlobalIssues() {
   healthStore.selectedFolderId = ''
   healthStore.folderHealth = null
   healthStore.isDrawerOpen = true
+}
+
+function openIssueSection(section) {
+  selectedIssueSection.value = section
+  isIssueDetailDialogOpen.value = true
 }
 
 async function openRunsDialog() {
@@ -590,61 +600,43 @@ defineExpose({
             <p class="eyebrow">全局诊断</p>
             <h4>问答能力</h4>
           </div>
-          <span>{{ globalIssues.length }} 项</span>
+          <div class="knowledge-health-section__header-actions">
+            <span>{{ activeGlobalIssueCount }} 项</span>
+            <el-button
+              v-if="ignoredGlobalIssueCount"
+              text
+              @click="restoreAllIgnoredIssues"
+            >
+              恢复忽略
+            </el-button>
+          </div>
         </header>
 
-        <p v-if="!globalIssues.length" class="knowledge-health-empty">
+        <p v-if="!globalIssueSections.length" class="knowledge-health-empty">
           <CheckCircle2 aria-hidden="true" />
           <span>没有影响问答能力的全局问题。</span>
         </p>
 
-        <article
-          v-for="issue in globalIssues"
-          :key="issue.code"
-          class="knowledge-health-issue-row"
+        <button
+          v-for="section in globalIssueSections"
+          :key="section.key"
+          :class="['knowledge-health-category-row', `knowledge-health-category-row--${section.tone}`, { 'is-ignored': !section.activeCount }]"
+          type="button"
+          @click="openIssueSection(section)"
         >
           <div>
-            <strong>{{ issue.message }}</strong>
-            <p>{{ issue.severity }} · {{ issue.action }}</p>
-            <ul v-if="issue.examples?.length" class="knowledge-health-issue-row__examples">
-              <li v-for="example in issue.examples" :key="example">{{ example }}</li>
-            </ul>
+            <component :is="section.icon" aria-hidden="true" />
+            <div>
+              <strong>{{ section.title }}</strong>
+              <p>{{ section.subtitle }}</p>
+            </div>
           </div>
-          <el-button
-            v-if="issue.code === 'INDEX_INCONSISTENT'"
-            :loading="searchStore.isRebuildingIndex"
-            :disabled="maintenanceStore.hasActiveRun"
-            @click="rebuildAllIndexes"
-          >
-            <Wrench aria-hidden="true" />
-            <span>重建索引</span>
-          </el-button>
-          <RouterLink
-            v-else-if="issue.code === 'EMBEDDING_UNCONFIGURED'"
-            class="knowledge-directory-entry__link"
-            :to="{ name: 'settings', query: { item: 'model-embedding' } }"
-          >
-            <span>配置向量模型</span>
+          <span>
+            {{ section.activeCount ? `${section.activeCount} 项` : '已忽略' }}
+            <em v-if="section.ignoredCount">{{ section.ignoredCount }} 已忽略</em>
             <ChevronRight aria-hidden="true" />
-          </RouterLink>
-          <el-button
-            v-else-if="issue.code === 'GRAPH_STALE'"
-            :loading="graphStore.isRebuilding"
-            :disabled="graphStore.isRunActive"
-            @click="rebuildAllGraph"
-          >
-            <GitBranch aria-hidden="true" />
-            <span>重建全库图谱</span>
-          </el-button>
-          <RouterLink
-            v-else-if="issue.code === 'DUPLICATE_DOCUMENT_CONTENT' || issue.code === 'POSSIBLE_VERSION_CONFLICT'"
-            class="knowledge-directory-entry__link"
-            :to="{ name: 'knowledge', query: { panel: 'directories' } }"
-          >
-            <span>查看目录资料</span>
-            <ChevronRight aria-hidden="true" />
-          </RouterLink>
-        </article>
+          </span>
+        </button>
       </section>
 
       <section class="knowledge-health-section" aria-label="目录诊断问题">
@@ -1012,6 +1004,11 @@ defineExpose({
         </section>
       </section>
     </el-dialog>
+
+    <KnowledgeHealthIssueDetailDialog
+      v-model="isIssueDetailDialogOpen"
+      :section="selectedIssueSection"
+    />
 
     <KnowledgeHealthDrawer />
   </section>

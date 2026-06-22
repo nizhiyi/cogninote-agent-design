@@ -1,22 +1,34 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { BrainCircuit, Copy, Database, FolderSync, GitBranch, RotateCcw } from 'lucide-vue-next'
+import { AlertTriangle, BrainCircuit, ChevronRight, Copy, Database, FolderSync, GitBranch, RotateCcw } from 'lucide-vue-next'
+import KnowledgeHealthIssueDetailDialog from './knowledge-health-issue-detail-dialog.vue'
 import {
   confirmRebuildAllIndex,
   confirmRebuildFolderIndex,
   confirmSyncFolder
 } from '../composables/use-knowledge-maintenance-confirm'
+import { useKnowledgeHealthIssueIgnore } from '../composables/use-knowledge-health-issue-ignore'
 import { useKnowledgeFoldersStore } from '../stores/knowledge-folders'
 import { useKnowledgeHealthStore } from '../stores/knowledge-health'
 import { useKnowledgeMaintenanceStore } from '../stores/knowledge-maintenance'
 import { useSearchStore } from '../stores/search'
 import { formatTime } from '../utils/formatters'
+import { buildIssueCategories, issueMetaText } from '../utils/knowledge-health-issues'
 
 const knowledgeStore = useKnowledgeFoldersStore()
 const healthStore = useKnowledgeHealthStore()
 const maintenanceStore = useKnowledgeMaintenanceStore()
 const searchStore = useSearchStore()
+const isIssueDetailDialogOpen = ref(false)
+const selectedIssueSection = ref(null)
+const ISSUE_CATEGORY_ICONS = {
+  retrieval: Database,
+  capability: BrainCircuit,
+  graph: GitBranch,
+  'content-risk': AlertTriangle
+}
+const { ignoredIssueKeys, restoreAllIgnoredIssues } = useKnowledgeHealthIssueIgnore()
 
 const currentFolder = computed(() =>
   (healthStore.health?.folders || []).find((folder) => folder.id === healthStore.selectedFolderId) || null
@@ -61,43 +73,26 @@ const canRepairFolder = computed(() => Boolean(currentFolder.value?.enabled && h
 const globalIssues = computed(() => (healthStore.health?.issues || []).filter((issue) => issue.scopeType === 'ALL' && !issue.scopeId))
 const hasFolderSyncIssues = computed(() => problemSections.value.some((section) => section.action === 'SYNC_FOLDER'))
 const hasFolderIndexIssues = computed(() => problemSections.value.some((section) => section.action === 'REBUILD_INDEX'))
-const hasIndexIssue = computed(() => globalIssues.value.some((issue) => issue.code === 'INDEX_INCONSISTENT'))
-const hasEmbeddingIssue = computed(() => globalIssues.value.some((issue) => issue.code === 'EMBEDDING_UNCONFIGURED'))
-const hasGraphStaleIssue = computed(() => globalIssues.value.some((issue) => issue.code === 'GRAPH_STALE'))
-const hasContentRiskIssue = computed(() => globalIssues.value.some((issue) =>
-  issue.code === 'DUPLICATE_DOCUMENT_CONTENT' || issue.code === 'POSSIBLE_VERSION_CONFLICT'
-))
+const systemProblemSections = computed(() =>
+  buildIssueCategories(globalIssues.value, ignoredIssueKeys.value).map((section) => ({
+    ...section,
+    icon: ISSUE_CATEGORY_ICONS[section.key] || AlertTriangle
+  }))
+)
+const hasIndexIssue = computed(() =>
+  systemProblemSections.value.some((section) =>
+    section.activeIssues.some((issue) => issue.code === 'INDEX_INCONSISTENT')
+  )
+)
+const hasEmbeddingIssue = computed(() =>
+  systemProblemSections.value.some((section) =>
+    section.activeIssues.some((issue) => issue.code === 'EMBEDDING_UNCONFIGURED')
+  )
+)
+const ignoredGlobalIssueCount = computed(() =>
+  systemProblemSections.value.reduce((total, section) => total + section.ignoredCount, 0)
+)
 const selectedFolderRun = computed(() => maintenanceStore.activeRunForFolder(healthStore.selectedFolderId))
-const systemProblemSections = computed(() => [
-  {
-    key: 'INDEX_INCONSISTENT',
-    title: '索引不一致',
-    icon: Database,
-    action: 'REBUILD_INDEX',
-    issues: globalIssues.value.filter((issue) => issue.code === 'INDEX_INCONSISTENT')
-  },
-  {
-    key: 'EMBEDDING_UNCONFIGURED',
-    title: '检索能力降级',
-    icon: BrainCircuit,
-    action: 'CONFIGURE_EMBEDDING',
-    issues: globalIssues.value.filter((issue) => issue.code === 'EMBEDDING_UNCONFIGURED')
-  },
-  {
-    key: 'GRAPH_STALE',
-    title: '辅助图谱过期',
-    icon: GitBranch,
-    action: 'REBUILD_GRAPH',
-    issues: globalIssues.value.filter((issue) => issue.code === 'GRAPH_STALE')
-  },
-  {
-    key: 'CONTENT_RISK',
-    title: '可能干扰回答',
-    icon: GitBranch,
-    action: 'VIEW_CONFLICTS',
-    issues: globalIssues.value.filter((issue) => issue.code === 'DUPLICATE_DOCUMENT_CONTENT' || issue.code === 'POSSIBLE_VERSION_CONFLICT')
-  }
-].filter((section) => section.issues.length))
 
 // issue.action 是后端建议；抽屉只映射到同步、重建、配置这类显式且可恢复的操作。
 async function syncSelectedFolder() {
@@ -152,6 +147,11 @@ function fallbackCopy(text) {
   document.execCommand('copy')
   document.body.removeChild(textarea)
 }
+
+function openIssueSection(section) {
+  selectedIssueSection.value = section
+  isIssueDetailDialogOpen.value = true
+}
 </script>
 
 <template>
@@ -203,22 +203,9 @@ function fallbackCopy(text) {
         <BrainCircuit aria-hidden="true" />
         <span>配置向量模型</span>
       </RouterLink>
-      <RouterLink
-        v-if="hasGraphStaleIssue"
-        class="knowledge-header-link"
-        :to="{ name: 'knowledge', query: { panel: 'graph' } }"
-      >
-        <GitBranch aria-hidden="true" />
-        <span>查看知识图谱</span>
-      </RouterLink>
-      <RouterLink
-        v-if="hasContentRiskIssue"
-        class="knowledge-header-link"
-        :to="{ name: 'knowledge', query: { panel: 'directories' } }"
-      >
-        <GitBranch aria-hidden="true" />
-        <span>查看目录资料</span>
-      </RouterLink>
+      <el-button v-if="ignoredGlobalIssueCount" text @click="restoreAllIgnoredIssues">
+        恢复忽略
+      </el-button>
     </div>
 
     <el-alert
@@ -234,7 +221,7 @@ function fallbackCopy(text) {
     <section v-else-if="folderHealth?.issues?.length" class="knowledge-issue-list">
       <article v-for="issue in folderHealth.issues" :key="issue.code" class="knowledge-issue-item">
         <strong>{{ issue.message }}</strong>
-        <span>{{ issue.severity }} · {{ issue.action }}</span>
+        <span>{{ issueMetaText(issue) }}</span>
       </article>
     </section>
     <p v-if="!healthStore.isLoadingFolder && !problemSections.length && !systemProblemSections.length" class="panel-message">
@@ -246,21 +233,23 @@ function fallbackCopy(text) {
       :key="section.key"
       class="knowledge-problem-section knowledge-problem-section--system"
     >
-      <h4>
-        <component :is="section.icon" aria-hidden="true" />
-        <span>{{ section.title }}</span>
-      </h4>
-      <article
-        v-for="issue in section.issues"
-        :key="issue.code"
-        class="knowledge-issue-item"
+      <button
+        :class="['knowledge-health-drawer__category', `knowledge-health-drawer__category--${section.tone}`, { 'is-ignored': !section.activeCount }]"
+        type="button"
+        @click="openIssueSection(section)"
       >
-        <strong>{{ issue.message }}</strong>
-        <span>{{ issue.severity }} · {{ issue.action }}</span>
-        <ul v-if="issue.examples?.length" class="knowledge-health-drawer__examples">
-          <li v-for="example in issue.examples" :key="example">{{ example }}</li>
-        </ul>
-      </article>
+        <div>
+          <component :is="section.icon" aria-hidden="true" />
+          <div>
+            <strong>{{ section.title }}</strong>
+            <span>{{ section.subtitle }}</span>
+          </div>
+        </div>
+        <em>
+          {{ section.activeCount ? `${section.activeCount} 项` : '已忽略' }}
+          <ChevronRight aria-hidden="true" />
+        </em>
+      </button>
     </section>
 
     <section
@@ -294,5 +283,10 @@ function fallbackCopy(text) {
         <em>{{ formatTime(run.completedAt) }} · {{ run.durationMs }} ms</em>
       </article>
     </section>
+
+    <KnowledgeHealthIssueDetailDialog
+      v-model="isIssueDetailDialogOpen"
+      :section="selectedIssueSection"
+    />
   </el-drawer>
 </template>

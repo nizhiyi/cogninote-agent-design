@@ -17,10 +17,12 @@ public record KnowledgeHealthIssueResponse(
         KnowledgeFolderRunScopeType scopeType,
         String scopeId,
         int count,
-        List<String> examples
+        List<String> examples,
+        List<KnowledgeHealthIssueExampleResponse> exampleDetails
 ) {
     public KnowledgeHealthIssueResponse {
         examples = examples == null ? List.of() : List.copyOf(examples);
+        exampleDetails = exampleDetails == null ? List.of() : List.copyOf(exampleDetails);
     }
 
     public KnowledgeHealthIssueResponse(
@@ -32,6 +34,19 @@ public record KnowledgeHealthIssueResponse(
             String scopeId,
             int count
     ) {
-        this(code, severity, message, action, scopeType, scopeId, count, List.of());
+        this(code, severity, message, action, scopeType, scopeId, count, List.of(), List.of());
+    }
+
+    public KnowledgeHealthIssueResponse(
+            KnowledgeHealthIssueCode code,
+            String severity,
+            String message,
+            String action,
+            KnowledgeFolderRunScopeType scopeType,
+            String scopeId,
+            int count,
+            List<String> examples
+    ) {
+        this(code, severity, message, action, scopeType, scopeId, count, examples, List.of());
     }
 }

@@ -21,6 +21,7 @@ import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunDeleteResponse
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunDetailResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunPageResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunResponse;
+import com.itqianchen.agentdesign.dto.knowledge.KnowledgeHealthIssueExampleResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeHealthIssueResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeHealthResponse;
 import com.itqianchen.agentdesign.dto.knowledge.KnowledgeHealthSummaryResponse;
@@ -33,6 +34,7 @@ import com.itqianchen.agentdesign.repository.knowledge.KnowledgeFolderRunReposit
 import com.itqianchen.agentdesign.service.document.DocumentIngestionService;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -888,7 +890,8 @@ public class KnowledgeHealthService {
                     "REBUILD_GRAPH",
                     null,
                     graphFreshness.staleScopeCount(),
-                    graphFreshness.examples()
+                    graphFreshness.examples(),
+                    graphFreshness.exampleDetails()
             ));
         }
         if (contentQuality.duplicateDocumentCount() > 0) {
@@ -899,7 +902,8 @@ public class KnowledgeHealthService {
                     "VIEW_CONFLICTS",
                     null,
                     contentQuality.duplicateDocumentCount(),
-                    contentQuality.duplicateExamples()
+                    contentQuality.duplicateExamples(),
+                    contentQuality.duplicateExampleDetails()
             ));
         }
         if (contentQuality.versionConflictGroupCount() > 0) {
@@ -910,7 +914,8 @@ public class KnowledgeHealthService {
                     "VIEW_CONFLICTS",
                     null,
                     contentQuality.versionConflictGroupCount(),
-                    contentQuality.versionConflictExamples()
+                    contentQuality.versionConflictExamples(),
+                    contentQuality.versionConflictExampleDetails()
             ));
         }
         return List.copyOf(issues);
@@ -955,16 +960,29 @@ public class KnowledgeHealthService {
 
         int duplicateDocumentCount = 0;
         List<String> duplicateExamples = new ArrayList<>();
+        List<KnowledgeHealthIssueExampleResponse> duplicateExampleDetails = new ArrayList<>();
         for (List<KnowledgeDocument> documents : documentsByHash.values()) {
             if (documents.size() <= 1) {
                 continue;
             }
             duplicateDocumentCount += documents.size();
             addExample(duplicateExamples, exampleFileList("重复内容", documents));
+            addExampleDetail(
+                    duplicateExampleDetails,
+                    new KnowledgeHealthIssueExampleResponse(
+                            "DOCUMENT_GROUP",
+                            "重复内容",
+                            "这些资料内容完全相同，检索时可能让同一来源反复出现。",
+                            null,
+                            null,
+                            exampleDocumentItems(documents)
+                    )
+            );
         }
 
         int versionConflictGroupCount = 0;
         List<String> versionConflictExamples = new ArrayList<>();
+        List<KnowledgeHealthIssueExampleResponse> versionConflictExampleDetails = new ArrayList<>();
         for (Map.Entry<String, List<KnowledgeDocument>> entry : documentsByNormalizedName.entrySet()) {
             List<KnowledgeDocument> documents = entry.getValue();
             if (documents.size() <= 1 || distinctContentHashCount(documents) <= 1) {
@@ -972,13 +990,26 @@ public class KnowledgeHealthService {
             }
             versionConflictGroupCount++;
             addExample(versionConflictExamples, exampleFileList(entry.getKey(), documents));
+            addExampleDetail(
+                    versionConflictExampleDetails,
+                    new KnowledgeHealthIssueExampleResponse(
+                            "DOCUMENT_GROUP",
+                            "疑似版本冲突：" + entry.getKey(),
+                            "这些资料像同一份内容的不同版本，回答时可能混用旧版和新版。",
+                            null,
+                            null,
+                            exampleDocumentItems(documents)
+                    )
+            );
         }
 
         return new ContentQualitySnapshot(
                 duplicateDocumentCount,
                 versionConflictGroupCount,
                 duplicateExamples,
-                versionConflictExamples
+                versionConflictExamples,
+                duplicateExampleDetails,
+                versionConflictExampleDetails
         );
     }
 
@@ -993,6 +1024,9 @@ public class KnowledgeHealthService {
     private GraphFreshnessSnapshot graphFreshness(List<FolderHealthSnapshot> snapshots) {
         Map<String, Long> folderMaterialUpdatedAt = new HashMap<>();
         Map<String, Long> documentMaterialUpdatedAt = new HashMap<>();
+        Map<String, String> folderLabelById = new HashMap<>();
+        Map<String, String> documentLabelById = new HashMap<>();
+        Map<String, String> documentPathById = new HashMap<>();
         Long allMaterialUpdatedAt = null;
 
         for (FolderHealthSnapshot snapshot : snapshots) {
@@ -1000,6 +1034,7 @@ public class KnowledgeHealthService {
                 continue;
             }
             String folderId = snapshot.summary().folder().id();
+            folderLabelById.put(folderId, readableFolderName(snapshot.summary().folder()));
             Long folderUpdatedAt = maxNullable(
                     snapshot.summary().folder().lastIngestedAt(),
                     snapshot.summary().folder().lastIndexedAt()
@@ -1007,6 +1042,8 @@ public class KnowledgeHealthService {
             for (KnowledgeDocument document : snapshot.documents()) {
                 Long documentUpdatedAt = maxNullable(document.updatedAt(), document.indexedAt());
                 documentMaterialUpdatedAt.put(document.id(), documentUpdatedAt);
+                documentLabelById.put(document.id(), readableDocumentName(document));
+                documentPathById.put(document.id(), document.sourcePath());
                 folderUpdatedAt = maxNullable(folderUpdatedAt, documentUpdatedAt);
             }
             folderMaterialUpdatedAt.put(folderId, folderUpdatedAt);
@@ -1015,15 +1052,18 @@ public class KnowledgeHealthService {
 
         int staleScopeCount = 0;
         List<String> examples = new ArrayList<>();
+        List<KnowledgeHealthIssueExampleResponse> exampleDetails = new ArrayList<>();
         for (KnowledgeGraphSummaryRow row : graphRepository.findGeneratedGraphSummaries()) {
             Long materialUpdatedAt = graphMaterialUpdatedAt(row, allMaterialUpdatedAt, folderMaterialUpdatedAt, documentMaterialUpdatedAt);
             if (materialUpdatedAt == null || row.generatedAt() == null || row.generatedAt() >= materialUpdatedAt) {
                 continue;
             }
             staleScopeCount++;
-            addExample(examples, graphScopeLabel(row));
+            KnowledgeHealthIssueExampleResponse detail = graphScopeExample(row, folderLabelById, documentLabelById, documentPathById);
+            addExample(examples, detail.label());
+            addExampleDetail(exampleDetails, detail);
         }
-        return new GraphFreshnessSnapshot(staleScopeCount, examples);
+        return new GraphFreshnessSnapshot(staleScopeCount, examples, exampleDetails);
     }
 
     private static List<KnowledgeDocument> parsedEnabledDocuments(List<FolderHealthSnapshot> snapshots) {
@@ -1055,6 +1095,15 @@ public class KnowledgeHealthService {
         }
     }
 
+    private static void addExampleDetail(
+            List<KnowledgeHealthIssueExampleResponse> examples,
+            KnowledgeHealthIssueExampleResponse example
+    ) {
+        if (examples.size() < MAX_ISSUE_EXAMPLES && example != null && example.label() != null && !example.label().isBlank()) {
+            examples.add(example);
+        }
+    }
+
     private static String exampleFileList(String label, List<KnowledgeDocument> documents) {
         String files = documents.stream()
                 .limit(3)
@@ -1063,6 +1112,22 @@ public class KnowledgeHealthService {
                 .reduce((left, right) -> left + " / " + right)
                 .orElse("未命名资料");
         return label + "：" + files;
+    }
+
+    private static List<String> exampleDocumentItems(List<KnowledgeDocument> documents) {
+        return documents.stream()
+                .limit(5)
+                .map(KnowledgeHealthService::readableDocumentItem)
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private static String readableDocumentItem(KnowledgeDocument document) {
+        String name = readableDocumentName(document);
+        if (document.sourcePath() == null || document.sourcePath().isBlank() || Objects.equals(name, document.sourcePath())) {
+            return name;
+        }
+        return name + " · " + document.sourcePath();
     }
 
     private static Long graphMaterialUpdatedAt(
@@ -1079,17 +1144,82 @@ public class KnowledgeHealthService {
         };
     }
 
-    private static String graphScopeLabel(KnowledgeGraphSummaryRow row) {
+    private static KnowledgeHealthIssueExampleResponse graphScopeExample(
+            KnowledgeGraphSummaryRow row,
+            Map<String, String> folderLabelById,
+            Map<String, String> documentLabelById,
+            Map<String, String> documentPathById
+    ) {
         if ("ALL".equals(row.scopeType())) {
-            return "全库图谱";
+            return new KnowledgeHealthIssueExampleResponse(
+                    "GRAPH_SCOPE",
+                    "全库图谱",
+                    "全库资料已有更新，建议重新生成全库图谱。",
+                    "ALL",
+                    null,
+                    List.of()
+            );
         }
         if ("KNOWLEDGE_FOLDER".equals(row.scopeType())) {
-            return "目录图谱：" + row.scopeId();
+            return new KnowledgeHealthIssueExampleResponse(
+                    "GRAPH_SCOPE",
+                    "目录图谱：" + folderLabelById.getOrDefault(row.scopeId(), "未知目录"),
+                    "该目录资料已有更新，建议只重建这个目录图谱。",
+                    "KNOWLEDGE_FOLDER",
+                    row.scopeId(),
+                    List.of()
+            );
         }
         if ("DOCUMENT".equals(row.scopeType())) {
-            return "文档图谱：" + row.scopeId();
+            String documentName = documentLabelById.getOrDefault(row.scopeId(), "未知文档");
+            String documentPath = documentPathById.get(row.scopeId());
+            return new KnowledgeHealthIssueExampleResponse(
+                    "GRAPH_SCOPE",
+                    "文档图谱：" + documentName,
+                    "该文档已有更新，建议只重建这个文档图谱。",
+                    "DOCUMENT",
+                    row.scopeId(),
+                    documentPath == null || documentPath.isBlank() ? List.of() : List.of(documentPath)
+            );
         }
-        return row.scopeType() + "：" + row.scopeId();
+        return new KnowledgeHealthIssueExampleResponse(
+                "GRAPH_SCOPE",
+                row.scopeType() + " 图谱",
+                "该图谱范围已有更新，建议进入知识图谱页确认后重建。",
+                row.scopeType(),
+                row.scopeId(),
+                List.of()
+        );
+    }
+
+    private static String readableFolderName(KnowledgeFolder folder) {
+        if (folder.displayName() != null && !folder.displayName().isBlank()) {
+            return folder.displayName();
+        }
+        if (folder.folderPath() != null && !folder.folderPath().isBlank()) {
+            return fileNameFromPath(folder.folderPath());
+        }
+        return folder.id();
+    }
+
+    private static String readableDocumentName(KnowledgeDocument document) {
+        if (document.fileName() != null && !document.fileName().isBlank()) {
+            return document.fileName();
+        }
+        if (document.sourcePath() != null && !document.sourcePath().isBlank()) {
+            return fileNameFromPath(document.sourcePath());
+        }
+        return document.id();
+    }
+
+    private static String fileNameFromPath(String path) {
+        try {
+            Path fileName = Path.of(path).getFileName();
+            return fileName == null ? path : fileName.toString();
+        } catch (InvalidPathException ignored) {
+            // 诊断接口只能因为路径不可访问降级展示，不能因为历史脏路径导致整个健康页失败。
+            return path;
+        }
     }
 
     /**
@@ -1260,6 +1390,19 @@ public class KnowledgeHealthService {
             int count,
             List<String> examples
     ) {
+        return issue(code, severity, message, action, scopeId, count, examples, List.of());
+    }
+
+    private static KnowledgeHealthIssueResponse issue(
+            KnowledgeHealthIssueCode code,
+            String severity,
+            String message,
+            String action,
+            String scopeId,
+            int count,
+            List<String> examples,
+            List<KnowledgeHealthIssueExampleResponse> exampleDetails
+    ) {
         return new KnowledgeHealthIssueResponse(
                 code,
                 severity,
@@ -1268,7 +1411,8 @@ public class KnowledgeHealthService {
                 scopeId == null ? KnowledgeFolderRunScopeType.ALL : KnowledgeFolderRunScopeType.KNOWLEDGE_FOLDER,
                 scopeId,
                 count,
-                examples
+                examples,
+                exampleDetails
         );
     }
 
@@ -1394,7 +1538,9 @@ public class KnowledgeHealthService {
             int duplicateDocumentCount,
             int versionConflictGroupCount,
             List<String> duplicateExamples,
-            List<String> versionConflictExamples
+            List<String> versionConflictExamples,
+            List<KnowledgeHealthIssueExampleResponse> duplicateExampleDetails,
+            List<KnowledgeHealthIssueExampleResponse> versionConflictExampleDetails
     ) {
     }
 
@@ -1403,7 +1549,8 @@ public class KnowledgeHealthService {
      */
     private record GraphFreshnessSnapshot(
             int staleScopeCount,
-            List<String> examples
+            List<String> examples,
+            List<KnowledgeHealthIssueExampleResponse> exampleDetails
     ) {
     }
 
