@@ -70,8 +70,25 @@ public class KnowledgeHealthService {
             "(?i)\\b(v\\d+(?:\\.\\d+)*|final|draft)\\b"
     );
     private static final Pattern VERSION_FAMILY_DATE_PATTERN = Pattern.compile("\\b\\d{4}(?:\\d{2})?(?:\\d{2})?\\b");
+    private static final Pattern VERSION_FAMILY_MARKER_PATTERN = Pattern.compile(
+            "(?i)(\\bv\\d+(?:\\.\\d+)*\\b|\\bfinal\\b|\\bdraft\\b|最新版|新版|旧版|修订版|终稿|草稿|\\b\\d{4}(?:[-_.]?\\d{2})?(?:[-_.]?\\d{2})?\\b)"
+    );
     private static final Pattern VERSION_FAMILY_SUFFIX_PATTERN = Pattern.compile("(最新版|新版|旧版|修订版|终稿|草稿)$");
     private static final Pattern MULTI_SPACE_PATTERN = Pattern.compile("\\s+");
+    private static final Set<String> GENERIC_VERSION_FAMILY_NAMES = Set.of(
+            "readme",
+            "index",
+            "toc",
+            "catalog",
+            "summary",
+            "overview",
+            "contents",
+            "目录",
+            "内容",
+            "导航",
+            "说明",
+            "简介"
+    );
 
     private final KnowledgeFolderRepository folderRepository;
     private final DocumentRepository documentRepository;
@@ -947,14 +964,14 @@ public class KnowledgeHealthService {
      */
     private ContentQualitySnapshot contentQuality(List<FolderHealthSnapshot> snapshots) {
         Map<String, List<KnowledgeDocument>> documentsByHash = new LinkedHashMap<>();
-        Map<String, List<KnowledgeDocument>> documentsByNormalizedName = new LinkedHashMap<>();
+        Map<VersionConflictGroupKey, List<KnowledgeDocument>> documentsByVersionFamily = new LinkedHashMap<>();
         for (KnowledgeDocument document : parsedEnabledDocuments(snapshots)) {
             if (document.contentHash() != null && !document.contentHash().isBlank()) {
                 documentsByHash.computeIfAbsent(document.contentHash(), ignored -> new ArrayList<>()).add(document);
             }
-            String normalizedName = normalizeVersionFamilyName(document.fileName());
-            if (!normalizedName.isBlank()) {
-                documentsByNormalizedName.computeIfAbsent(normalizedName, ignored -> new ArrayList<>()).add(document);
+            VersionConflictGroupKey versionGroupKey = versionConflictGroupKey(document);
+            if (versionGroupKey != null) {
+                documentsByVersionFamily.computeIfAbsent(versionGroupKey, ignored -> new ArrayList<>()).add(document);
             }
         }
 
@@ -983,19 +1000,19 @@ public class KnowledgeHealthService {
         int versionConflictGroupCount = 0;
         List<String> versionConflictExamples = new ArrayList<>();
         List<KnowledgeHealthIssueExampleResponse> versionConflictExampleDetails = new ArrayList<>();
-        for (Map.Entry<String, List<KnowledgeDocument>> entry : documentsByNormalizedName.entrySet()) {
+        for (Map.Entry<VersionConflictGroupKey, List<KnowledgeDocument>> entry : documentsByVersionFamily.entrySet()) {
             List<KnowledgeDocument> documents = entry.getValue();
             if (documents.size() <= 1 || distinctContentHashCount(documents) <= 1) {
                 continue;
             }
             versionConflictGroupCount++;
-            addExample(versionConflictExamples, exampleFileList(entry.getKey(), documents));
+            addExample(versionConflictExamples, exampleFileList(entry.getKey().label(), documents));
             addExampleDetail(
                     versionConflictExampleDetails,
                     new KnowledgeHealthIssueExampleResponse(
                             "DOCUMENT_GROUP",
-                            "疑似版本冲突：" + entry.getKey(),
-                            "这些资料像同一份内容的不同版本，回答时可能混用旧版和新版。",
+                            "疑似版本冲突：" + entry.getKey().label(),
+                            "这些资料命中了版本冲突规则，回答时可能混用旧版和新版。",
                             null,
                             null,
                             exampleDocumentItems(documents)
@@ -1222,10 +1239,28 @@ public class KnowledgeHealthService {
         }
     }
 
+    private static VersionConflictGroupKey versionConflictGroupKey(KnowledgeDocument document) {
+        String normalizedName = normalizeVersionFamilyName(document.fileName());
+        if (normalizedName.isBlank() || GENERIC_VERSION_FAMILY_NAMES.contains(normalizedName)) {
+            return null;
+        }
+
+        if (!hasVersionEvidence(document.fileName())) {
+            return null;
+        }
+        return new VersionConflictGroupKey("version:" + normalizedName, normalizedName);
+    }
+
+    private static boolean hasVersionEvidence(String fileName) {
+        String baseName = stripExtension(fileName);
+        return !baseName.isBlank() && VERSION_FAMILY_MARKER_PATTERN.matcher(baseName).find();
+    }
+
     /**
      * 将文件名压缩成“疑似同一资料版本族”的比较键。
      *
-     * <p>规则故意保守：只去掉扩展名、常见日期/版本后缀和分隔符，避免把完全不同的中文标题误判成同一资料。</p>
+     * <p>规则故意保守：调用方必须先确认文件名带有版本证据；这里只去掉扩展名、常见日期/版本后缀和
+     * 分隔符，避免把普通同名资料误判成同一资料的旧版/新版。</p>
      *
      * @param fileName 原始文件名
      * @return 版本族比较键；无法判断时为空字符串
@@ -1234,11 +1269,7 @@ public class KnowledgeHealthService {
         if (fileName == null || fileName.isBlank()) {
             return "";
         }
-        String baseName = fileName.strip();
-        int dotIndex = baseName.lastIndexOf('.');
-        if (dotIndex > 0) {
-            baseName = baseName.substring(0, dotIndex);
-        }
+        String baseName = stripExtension(fileName);
         String normalized = baseName
                 .toLowerCase(Locale.ROOT)
                 .replace('（', ' ')
@@ -1255,6 +1286,15 @@ public class KnowledgeHealthService {
         normalized = VERSION_FAMILY_SUFFIX_PATTERN.matcher(normalized).replaceAll(" ");
         normalized = MULTI_SPACE_PATTERN.matcher(normalized).replaceAll(" ").strip();
         return normalized.length() < 2 ? "" : normalized;
+    }
+
+    private static String stripExtension(String fileName) {
+        if (fileName == null || fileName.isBlank()) {
+            return "";
+        }
+        String baseName = fileName.strip();
+        int dotIndex = baseName.lastIndexOf('.');
+        return dotIndex > 0 ? baseName.substring(0, dotIndex) : baseName;
     }
 
     private static boolean embeddingConfiguredIssue(int documentCount, IndexHealthSnapshot indexHealth) {
@@ -1541,6 +1581,12 @@ public class KnowledgeHealthService {
             List<String> versionConflictExamples,
             List<KnowledgeHealthIssueExampleResponse> duplicateExampleDetails,
             List<KnowledgeHealthIssueExampleResponse> versionConflictExampleDetails
+    ) {
+    }
+
+    private record VersionConflictGroupKey(
+            String key,
+            String label
     ) {
     }
 

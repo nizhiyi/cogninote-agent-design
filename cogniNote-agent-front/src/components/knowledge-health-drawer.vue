@@ -243,6 +243,7 @@ function openIssueSection(section) {
           <div>
             <strong>{{ section.title }}</strong>
             <span>{{ section.subtitle }}</span>
+            <small v-if="section.ruleSummary">{{ section.ruleSummary }}</small>
           </div>
         </div>
         <em>

@@ -27,29 +27,51 @@ const ISSUE_CATEGORY_DEFINITIONS = [
     key: 'retrieval',
     title: '可能搜不到',
     subtitle: '索引和检索基础能力',
+    ruleSummary: '判定依据：SQLite 记录与 Lucene 实际索引计数。',
     codes: ['INDEX_INCONSISTENT'],
-    tone: 'error'
+    tone: 'error',
+    rules: [
+      '比较 SQLite 中已解析/已索引记录与 Lucene 实际索引计数。',
+      '两边文档数或 chunk 数不一致时提示重建索引。'
+    ]
   },
   {
     key: 'capability',
     title: '检索能力降级',
     subtitle: '向量或混合检索能力',
+    ruleSummary: '判定依据：有可检索资料，但向量模型不可用。',
     codes: ['EMBEDDING_UNCONFIGURED'],
-    tone: 'warning'
+    tone: 'warning',
+    rules: [
+      '知识库存在可检索资料，但没有可用向量模型时提示。',
+      '提示只说明向量/混合检索会降级，不代表关键词检索不可用。'
+    ]
   },
   {
     key: 'graph',
     title: '辅助图谱过期',
     subtitle: '知识图谱派生视图',
+    ruleSummary: '判定依据：资料更新时间晚于图谱生成时间。',
     codes: ['GRAPH_STALE'],
-    tone: 'warning'
+    tone: 'warning',
+    rules: [
+      '比较已生成图谱时间与对应资料的同步/索引更新时间。',
+      '资料更新晚于图谱生成时间时，只提示重建对应范围图谱。'
+    ]
   },
   {
     key: 'content-risk',
     title: '可能干扰回答',
     subtitle: '重复资料和疑似版本冲突',
+    ruleSummary: '判定依据：内容完全重复，或文件名带版本/日期证据且内容不同。',
     codes: ['DUPLICATE_DOCUMENT_CONTENT', 'POSSIBLE_VERSION_CONFLICT'],
-    tone: 'warning'
+    tone: 'warning',
+    rules: [
+      '重复资料：只在 content_hash 完全相同时提示。',
+      '疑似版本冲突：排除 README、index、目录、toc、summary 等通用文件名。',
+      '疑似版本冲突必须带 v1/v2、final、draft、新版、旧版、日期等版本证据才会比较。',
+      '没有版本标记的普通同名文件不会被当作版本冲突。'
+    ]
   }
 ]
 

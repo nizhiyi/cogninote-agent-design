@@ -319,6 +319,15 @@
   line-height: 1.45;
 }
 
+.knowledge-health-category-row small {
+  display: block;
+  margin-top: 4px;
+  color: #7a8797;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .knowledge-health-category-row > span {
   display: inline-flex;
   gap: 8px;
@@ -493,6 +502,31 @@
   font-weight: 800;
 }
 
+.knowledge-health-issue-detail__rules {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #d8e2ee;
+  border-radius: 8px;
+  background: #f8fbfc;
+}
+
+.knowledge-health-issue-detail__rules strong {
+  color: #101828;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.knowledge-health-issue-detail__rules ul {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 18px;
+  color: #526071;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .knowledge-health-issue-detail__issue {
   display: grid;
   gap: 10px;
@@ -547,7 +581,7 @@
   list-style: none;
 }
 
-.knowledge-health-issue-detail__examples li {
+.knowledge-health-issue-detail__examples > li {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
@@ -581,6 +615,44 @@
   font-style: normal;
 }
 
+.knowledge-health-issue-detail__document-list {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.knowledge-health-issue-detail__document-list li {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid #e6edf5;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.knowledge-health-issue-detail__document-list span,
+.knowledge-health-issue-detail__document-list em {
+  display: block;
+  margin: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.knowledge-health-issue-detail__document-list span {
+  color: #101828;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.knowledge-health-issue-detail__document-list em {
+  color: #667085;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-style: normal;
+}
+
 .knowledge-health-issue-detail__examples .el-button {
   min-width: 128px;
   min-height: 38px;
@@ -603,7 +675,7 @@
 
 @media (max-width: 760px) {
   .knowledge-health-category-row,
-  .knowledge-health-issue-detail__examples li {
+  .knowledge-health-issue-detail__examples > li {
     grid-template-columns: 1fr;
   }
 

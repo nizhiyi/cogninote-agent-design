@@ -100,6 +100,26 @@ function issueActionIcon(issue) {
   }
   return XCircle
 }
+
+function exampleDocumentItems(example) {
+  return (example?.items || []).map((item, index) => {
+    const text = String(item || '').trim()
+    const delimiterIndex = text.indexOf(' · ')
+    // 后端为兼容旧响应仍返回字符串；这里只做展示拆分，避免把文件名和长路径挤成一段。
+    if (delimiterIndex > 0) {
+      return {
+        key: `${index}-${text}`,
+        name: text.slice(0, delimiterIndex),
+        path: text.slice(delimiterIndex + 3)
+      }
+    }
+    return {
+      key: `${index}-${text}`,
+      name: text,
+      path: ''
+    }
+  })
+}
 </script>
 
 <template>
@@ -130,6 +150,13 @@ function issueActionIcon(issue) {
 
       <p v-if="!issues.length" class="panel-message">当前没有这类诊断问题。</p>
 
+      <section v-if="section.rules?.length" class="knowledge-health-issue-detail__rules" aria-label="判断规则">
+        <strong>判断规则</strong>
+        <ul>
+          <li v-for="rule in section.rules" :key="rule">{{ rule }}</li>
+        </ul>
+      </section>
+
       <article
         v-for="issue in issues"
         :key="`${issue.code}-${issue.count}`"
@@ -152,7 +179,12 @@ function issueActionIcon(issue) {
             <div>
               <strong>{{ example.label }}</strong>
               <p v-if="example.description">{{ example.description }}</p>
-              <em v-for="item in example.items" :key="item">{{ item }}</em>
+              <ol v-if="exampleDocumentItems(example).length" class="knowledge-health-issue-detail__document-list">
+                <li v-for="item in exampleDocumentItems(example)" :key="item.key">
+                  <span>{{ item.name }}</span>
+                  <em v-if="item.path">{{ item.path }}</em>
+                </li>
+              </ol>
             </div>
             <el-button
               v-if="canRebuildGraphExample(example)"

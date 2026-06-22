@@ -629,6 +629,7 @@ defineExpose({
             <div>
               <strong>{{ section.title }}</strong>
               <p>{{ section.subtitle }}</p>
+              <small v-if="section.ruleSummary">{{ section.ruleSummary }}</small>
             </div>
           </div>
           <span>

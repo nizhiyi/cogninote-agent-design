@@ -106,6 +106,7 @@
 
 .knowledge-health-drawer__category strong,
 .knowledge-health-drawer__category span,
+.knowledge-health-drawer__category small,
 .knowledge-health-drawer__category em {
   display: block;
   overflow-wrap: anywhere;
@@ -120,6 +121,12 @@
 .knowledge-health-drawer__category span {
   margin-top: 3px;
   color: #526071;
+  font-size: 12px;
+}
+
+.knowledge-health-drawer__category small {
+  margin-top: 3px;
+  color: #7a8797;
   font-size: 12px;
 }
 
