@@ -44,6 +44,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -63,6 +64,12 @@ public class KnowledgeHealthService {
     private static final int DEFAULT_RUN_PAGE_SIZE = 10;
     private static final int MAX_RUN_PAGE_SIZE = 100;
     private static final int MAX_ISSUE_EXAMPLES = 5;
+    private static final Pattern VERSION_FAMILY_TOKEN_PATTERN = Pattern.compile(
+            "(?i)\\b(v\\d+(?:\\.\\d+)*|final|draft)\\b"
+    );
+    private static final Pattern VERSION_FAMILY_DATE_PATTERN = Pattern.compile("\\b\\d{4}(?:\\d{2})?(?:\\d{2})?\\b");
+    private static final Pattern VERSION_FAMILY_SUFFIX_PATTERN = Pattern.compile("(最新版|新版|旧版|修订版|终稿|草稿)$");
+    private static final Pattern MULTI_SPACE_PATTERN = Pattern.compile("\\s+");
 
     private final KnowledgeFolderRepository folderRepository;
     private final DocumentRepository documentRepository;
@@ -927,7 +934,8 @@ public class KnowledgeHealthService {
      * 诊断会影响问答命中质量的资料重复和版本冲突。
      *
      * <p>这里不写入“可信标签”，也不自动合并或删除资料；重复和版本判断只是从当前 SQLite 事实即时派生的
-     * 问答噪音信号，最终是否保留多个版本必须由用户决定。</p>
+     * 问答噪音信号，最终是否保留多个版本必须由用户决定。该诊断会对启用目录下已解析文档做 O(n)
+     * 轻量扫描；如果后续本地知识库进入万级文档规模，再考虑下推到 SQL 聚合或增加短期缓存。</p>
      *
      * @param snapshots 启用目录健康快照
      * @return 内容质量诊断快照
@@ -1111,12 +1119,11 @@ public class KnowledgeHealthService {
                 .replace(']', ' ')
                 .replace('_', ' ')
                 .replace('-', ' ')
-                .replace('.', ' ')
-                .replaceAll("(?i)\\b(v\\d+(?:\\.\\d+)*|final|draft)\\b", " ")
-                .replaceAll("\\b\\d{4}(?:\\d{2})?(?:\\d{2})?\\b", " ")
-                .replaceAll("(最新版|新版|旧版|修订版|终稿|草稿)$", " ")
-                .replaceAll("\\s+", " ")
-                .strip();
+                .replace('.', ' ');
+        normalized = VERSION_FAMILY_TOKEN_PATTERN.matcher(normalized).replaceAll(" ");
+        normalized = VERSION_FAMILY_DATE_PATTERN.matcher(normalized).replaceAll(" ");
+        normalized = VERSION_FAMILY_SUFFIX_PATTERN.matcher(normalized).replaceAll(" ");
+        normalized = MULTI_SPACE_PATTERN.matcher(normalized).replaceAll(" ").strip();
         return normalized.length() < 2 ? "" : normalized;
     }
 
