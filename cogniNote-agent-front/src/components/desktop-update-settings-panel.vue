@@ -2,6 +2,7 @@
 import { computed, onMounted } from 'vue'
 import { Download, RefreshCw } from 'lucide-vue-next'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import MarkdownRenderer from './markdown-renderer.vue'
 import { useDesktopUpdateStore } from '../stores/desktop-update'
 import { APP_DISPLAY_NAME } from '../config/brand'
 
@@ -51,7 +52,7 @@ async function installUpdate() {
         type: 'warning'
       }
     )
-    await desktopUpdateStore.installUpdate()
+    await desktopUpdateStore.installUpdate({ channel: desktopUpdateStore.updateInfo.channel })
   } catch (err) {
     if (err !== 'cancel') {
       ElMessage.error(desktopUpdateStore.error || err?.message || '安装更新失败')
@@ -108,7 +109,14 @@ async function installUpdate() {
           :indeterminate="desktopUpdateStore.progressPercent === 0"
         />
 
-        <pre v-if="desktopUpdateStore.updateInfo?.body" class="desktop-update-notes">{{ desktopUpdateStore.updateInfo.body }}</pre>
+        <section v-if="desktopUpdateStore.updateInfo?.body" class="desktop-update-notes-block">
+          <h4>更新说明</h4>
+          <MarkdownRenderer
+            class="desktop-update-notes"
+            :content="desktopUpdateStore.updateInfo.body"
+            empty-text="暂无更新说明。"
+          />
+        </section>
       </div>
 
       <div class="button-row">
@@ -129,6 +137,11 @@ async function installUpdate() {
           <Download aria-hidden="true" />
           安装并重启
         </el-button>
+      </div>
+
+      <div class="desktop-update-help">
+        <strong>更新检测说明</strong>
+        <p>启动时只自动提醒正式版更新；测试版通道仅在本页手动检测，用于提前验证预发行包。</p>
       </div>
     </div>
   </section>

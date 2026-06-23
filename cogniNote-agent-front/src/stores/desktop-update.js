@@ -10,6 +10,7 @@ import {
 import { isTauriRuntime } from '../api/desktop-api'
 
 const UPDATE_CHANNEL_STORAGE_KEY = 'cogninote-update-channel'
+const DISMISSED_STABLE_UPDATE_STORAGE_KEY = 'cogninote-dismissed-stable-update-version'
 const DEFAULT_UPDATE_CHANNEL = 'stable'
 
 /**
@@ -100,14 +101,18 @@ export const useDesktopUpdateStore = defineStore('desktop-update', () => {
       }
       return null
     }
+    const requestedChannel = normalizeChannel(options.channel || channel.value)
+    const shouldUpdateState = options.updateState !== false
     isChecking.value = true
     error.value = ''
     if (!options.silent) {
       message.value = ''
     }
     try {
-      const update = await checkDesktopUpdate(channel.value)
-      updateInfo.value = update
+      const update = await checkDesktopUpdate(requestedChannel)
+      if (shouldUpdateState) {
+        updateInfo.value = update
+      }
       if (update?.currentVersion) {
         currentVersion.value = update.currentVersion
       }
@@ -116,7 +121,9 @@ export const useDesktopUpdateStore = defineStore('desktop-update', () => {
       }
       return update
     } catch (err) {
-      updateInfo.value = null
+      if (shouldUpdateState) {
+        updateInfo.value = null
+      }
       if (!options.silent) {
         error.value = normalizeUpdateError(err)
       }
@@ -126,18 +133,43 @@ export const useDesktopUpdateStore = defineStore('desktop-update', () => {
     }
   }
 
-  async function installUpdate() {
+  async function checkStartupStableUpdate() {
+    const update = await checkForUpdates({
+      channel: DEFAULT_UPDATE_CHANNEL,
+      silent: true,
+      updateState: false
+    })
+    if (!update || isStableUpdateDismissed(update.version)) {
+      return null
+    }
+    return update
+  }
+
+  function dismissStableUpdate(version) {
+    const normalizedVersion = String(version || '').trim()
+    if (!normalizedVersion) {
+      return
+    }
+    window.localStorage.setItem(DISMISSED_STABLE_UPDATE_STORAGE_KEY, normalizedVersion)
+  }
+
+  function isStableUpdateDismissed(version) {
+    return window.localStorage.getItem(DISMISSED_STABLE_UPDATE_STORAGE_KEY) === String(version || '').trim()
+  }
+
+  async function installUpdate(options = {}) {
     if (!isDesktopRuntime.value) {
       error.value = DESKTOP_UPDATE_UNAVAILABLE_MESSAGE
       return null
     }
+    const installChannel = normalizeChannel(options.channel || updateInfo.value?.channel || channel.value)
     isInstalling.value = true
     error.value = ''
     message.value = ''
     progress.value = null
     await initializeUpdateListener()
     try {
-      const result = await installDesktopUpdate(channel.value)
+      const result = await installDesktopUpdate(installChannel)
       if (!result?.installed) {
         isInstalling.value = false
         message.value = '当前已是最新版本'
@@ -176,6 +208,8 @@ export const useDesktopUpdateStore = defineStore('desktop-update', () => {
     initializeUpdateListener,
     loadCurrentVersion,
     checkForUpdates,
+    checkStartupStableUpdate,
+    dismissStableUpdate,
     installUpdate,
     cleanupUpdateListener
   }

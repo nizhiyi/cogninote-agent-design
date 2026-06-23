@@ -37,6 +37,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 25
         uses: actions/setup-java@v4
@@ -200,6 +202,8 @@ jobs:
 
           $notesPath = Join-Path $env:RUNNER_TEMP 'cogninote-desktop-release-notes.md'
           $existingNotesPath = Join-Path $env:RUNNER_TEMP 'cogninote-existing-release-notes.md'
+          $changelogPath = Join-Path $env:RUNNER_TEMP 'cogninote-desktop-changelog.md'
+          $technicalChangesPath = Join-Path $env:RUNNER_TEMP 'cogninote-desktop-technical-changes.md'
           gh release view $tag *> $null
           $releaseExists = $LASTEXITCODE -eq 0
           if ($releaseExists) {
@@ -207,6 +211,12 @@ jobs:
           } else {
             '' | Set-Content -LiteralPath $existingNotesPath -Encoding UTF8
           }
+
+          node scripts/generate-desktop-changelog.mjs `
+            --output $changelogPath `
+            --technicalOutput $technicalChangesPath `
+            --version $version `
+            --releaseTag $tag
 
           $installerName = "CogniNote-${version}-windows-x64-${suffix}-installer.exe"
           $portableName = "CogniNote-${version}-windows-x64-${suffix}-portable.zip"
@@ -218,6 +228,8 @@ jobs:
           node scripts/render-desktop-release-notes.mjs `
             --existing $existingNotesPath `
             --output $notesPath `
+            --changelogFile $changelogPath `
+            --technicalChangesFile $technicalChangesPath `
             --version $version `
             --releaseKind $releaseKind `
             --platform windows `
@@ -304,6 +316,11 @@ jobs:
           }
 
           $assetUrl = "https://github.com/ItQianChen/cogninote-agent-design/releases/download/$tag/$assetName"
+          $notesPath = Join-Path $env:RUNNER_TEMP 'cogninote-desktop-updater-notes.md'
+          gh release view $tag --json body --jq .body | Set-Content -LiteralPath $notesPath -Encoding UTF8
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $notesPath)) {
+            throw "Failed to read GitHub Release notes for $tag."
+          }
 
           function Initialize-PagesWorktree {
             param([Parameter(Mandatory = $true)][string]$TargetDir)
@@ -344,7 +361,7 @@ jobs:
               --platform windows-x86_64 `
               --url $assetUrl `
               --signatureFile $signaturePath `
-              --notes "CogniNote $version $suffix"
+              --notesFile $notesPath
             if ($LASTEXITCODE -ne 0) {
               throw 'Failed to build updater manifest.'
             }

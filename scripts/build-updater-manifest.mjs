@@ -41,9 +41,25 @@ writeFileSync(args.manifest, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
 
 function readNotes(values) {
   if (values.notesFile && existsSync(values.notesFile)) {
-    return readFileSync(values.notesFile, 'utf8').trim()
+    return normalizeReleaseNotes(readFileSync(values.notesFile, 'utf8'))
   }
   return values.notes || (isSameVersion ? existing?.notes : '') || ''
+}
+
+function normalizeReleaseNotes(content) {
+  const changelog = extractMarkedChangelog(content)
+  const notes = changelog || content
+  return notes
+    .replace(/^<!--\s*COGNINOTE_RELEASE_[^>]+-->\s*$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function extractMarkedChangelog(content) {
+  const match = content.match(
+    /<!--\s*COGNINOTE_RELEASE_CHANGELOG:start\s*-->\s*([\s\S]*?)\s*<!--\s*COGNINOTE_RELEASE_CHANGELOG:end\s*-->/m
+  )
+  return match?.[1]?.trim() || ''
 }
 
 function parseArgs(argv) {

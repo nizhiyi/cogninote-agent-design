@@ -147,7 +147,7 @@ function readRouteItem(item = route.query.item) {
         <div class="settings-card settings-theme-card">
           <div>
             <h4>显示风格</h4>
-            <p class="hint-message">默认跟随操作系统；旧版 dark/light 本地值会继续兼容。</p>
+            <p class="hint-message">默认跟随操作系统</p>
           </div>
           <el-radio-group :model-value="themeStore.theme" @change="setTheme">
             <el-radio-button

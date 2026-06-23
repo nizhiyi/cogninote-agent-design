@@ -24,13 +24,21 @@ const sections = {
   ...migrateLegacySections(existing),
   ...extractMarkedSections(existing)
 }
+const changelog = readChangelog(args.changelogFile) || extractMarkedChangelog(existing)
+const technicalChanges = readOptionalFile(args.technicalChangesFile) || extractMarkedTechnicalChanges(existing)
 sections[args.platform] = renderTemplate(args.template, args)
 
 const parts = []
+if (changelog) {
+  parts.push(wrapChangelog(changelog))
+}
 for (const platform of platformOrder) {
   if (sections[platform]?.trim()) {
     parts.push(wrapSection(platform, sections[platform].trim()))
   }
+}
+if (technicalChanges) {
+  parts.push(wrapTechnicalChanges(technicalChanges))
 }
 
 mkdirSync(dirname(args.output), { recursive: true })
@@ -79,6 +87,33 @@ function extractMarkedSections(body) {
   return sections
 }
 
+function extractMarkedChangelog(body) {
+  const pattern = new RegExp(
+    `${escapeRegExp(changelogMarker('start'))}\\s*([\\s\\S]*?)\\s*${escapeRegExp(changelogMarker('end'))}`,
+    'm'
+  )
+  return body.match(pattern)?.[1]?.trim() || ''
+}
+
+function readChangelog(changelogFile) {
+  return readOptionalFile(changelogFile)
+}
+
+function extractMarkedTechnicalChanges(body) {
+  const pattern = new RegExp(
+    `${escapeRegExp(technicalChangesMarker('start'))}\\s*([\\s\\S]*?)\\s*${escapeRegExp(technicalChangesMarker('end'))}`,
+    'm'
+  )
+  return body.match(pattern)?.[1]?.trim() || ''
+}
+
+function readOptionalFile(changelogFile) {
+  if (!changelogFile || !existsSync(changelogFile)) {
+    return ''
+  }
+  return readFileSync(changelogFile, 'utf8').trim()
+}
+
 function migrateLegacySections(body) {
   const trimmed = body.trim()
   if (!trimmed || extractMarkedSections(trimmed).windows || extractMarkedSections(trimmed).macos) {
@@ -110,8 +145,24 @@ function wrapSection(platform, content) {
   return `${sectionMarker(platform, 'start')}\n${content}\n${sectionMarker(platform, 'end')}`
 }
 
+function wrapChangelog(content) {
+  return `${changelogMarker('start')}\n${content}\n${changelogMarker('end')}`
+}
+
+function wrapTechnicalChanges(content) {
+  return `${technicalChangesMarker('start')}\n${content}\n${technicalChangesMarker('end')}`
+}
+
 function sectionMarker(platform, boundary) {
   return `<!-- COGNINOTE_RELEASE_SECTION:${platform}:${boundary} -->`
+}
+
+function changelogMarker(boundary) {
+  return `<!-- COGNINOTE_RELEASE_CHANGELOG:${boundary} -->`
+}
+
+function technicalChangesMarker(boundary) {
+  return `<!-- COGNINOTE_RELEASE_TECHNICAL:${boundary} -->`
 }
 
 function escapeRegExp(value) {

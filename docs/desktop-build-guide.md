@@ -368,9 +368,11 @@ CogniNote-0.1.51-macos-arm64-unsigned.app.tar.gz
 
 DMG 只作为手动下载安装资产，不给 updater 使用。所有 updater `.sig` 都必须在最终文件稳定后生成：Windows 应在 Authenticode 签名后签 updater；macOS 应在 `.app` 签名、公证、staple 后重新打 `.app.tar.gz`，再签 updater。后处理会改变文件内容，先签 updater 再改文件会导致安装校验失败。
 
-`scripts/build-updater-manifest.mjs` 负责合并 manifest 平台条目。Windows 和 macOS workflow 可以分别发布同一版本；发布步骤会把 `updater/{stable|preview}/latest.json` commit 到 `gh-pages`，同一版本下会保留已有平台条目，版本变化时重新开始新的平台集合。脚本测试：
+`scripts/generate-desktop-changelog.mjs` 会从上一版 tag 到当前 HEAD 生成两份说明：应用内展示的用户版“更新内容”，以及 GitHub Release 使用的“技术详情”。`scripts/render-desktop-release-notes.mjs` 会按“用户版更新内容 -> 平台下载说明 -> 技术详情”的顺序合并 Release 正文。`scripts/build-updater-manifest.mjs` 负责合并 manifest 平台条目，并只从 Release 正文中抽取用户版“更新内容”写入 `notes`，所以应用内更新弹窗和设置页不会展示 commit hash、`feat(...)` 或安装包下载说明。Windows 和 macOS workflow 可以分别发布同一版本；发布步骤会把 `updater/{stable|preview}/latest.json` commit 到 `gh-pages`，同一版本下会保留已有平台条目，版本变化时重新开始新的平台集合。脚本测试：
 
 ```powershell
+node scripts/generate-desktop-changelog.test.mjs
+node scripts/render-desktop-release-notes.test.mjs
 node scripts/build-updater-manifest.test.mjs
 ```
 

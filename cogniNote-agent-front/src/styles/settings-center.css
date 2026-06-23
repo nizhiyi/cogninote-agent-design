@@ -129,6 +129,33 @@
   min-width: 0;
 }
 
+.desktop-update-help {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-surface-strong) 88%, transparent);
+}
+
+.desktop-update-help strong,
+.desktop-update-notes-block h4 {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.desktop-update-help p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.65;
+}
+
 .desktop-update-row {
   display: flex;
   flex-wrap: wrap;
@@ -143,23 +170,124 @@
   font-weight: 800;
 }
 
+.desktop-update-notes-block {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
 .desktop-update-notes {
-  max-height: 220px;
+  max-height: 280px;
   margin: 0;
   overflow: auto;
-  padding: 14px;
+  padding: 14px 16px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   color: var(--color-text);
   background: color-mix(in srgb, var(--color-surface-strong) 92%, transparent);
   font-size: 13px;
   line-height: 1.65;
-  white-space: pre-wrap;
+}
+
+.desktop-update-notes.markdown-content {
+  gap: 10px;
+}
+
+.desktop-update-notes.markdown-content h2,
+.desktop-update-notes.markdown-content h3,
+.startup-update-dialog__markdown.markdown-content h2,
+.startup-update-dialog__markdown.markdown-content h3 {
+  margin: 0;
+  color: var(--color-text-strong);
+  letter-spacing: 0;
+}
+
+.desktop-update-notes.markdown-content h2,
+.startup-update-dialog__markdown.markdown-content h2 {
+  font-size: 15px;
+}
+
+.desktop-update-notes.markdown-content h3,
+.startup-update-dialog__markdown.markdown-content h3 {
+  font-size: 14px;
+}
+
+.desktop-update-notes.markdown-content ul,
+.startup-update-dialog__markdown.markdown-content ul {
+  gap: 5px;
+  padding-left: 20px;
+}
+
+.desktop-update-notes.markdown-content li,
+.startup-update-dialog__markdown.markdown-content li {
+  color: var(--color-text);
+  line-height: 1.65;
 }
 
 .desktop-update-card .el-button svg {
   width: 16px;
   height: 16px;
+}
+
+.startup-update-dialog {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.startup-update-dialog__summary {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.startup-update-dialog__notes {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.startup-update-dialog__notes strong {
+  color: var(--color-text-strong);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.startup-update-dialog__markdown {
+  max-height: 220px;
+  margin: 0;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-surface-strong) 92%, transparent);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.startup-update-dialog__markdown.markdown-content {
+  gap: 9px;
+}
+
+.startup-update-dialog__dismiss {
+  display: inline-flex;
+  width: fit-content;
+  gap: 8px;
+  align-items: center;
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.startup-update-dialog__dismiss input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--color-action);
 }
 
 .query-contextualizer-panel {
