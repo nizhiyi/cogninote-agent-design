@@ -12,7 +12,7 @@
 
 .knowledge-health-page-header h3 {
   margin: 4px 0 0;
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 22px;
   line-height: 1.25;
 }
@@ -32,9 +32,9 @@
   min-width: 0;
   padding: 16px;
   overflow: hidden;
-  border: 1px solid #d8e2ee;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #f8fbfc;
+  background: var(--color-surface-strong);
 }
 
 .knowledge-health-command-card__icon {
@@ -58,14 +58,14 @@
 .knowledge-health-command-card__content strong {
   display: block;
   margin-top: 7px;
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 20px;
   line-height: 1.25;
 }
 
 .knowledge-health-command-card__content p {
   margin: 6px 0 0;
-  color: #526071;
+  color: var(--color-text-muted);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -79,10 +79,10 @@
 
 .knowledge-health-command-card__signals span {
   padding: 4px 8px;
-  border: 1px solid #dbe5f0;
+  border: 1px solid var(--color-border);
   border-radius: 999px;
-  color: #526071;
-  background: #ffffff;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
   font-size: 12px;
   font-weight: 800;
 }
@@ -93,15 +93,15 @@
   gap: 0;
   overflow: hidden;
   margin: 0;
-  border: 1px solid #d8e2ee;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 .knowledge-health-command-metric {
   min-width: 0;
   padding: 15px 16px;
-  border-right: 1px solid #e6edf5;
+  border-right: 1px solid var(--color-border);
 }
 
 .knowledge-health-command-metric:last-child {
@@ -109,7 +109,7 @@
 }
 
 .knowledge-health-command-metric dt {
-  color: #667085;
+  color: var(--color-text-muted);
   font-size: 12px;
   font-weight: 850;
   line-height: 1.3;
@@ -117,7 +117,7 @@
 
 .knowledge-health-command-metric dd {
   margin: 7px 0 0;
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 26px;
   font-weight: 850;
   font-variant-numeric: tabular-nums;
@@ -125,11 +125,11 @@
 }
 
 .knowledge-health-command-metric--warning dd {
-  color: #9a5b05;
+  color: var(--color-warning);
 }
 
 .knowledge-health-command-metric--error dd {
-  color: #b42318;
+  color: var(--color-danger);
 }
 
 .knowledge-health-signal-grid {
@@ -145,9 +145,9 @@
   align-items: start;
   min-width: 0;
   padding: 12px 14px;
-  border: 1px solid #e1e7ef;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 .knowledge-health-signal-card > svg {
@@ -157,19 +157,19 @@
 }
 
 .knowledge-health-signal-card--ok > svg {
-  color: #0f766e;
+  color: var(--color-success);
 }
 
 .knowledge-health-signal-card--warning > svg {
-  color: #a15c07;
+  color: var(--color-warning);
 }
 
 .knowledge-health-signal-card--error > svg {
-  color: #b42318;
+  color: var(--color-danger);
 }
 
 .knowledge-health-signal-card span {
-  color: #667085;
+  color: var(--color-text-muted);
   font-size: 12px;
   font-weight: 850;
 }
@@ -177,7 +177,7 @@
 .knowledge-health-signal-card strong {
   display: block;
   margin-top: 5px;
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 17px;
   line-height: 1.2;
 }
@@ -185,7 +185,7 @@
 .knowledge-health-signal-card p {
   margin: 6px 0 0;
   overflow-wrap: anywhere;
-  color: #526071;
+  color: var(--color-text-muted);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -202,9 +202,9 @@
   gap: 10px;
   min-width: 0;
   padding: 14px;
-  border: 1px solid #e1e7ef;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 .knowledge-health-section > header {
@@ -213,19 +213,19 @@
   align-items: center;
   justify-content: space-between;
   padding-bottom: 10px;
-  border-bottom: 1px solid #e6edf5;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .knowledge-health-section > header h4 {
   margin: 3px 0 0;
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 16px;
   line-height: 1.3;
 }
 
 .knowledge-health-section > header > span {
   flex: 0 0 auto;
-  color: #526071;
+  color: var(--color-text-muted);
   font-size: 12px;
   font-weight: 850;
 }
@@ -235,7 +235,7 @@
   flex: 0 0 auto;
   gap: 8px;
   align-items: center;
-  color: #526071;
+  color: var(--color-text-muted);
   font-size: 12px;
   font-weight: 850;
 }
@@ -251,7 +251,7 @@
   gap: 8px;
   align-items: center;
   margin: 0;
-  color: #526071;
+  color: var(--color-text-muted);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -259,7 +259,7 @@
 .knowledge-health-empty svg {
   width: 16px;
   height: 16px;
-  color: #0f766e;
+  color: var(--color-success);
 }
 
 .knowledge-health-category-row {
@@ -272,7 +272,7 @@
   min-height: 64px;
   padding: 10px 0;
   border: 0;
-  border-bottom: 1px solid #eef2f6;
+  border-bottom: 1px solid var(--color-border);
   color: inherit;
   background: transparent;
   text-align: left;
@@ -284,7 +284,7 @@
 }
 
 .knowledge-health-category-row:hover strong {
-  color: var(--color-action-strong, #125f7a);
+  color: var(--color-action-strong);
 }
 
 .knowledge-health-category-row > div {
@@ -298,23 +298,23 @@
 .knowledge-health-category-row > div > svg {
   width: 18px;
   height: 18px;
-  color: #a15c07;
+  color: var(--color-warning);
 }
 
 .knowledge-health-category-row--error > div > svg {
-  color: #b42318;
+  color: var(--color-danger);
 }
 
 .knowledge-health-category-row strong {
   display: block;
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 14px;
   line-height: 1.35;
 }
 
 .knowledge-health-category-row p {
   margin: 4px 0 0;
-  color: #667085;
+  color: var(--color-text-muted);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -322,7 +322,7 @@
 .knowledge-health-category-row small {
   display: block;
   margin-top: 4px;
-  color: #7a8797;
+  color: var(--color-text-muted);
   font-size: 12px;
   line-height: 1.45;
   overflow-wrap: anywhere;
@@ -332,14 +332,14 @@
   display: inline-flex;
   gap: 8px;
   align-items: center;
-  color: #526071;
+  color: var(--color-text-muted);
   font-size: 12px;
   font-weight: 850;
   white-space: nowrap;
 }
 
 .knowledge-health-category-row > span em {
-  color: #98a2b3;
+  color: var(--color-text-faint);
   font-style: normal;
   font-weight: 750;
 }
@@ -361,7 +361,7 @@
   align-items: center;
   min-width: 0;
   padding: 10px 0;
-  border-bottom: 1px solid #eef2f6;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .knowledge-health-issue-row:last-child,
@@ -375,7 +375,7 @@
   min-width: 0;
   gap: 6px;
   align-items: center;
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 14px;
   line-height: 1.35;
   overflow-wrap: anywhere;
@@ -385,7 +385,7 @@
   flex: 0 0 auto;
   width: 16px;
   height: 16px;
-  color: #667085;
+  color: var(--color-text-muted);
 }
 
 .knowledge-health-folder-row strong span {
@@ -397,13 +397,13 @@
 
 .knowledge-health-issue-row p {
   margin: 6px 0 0;
-  color: #667085;
+  color: var(--color-text-muted);
   font-size: 12px;
   line-height: 1.45;
 }
 
 .knowledge-health-issue-row__explain {
-  color: #475467;
+  color: var(--color-text);
 }
 
 .knowledge-health-issue-row__examples {
@@ -422,8 +422,8 @@
   min-width: 0;
   padding: 5px 8px;
   border-radius: 6px;
-  color: #526071;
-  background: #f6f8fb;
+  color: var(--color-text-muted);
+  background: color-mix(in srgb, var(--color-surface-muted) 48%, transparent);
   font-size: 12px;
   line-height: 1.45;
   overflow-wrap: anywhere;
@@ -437,7 +437,7 @@
 
 .knowledge-health-example strong {
   display: block;
-  color: #182230;
+  color: var(--color-text-strong);
   font-size: 12px;
   line-height: 1.35;
 }
@@ -446,7 +446,7 @@
 .knowledge-health-example em {
   display: block;
   margin: 0;
-  color: #667085;
+  color: var(--color-text-muted);
   font-size: 12px;
   font-style: normal;
   line-height: 1.45;
@@ -484,12 +484,12 @@
   align-items: flex-start;
   justify-content: space-between;
   padding-bottom: 12px;
-  border-bottom: 1px solid #e6edf5;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .knowledge-health-issue-detail__summary h4 {
   margin: 3px 0 0;
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 18px;
   line-height: 1.3;
 }
@@ -497,7 +497,7 @@
 .knowledge-health-issue-detail__summary span {
   display: block;
   margin-top: 5px;
-  color: #526071;
+  color: var(--color-text-muted);
   font-size: 12px;
   font-weight: 800;
 }
@@ -506,13 +506,13 @@
   display: grid;
   gap: 8px;
   padding: 10px 12px;
-  border: 1px solid #d8e2ee;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #f8fbfc;
+  background: var(--color-surface-strong);
 }
 
 .knowledge-health-issue-detail__rules strong {
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 13px;
   line-height: 1.4;
 }
@@ -522,7 +522,7 @@
   gap: 5px;
   margin: 0;
   padding-left: 18px;
-  color: #526071;
+  color: var(--color-text-muted);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -531,14 +531,14 @@
   display: grid;
   gap: 10px;
   padding: 12px;
-  border: 1px solid #f3d9a6;
+  border: 1px solid var(--color-warning-border);
   border-radius: 8px;
-  background: #fffaf0;
+  background: var(--color-warning-soft);
 }
 
 .knowledge-health-issue-detail__issue.is-ignored {
-  border-color: #d7dee8;
-  background: #f8fafc;
+  border-color: var(--color-border);
+  background: var(--color-surface-strong);
   opacity: 0.75;
 }
 
@@ -553,12 +553,12 @@
   width: 17px;
   height: 17px;
   margin-top: 2px;
-  color: #a15c07;
+  color: var(--color-warning);
 }
 
 .knowledge-health-issue-detail__issue > header strong {
   display: block;
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 14px;
   line-height: 1.4;
   overflow-wrap: anywhere;
@@ -568,7 +568,7 @@
 .knowledge-health-issue-detail__explain {
   display: block;
   margin-top: 4px;
-  color: #526071;
+  color: var(--color-text-muted);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -588,9 +588,9 @@
   align-items: center;
   min-width: 0;
   padding: 10px;
-  border: 1px solid #e6edf5;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 .knowledge-health-issue-detail__examples strong,
@@ -603,14 +603,14 @@
 }
 
 .knowledge-health-issue-detail__examples strong {
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 13px;
 }
 
 .knowledge-health-issue-detail__examples p,
 .knowledge-health-issue-detail__examples em {
   margin-top: 4px;
-  color: #526071;
+  color: var(--color-text-muted);
   font-size: 12px;
   font-style: normal;
 }
@@ -627,9 +627,9 @@
   display: grid;
   gap: 3px;
   padding: 8px 10px;
-  border: 1px solid #e6edf5;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
-  background: #f8fafc;
+  background: var(--color-surface-strong);
 }
 
 .knowledge-health-issue-detail__document-list span,
@@ -641,13 +641,13 @@
 }
 
 .knowledge-health-issue-detail__document-list span {
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 12px;
   font-weight: 850;
 }
 
 .knowledge-health-issue-detail__document-list em {
-  color: #667085;
+  color: var(--color-text-muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
   font-style: normal;

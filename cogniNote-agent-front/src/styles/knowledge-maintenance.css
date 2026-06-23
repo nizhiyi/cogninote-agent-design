@@ -7,14 +7,14 @@
   min-width: 0;
   gap: 8px;
   padding: 10px;
-  border: 1px solid #e6edf5;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #fbfdff;
+  background: var(--color-surface-strong);
 }
 
 .knowledge-maintenance-task--running {
-  border-color: #b9d7ff;
-  background: #f4f8ff;
+  border-color: var(--color-action-border);
+  background: color-mix(in srgb, var(--color-action-soft) 56%, var(--color-surface));
 }
 
 .knowledge-maintenance-task > div {
@@ -29,7 +29,7 @@
 .knowledge-maintenance-task strong {
   min-width: 0;
   overflow-wrap: anywhere;
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 14px;
   line-height: 1.35;
 }
@@ -37,7 +37,7 @@
 .knowledge-maintenance-task p {
   margin: 0;
   overflow-wrap: anywhere;
-  color: #667085;
+  color: var(--color-text-muted);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -48,7 +48,7 @@
 }
 
 .knowledge-maintenance-task__hint {
-  color: #667085;
+  color: var(--color-text-muted);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -72,7 +72,7 @@
 }
 
 .knowledge-health-run-preview strong {
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 14px;
 }
 
@@ -80,7 +80,7 @@
 .knowledge-health-run-preview em {
   margin: 0;
   overflow: hidden;
-  color: #667085;
+  color: var(--color-text-muted);
   font-size: 12px;
   font-style: normal;
   line-height: 1.45;
@@ -101,9 +101,9 @@
   align-items: stretch;
   min-width: 0;
   padding: 12px;
-  border: 1px solid #e1e7ef;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #f8fbfc;
+  background: var(--color-surface-strong);
 }
 
 .knowledge-run-history-toolbar__filters {
@@ -157,7 +157,7 @@
   align-items: center;
   justify-content: space-between;
   min-height: 36px;
-  color: #526071;
+  color: var(--color-text-muted);
   font-size: 13px;
   font-weight: 750;
 }
@@ -169,7 +169,7 @@
 .knowledge-run-history-table {
   min-height: 260px;
   overflow: hidden;
-  border: 1px solid #e1e7ef;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
 }
 
@@ -178,7 +178,7 @@
 }
 
 .knowledge-run-history-table__operation {
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 13px;
 }
 
@@ -203,7 +203,7 @@
 .knowledge-health-run-dialog-list {
   display: grid;
   overflow: hidden;
-  border: 1px solid #e1e7ef;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
 }
 
@@ -224,20 +224,20 @@
 }
 
 .knowledge-health-run-dialog-list header {
-  color: #667085;
-  background: #f8fbfc;
+  color: var(--color-text-muted);
+  background: var(--color-surface-strong);
   font-size: 12px;
   font-weight: 850;
 }
 
 .knowledge-health-run-dialog-list article {
-  border-top: 1px solid #e6edf5;
-  color: #667085;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
   font-size: 12px;
 }
 
 .knowledge-health-run-dialog-list strong {
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 13px;
 }
 
@@ -271,11 +271,11 @@
   align-items: center;
   justify-content: space-between;
   padding-bottom: 12px;
-  border-bottom: 1px solid #e6edf5;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .knowledge-run-detail__header strong {
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 18px;
 }
 
@@ -291,13 +291,13 @@
 .knowledge-run-detail__metrics div {
   min-width: 0;
   padding: 10px 12px;
-  border: 1px solid #e1e7ef;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 .knowledge-run-detail dt {
-  color: #667085;
+  color: var(--color-text-muted);
   font-size: 12px;
   font-weight: 850;
 }
@@ -305,7 +305,7 @@
 .knowledge-run-detail dd {
   margin: 6px 0 0;
   overflow-wrap: anywhere;
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 13px;
   line-height: 1.45;
 }
@@ -317,16 +317,16 @@
 }
 
 .knowledge-run-detail__metric--error dd {
-  color: #b42318;
+  color: var(--color-danger);
 }
 
 .knowledge-run-detail__message {
   margin: 0;
   padding: 10px 12px;
-  border: 1px solid #fedf89;
+  border: 1px solid var(--color-warning-border);
   border-radius: 8px;
-  color: #92400e;
-  background: #fffbeb;
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -338,7 +338,7 @@
 
 .knowledge-run-detail__failures h5 {
   margin: 0;
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 14px;
 }
 
@@ -347,20 +347,20 @@
   gap: 4px;
   min-width: 0;
   padding: 10px 12px;
-  border: 1px solid #fee4e2;
+  border: 1px solid var(--color-danger-border);
   border-radius: 8px;
-  background: #fff8f7;
+  background: var(--color-danger-soft);
 }
 
 .knowledge-run-detail__failures strong {
   overflow-wrap: anywhere;
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 13px;
 }
 
 .knowledge-run-detail__failures span {
   overflow-wrap: anywhere;
-  color: #b42318;
+  color: var(--color-danger);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -403,18 +403,18 @@
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  color: #0f766e;
-  background: #d7f4e8;
+  color: var(--color-success);
+  background: var(--color-success-soft);
 }
 
 .knowledge-maintenance-completion--warning .knowledge-maintenance-completion__icon {
-  color: #7a4a08;
-  background: #fff2bf;
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
 }
 
 .knowledge-maintenance-completion--error .knowledge-maintenance-completion__icon {
-  color: #842029;
-  background: #f8d7da;
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
 }
 
 .knowledge-maintenance-completion__icon svg {
@@ -428,7 +428,7 @@
 
 .knowledge-maintenance-completion__body strong {
   display: block;
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 16px;
   line-height: 1.35;
 }
@@ -440,10 +440,10 @@
 .knowledge-maintenance-completion__message {
   margin: 10px 0 0;
   padding: 10px 12px;
-  border: 1px solid #f1b7b7;
+  border: 1px solid var(--color-danger-border);
   border-radius: 8px;
-  color: #842029;
-  background: #fff4f4;
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -458,13 +458,13 @@
 .knowledge-maintenance-completion__metrics div {
   min-width: 0;
   padding: 10px 12px;
-  border: 1px solid #dfe8ee;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #f8fbfc;
+  background: var(--color-surface-strong);
 }
 
 .knowledge-maintenance-completion__metrics dt {
-  color: #667085;
+  color: var(--color-text-muted);
   font-size: 12px;
   font-weight: 850;
   line-height: 1.3;
@@ -472,7 +472,7 @@
 
 .knowledge-maintenance-completion__metrics dd {
   margin: 6px 0 0;
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 18px;
   font-weight: 850;
   font-variant-numeric: tabular-nums;
@@ -481,7 +481,7 @@
 }
 
 .knowledge-maintenance-completion__metric--error dd {
-  color: #842029;
+  color: var(--color-danger);
 }
 
 .knowledge-maintenance-confirm-box {
@@ -501,12 +501,12 @@
   display: grid;
   gap: 14px;
   min-width: 0;
-  color: #25364d;
+  color: var(--color-text);
 }
 
 .knowledge-maintenance-confirm__summary {
   margin: 0;
-  color: #1f2d3d;
+  color: var(--color-text-strong);
   font-size: 15px;
   font-weight: 750;
   line-height: 1.6;
@@ -519,7 +519,7 @@
 }
 
 .knowledge-maintenance-confirm__label {
-  color: #667085;
+  color: var(--color-text-muted);
   font-size: 12px;
   font-weight: 850;
   line-height: 1.2;
@@ -534,7 +534,7 @@
 
 .knowledge-maintenance-confirm li {
   margin: 0;
-  color: #334155;
+  color: var(--color-text-muted);
   font-size: 14px;
   line-height: 1.55;
 }
@@ -544,10 +544,10 @@
   max-height: 96px;
   overflow: auto;
   padding: 10px 12px;
-  border: 1px solid #d8e2ef;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  color: #243244;
-  background: #f8fafc;
+  color: var(--color-text);
+  background: var(--color-surface-strong);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
   line-height: 1.5;

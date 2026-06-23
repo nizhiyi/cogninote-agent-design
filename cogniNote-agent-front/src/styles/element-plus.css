@@ -206,3 +206,98 @@
 .settings-embedding-alert {
   margin-top: 16px;
 }
+
+.knowledge-pane .el-table,
+.knowledge-health-runs-dialog .el-table {
+  --el-table-bg-color: var(--color-surface);
+  --el-table-tr-bg-color: var(--color-surface);
+  --el-table-header-bg-color: var(--color-surface-strong);
+  --el-table-header-text-color: var(--color-text-muted);
+  --el-table-text-color: var(--color-text);
+  --el-table-border-color: var(--color-border);
+  --el-table-row-hover-bg-color: color-mix(in srgb, var(--color-action-soft) 46%, var(--color-surface));
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+.knowledge-pane .el-table th.el-table__cell,
+.knowledge-health-runs-dialog .el-table th.el-table__cell {
+  color: var(--color-text-muted);
+  background: var(--color-surface-strong);
+}
+
+.knowledge-pane .el-table tr,
+.knowledge-pane .el-table td.el-table__cell,
+.knowledge-health-runs-dialog .el-table tr,
+.knowledge-health-runs-dialog .el-table td.el-table__cell {
+  border-color: var(--color-border);
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+.knowledge-pane .el-table__fixed-right,
+.knowledge-pane .el-table__fixed-right-patch,
+.knowledge-health-runs-dialog .el-table__fixed-right,
+.knowledge-health-runs-dialog .el-table__fixed-right-patch {
+  background: var(--color-surface);
+}
+
+.knowledge-pane .el-pagination,
+.knowledge-health-runs-dialog .el-pagination {
+  color: var(--color-text-muted);
+}
+
+.knowledge-pane .el-pagination.is-background .btn-prev,
+.knowledge-pane .el-pagination.is-background .btn-next,
+.knowledge-pane .el-pagination.is-background .el-pager li,
+.knowledge-health-runs-dialog .el-pagination.is-background .btn-prev,
+.knowledge-health-runs-dialog .el-pagination.is-background .btn-next,
+.knowledge-health-runs-dialog .el-pagination.is-background .el-pager li {
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-surface-muted) 62%, transparent);
+}
+
+.knowledge-pane .el-pagination.is-background .el-pager li.is-active,
+.knowledge-health-runs-dialog .el-pagination.is-background .el-pager li.is-active {
+  color: #ffffff;
+  background: var(--color-action);
+}
+
+.knowledge-pane .el-pagination .el-select__wrapper,
+.knowledge-health-runs-dialog .el-pagination .el-select__wrapper {
+  background: var(--color-input);
+  box-shadow: 0 0 0 1px var(--color-border) inset;
+}
+
+.knowledge-pane .el-scrollbar__bar,
+.knowledge-health-runs-dialog .el-scrollbar__bar {
+  background: color-mix(in srgb, var(--color-surface-muted) 42%, transparent);
+}
+
+.knowledge-pane .el-scrollbar__thumb,
+.knowledge-health-runs-dialog .el-scrollbar__thumb {
+  background: color-mix(in srgb, var(--color-text-muted) 48%, transparent);
+}
+
+.knowledge-health-runs-dialog .el-dialog,
+.knowledge-run-detail-dialog .el-dialog,
+.knowledge-health-issue-detail-dialog .el-dialog,
+.knowledge-maintenance-completion-dialog .el-dialog,
+.knowledge-maintenance-confirm-box {
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+.knowledge-health-runs-dialog .el-dialog__header,
+.knowledge-run-detail-dialog .el-dialog__header,
+.knowledge-health-issue-detail-dialog .el-dialog__header,
+.knowledge-maintenance-completion-dialog .el-dialog__header,
+.knowledge-health-runs-dialog .el-dialog__footer,
+.knowledge-run-detail-dialog .el-dialog__footer,
+.knowledge-health-issue-detail-dialog .el-dialog__footer,
+.knowledge-maintenance-completion-dialog .el-dialog__footer {
+  border-color: var(--color-border);
+  color: var(--color-text-strong);
+  background: var(--color-surface);
+}
