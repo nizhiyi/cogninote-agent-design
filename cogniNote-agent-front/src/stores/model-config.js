@@ -21,6 +21,7 @@ const FIXED_EMBEDDING_DIMENSIONS = 1024
 const DEFAULT_CONTEXT_WINDOW_TOKENS = 128000
 const MIN_CONTEXT_WINDOW_TOKENS = 1024
 const MAX_CONTEXT_WINDOW_TOKENS = 2000000
+const MODEL_OPTIONS_CACHE_TTL_MS = 3 * 60 * 1000
 
 /**
  * 模型设置页的双角色编辑状态。
@@ -98,12 +99,10 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
   const modelOptions = computed(() => modelOptionsByRole.value[activeRole.value] || [])
   const modelsFetchedAt = computed(() => modelsFetchedAtByRole.value[activeRole.value])
   const chatModelOptions = computed(() => {
-    return (modelOptionsByRole.value.CHAT || [])
-      .filter(model => model.capability === 'CHAT' || model.capability === 'UNKNOWN')
+    return sortedModelOptionsForRole(modelOptionsByRole.value.CHAT || [], ROLES.CHAT)
   })
   const embeddingModelOptions = computed(() => {
-    return (modelOptionsByRole.value.EMBEDDING || [])
-      .filter(model => model.capability === 'EMBEDDING' || model.capability === 'UNKNOWN')
+    return sortedModelOptionsForRole(modelOptionsByRole.value.EMBEDDING || [], ROLES.EMBEDDING)
   })
   const isLoadingModelConfig = computed(() => currentState.value.loading)
   const isSavingModelConfig = computed(() => currentState.value.saving)
@@ -265,6 +264,7 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     isFetchingModels.value = true
     state.error = ''
     message.value = ''
+    invalidateModelOptions(role)
 
     try {
       const result = await requestFetchModelOptions(formPayload(role, formOverride))
@@ -272,8 +272,9 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
       modelsFetchedAtByRole.value[role] = result.fetchedAt || Date.now()
       modelOptionsSignatureByRole.value[role] = signature
       autoSelectModel(role)
-      message.value = modelOptionsByRole.value[role].length
-        ? `已获取 ${modelOptionsByRole.value[role].length} 个模型`
+      const availableModelCount = modelOptionsCountForRole(role)
+      message.value = availableModelCount
+        ? `已获取 ${availableModelCount} 个模型`
         : '模型列表为空，可继续手动输入模型 ID'
     } catch (err) {
       state.error = `获取模型失败：${err.message}`
@@ -283,8 +284,10 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
   }
 
   function hasFreshModelOptions(role = activeRole.value, formOverride = null) {
-    return Boolean(modelsFetchedAtByRole.value[role])
+    const fetchedAt = Number(modelsFetchedAtByRole.value[role])
+    return Boolean(fetchedAt)
       && modelOptionsSignatureByRole.value[role] === modelOptionsSignatureForRole(role, formOverride)
+      && Date.now() - fetchedAt <= MODEL_OPTIONS_CACHE_TTL_MS
   }
 
   async function testModelConfig(formOverride = null) {
@@ -469,6 +472,12 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
         modelName: options[0].id
       })
     }
+  }
+
+  function modelOptionsCountForRole(role) {
+    return role === ROLES.CHAT
+      ? chatModelOptions.value.length
+      : embeddingModelOptions.value.length
   }
 
   function activeConfigFor(role) {
@@ -703,4 +712,29 @@ function normalizeProviderValue(provider, baseUrl = '') {
     return 'OPENAI_COMPATIBLE'
   }
   return 'DASHSCOPE'
+}
+
+function sortedModelOptionsForRole(options, role) {
+  return [...options].sort((left, right) => {
+    const rankDiff = capabilityRank(left.capability, role) - capabilityRank(right.capability, role)
+    if (rankDiff !== 0) {
+      return rankDiff
+    }
+    return String(left.id || '').localeCompare(String(right.id || ''))
+  })
+}
+
+function capabilityRank(capability, role) {
+  if (role === ROLES.EMBEDDING) {
+    return {
+      EMBEDDING: 0,
+      UNKNOWN: 1,
+      CHAT: 2
+    }[capability] ?? 1
+  }
+  return {
+    CHAT: 0,
+    UNKNOWN: 1,
+    EMBEDDING: 2
+  }[capability] ?? 1
 }

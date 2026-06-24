@@ -76,6 +76,14 @@ function handleModelSelectChange(value) {
   modelConfigStore.form.modelName = value || ''
 }
 
+function modelCapabilityLabel(capability) {
+  return {
+    CHAT: '对话',
+    EMBEDDING: '向量',
+    UNKNOWN: '未识别'
+  }[capability] || '未识别'
+}
+
 async function handleModelSelectVisibleChange(visible) {
   if (!visible) {
     modelSelectKeyword.value = ''
@@ -329,7 +337,7 @@ function normalizeInitialRole(role) {
                 <div class="model-id-option">
                   <strong>{{ model.id }}</strong>
                   <span v-if="model.name && model.name !== model.id">{{ model.name }}</span>
-                  <em>{{ model.capability }}</em>
+                  <em>{{ modelCapabilityLabel(model.capability) }}</em>
                 </div>
               </el-option>
             </el-select>

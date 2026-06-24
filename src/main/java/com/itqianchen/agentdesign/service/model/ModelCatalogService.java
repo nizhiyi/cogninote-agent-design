@@ -24,6 +24,30 @@ import org.springframework.web.client.RestClientException;
 @Service
 public class ModelCatalogService {
 
+    private static final List<String> EMBEDDING_HINTS = List.of(
+            "embedding",
+            "embed",
+            "bge",
+            "gte",
+            "e5",
+            "jina-embeddings"
+    );
+    private static final List<String> CHAT_HINTS = List.of(
+            "chat",
+            "completion",
+            "text-generation"
+    );
+    private static final List<String> CAPABILITY_FIELD_NAMES = List.of(
+            "type",
+            "sub_type",
+            "subType",
+            "task",
+            "capability",
+            "capabilities",
+            "modalities",
+            "features"
+    );
+
     private final ModelConfigService modelConfigService;
     private final RestClient restClient;
 
@@ -106,7 +130,7 @@ public class ModelCatalogService {
         if (name.isBlank()) {
             name = id;
         }
-        return new ModelOptionResponse(id, name, classify(id));
+        return new ModelOptionResponse(id, name, classify(node, id));
     }
 
     /**
@@ -122,21 +146,70 @@ public class ModelCatalogService {
     }
 
     /**
-     * /models 通常缺少能力字段，只能根据模型 ID 做保守分类。
+     * /models 没有统一的能力字段，只能用 provider 字段和模型 ID 做保守标注。
      *
+     * @param node 模型 JSON 节点
      * @param modelId 模型 ID
      * @return 模型能力分类
      */
-    private static ModelCapability classify(String modelId) {
+    private static ModelCapability classify(JsonNode node, String modelId) {
+        if (containsAnyCapabilityField(node, EMBEDDING_HINTS)) {
+            return ModelCapability.EMBEDDING;
+        }
+        if (containsAnyCapabilityField(node, CHAT_HINTS)) {
+            return ModelCapability.CHAT;
+        }
         if (modelId == null || modelId.isBlank()) {
             return ModelCapability.UNKNOWN;
         }
         String normalized = modelId.toLowerCase(Locale.ROOT);
-        if (normalized.contains("embedding") || normalized.contains("embed")) {
+        if (containsAny(normalized, EMBEDDING_HINTS)) {
             return ModelCapability.EMBEDDING;
         }
-        // DashScope/OpenAI compatible 的 /models 通常不给能力字段。
-        // 当前阶段宁可把未知文本模型默认归为 Chat，避免用户拿不到可选项。
-        return ModelCapability.CHAT;
+        return ModelCapability.UNKNOWN;
+    }
+
+    /**
+     * 检查 provider 返回的能力字段是否包含目标关键词。
+     *
+     * @param node 模型 JSON 节点
+     * @param hints 能力关键词
+     * @return 任一能力字段命中时为 true
+     */
+    private static boolean containsAnyCapabilityField(JsonNode node, List<String> hints) {
+        if (node == null || node.isNull()) {
+            return false;
+        }
+        return CAPABILITY_FIELD_NAMES.stream()
+                .map(node::get)
+                .anyMatch(value -> jsonContainsAny(value, hints));
+    }
+
+    /**
+     * 递归读取 provider 私有字段。
+     *
+     * <p>不同 OpenAI-compatible 服务会把能力放在字符串、数组或对象中；只用于标签和排序，
+     * 不作为调用正确性的最终判断。</p>
+     *
+     * @param node 字段节点
+     * @param hints 能力关键词
+     * @return 任一文本节点命中时为 true
+     */
+    private static boolean jsonContainsAny(JsonNode node, List<String> hints) {
+        if (node == null || node.isNull()) {
+            return false;
+        }
+        if (node.isTextual()) {
+            return containsAny(node.asText("").toLowerCase(Locale.ROOT), hints);
+        }
+        if (node.isArray() || node.isObject()) {
+            return StreamSupport.stream(node.spliterator(), false)
+                    .anyMatch(child -> jsonContainsAny(child, hints));
+        }
+        return false;
+    }
+
+    private static boolean containsAny(String value, List<String> hints) {
+        return hints.stream().anyMatch(value::contains);
     }
 }

@@ -62,8 +62,8 @@ class ModelCatalogServiceTests {
         assertThat(response.models())
                 .extracting("id", "capability")
                 .containsExactly(
-                        org.assertj.core.groups.Tuple.tuple("qwen-plus", ModelCapability.CHAT),
-                        org.assertj.core.groups.Tuple.tuple("text-embedding-v4", ModelCapability.EMBEDDING)
+                        org.assertj.core.groups.Tuple.tuple("text-embedding-v4", ModelCapability.EMBEDDING),
+                        org.assertj.core.groups.Tuple.tuple("qwen-plus", ModelCapability.UNKNOWN)
                 );
         server.verify();
     }
@@ -107,8 +107,53 @@ class ModelCatalogServiceTests {
         assertThat(response.models())
                 .extracting("id", "capability")
                 .containsExactly(
-                        org.assertj.core.groups.Tuple.tuple("gpt-4.1-mini", ModelCapability.CHAT),
-                        org.assertj.core.groups.Tuple.tuple("text-embedding-3-small", ModelCapability.EMBEDDING)
+                        org.assertj.core.groups.Tuple.tuple("text-embedding-3-small", ModelCapability.EMBEDDING),
+                        org.assertj.core.groups.Tuple.tuple("gpt-4.1-mini", ModelCapability.UNKNOWN)
+                );
+        server.verify();
+    }
+
+    @Test
+    void fetchModelsUsesProviderCapabilityFieldsWhenAvailable() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        ModelCatalogService service = new ModelCatalogService(
+                new ModelConfigService(emptyRepository()),
+                builder
+        );
+
+        server.expect(requestTo("https://api.example.test/v1/models"))
+                .andExpect(header("Authorization", "Bearer sk-test"))
+                .andRespond(withSuccess("""
+                        {
+                          "data": [
+                            { "id": "vendor-chat-model", "sub_type": "chat" },
+                            { "id": "vendor-vector-model", "capabilities": ["embedding"] }
+                          ]
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        ModelOptionsResponse response = service.fetchModels(new ModelConfigRequest(
+                ModelConfigRole.CHAT.name(),
+                "OPENAI_COMPATIBLE",
+                "OpenAI-compatible",
+                "https://api.example.test/v1",
+                "sk-test",
+                "vendor-chat-model",
+                "vendor-chat-model",
+                "vendor-vector-model",
+                1536,
+                0.7,
+                8,
+                8,
+                ModelConfigDefaults.CONTEXT_WINDOW_TOKENS
+        ));
+
+        assertThat(response.models())
+                .extracting("id", "capability")
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("vendor-chat-model", ModelCapability.CHAT),
+                        org.assertj.core.groups.Tuple.tuple("vendor-vector-model", ModelCapability.EMBEDDING)
                 );
         server.verify();
     }
