@@ -710,6 +710,32 @@ POST /api/model-configs/models
 
 使用配置草稿获取模型列表。DashScope 走百炼兼容模型列表端点；OpenAI-compatible 走用户 `Base URL + /models`。
 
+模型设置页在用户点开“模型 ID”下拉框时，前端会自动调用该接口并把候选模型展示出来。模型 ID 输入框仍允许用户手动创建 provider 支持但列表中没有返回的模型。
+
+响应示例：
+
+```json
+{
+  "models": [
+    {
+      "id": "qwen-plus",
+      "name": "qwen-plus",
+      "capability": "UNKNOWN"
+    },
+    {
+      "id": "text-embedding-v4",
+      "name": "text-embedding-v4",
+      "capability": "EMBEDDING"
+    }
+  ],
+  "fetchedAt": 1760000000000
+}
+```
+
+- `models[].capability`：后端对 provider `/models` 响应做的保守能力标注，取值为 `CHAT`、`EMBEDDING` 或 `UNKNOWN`。
+- `UNKNOWN`：provider 没有返回足够能力信息，不代表模型不可用；前端仍会展示该模型并允许用户选择。
+- `fetchedAt`：后端拉取模型列表的时间戳，前端用于判断短时间缓存是否仍可复用。
+
 ### 旧兼容接口
 
 ```text

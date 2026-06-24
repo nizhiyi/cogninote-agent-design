@@ -347,6 +347,10 @@ Prompt 文本统一放在 `src/main/resources/cogninote-prompts.yaml`。`applica
 
 模型设置页使用 settings 快照接口作为页面事实来源：顶部 Active 卡片、左侧配置列表和右侧编辑表单由同一份 `ModelConfigSettingsResponse` 驱动。前端 `model-config` store 只保留一个当前编辑 `form`，不要在组件内再复制第二份表单状态；否则容易出现“列表和 Active 有数据，但右侧表单没有回显”的状态分叉。设置页切到“模型”时默认加载 `CHAT` 快照，点击 “Embedding 模型” 时再加载 `EMBEDDING` 快照。模型页不显示整块加载遮罩，避免页签切换时闪烁刺眼。
 
+模型 ID 输入框是可搜索、可自定义输入的下拉框：点开下拉时按当前 role、配置 ID、Provider 和 Base URL 获取模型列表，相同签名 3 分钟内可复用缓存；切换 Provider、Base URL 或配置后缓存失效。`/models` 只作为辅助选择来源，后端只保守标注 `CHAT` / `EMBEDDING` / `UNKNOWN` 能力，不补造 provider 没返回的模型，也不隐藏 `UNKNOWN` 模型；最终保存和运行仍以用户输入的模型 ID 为准。
+
+向量索引重建提示只在 active Embedding 的索引相关签名变化时出现：Provider、Base URL、模型 ID 或向量维度变化才需要提醒用户重建 Lucene 向量索引。保存未启用向量配置、修改配置名称、修改 API Key，或保存时这些字段没有变化，都不能弹出重建索引提示。
+
 API Key 第四、五阶段仍以开发态明文保存到 SQLite；本地加密或 Windows 凭据管理放到安全加固阶段，不能在最终交付版本继续明文保存。
 
 ### 5.6 RAG 问答流程

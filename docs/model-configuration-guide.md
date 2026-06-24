@@ -82,10 +82,26 @@ OpenAI-compatible 的 Embedding 继续使用 Spring AI OpenAI runtime 的标准 
 1. 打开“设置”页，切换到“模型”区域。
 2. 在“对话模型”或“Embedding 模型”之间切换。
 3. 点击“新建配置”，填写 Provider、Base URL、API Key 和模型 ID。
-4. 点击“获取模型”拉取候选模型；如果服务商模型列表不完整，可直接手动输入模型 ID。
+4. 点开“模型 ID”下拉框获取候选模型；如果服务商模型列表为空或不完整，可直接手动输入模型 ID。
 5. 点击“测试连接”验证当前配置草稿。
 6. 保存配置。
-7. 在配置列表中点击“激活”让该配置成为当前类型的 active 配置。
+7. 在配置列表中点击“设为启用”让该配置成为当前类型的 active 配置。
+
+## 模型 ID 选择与模型列表
+
+模型 ID 字段是可搜索、可创建的下拉输入框。用户可以从候选模型中选择，也可以直接输入 provider 支持但列表里没有返回的模型 ID。输入时前端会按模型 ID、名称和能力标签做模糊过滤。
+
+点开模型 ID 下拉框时，前端会用当前表单里的 role、Provider、Base URL 和 API Key 调用 `POST /api/model-configs/models` 拉取模型列表。相同 role、当前配置 ID、Provider 和 Base URL 的列表会缓存 3 分钟；切换 Provider、Base URL 或编辑不同配置时缓存失效。缓存只是减少短时间重复请求，最终保存仍以用户输入的模型 ID 为准。
+
+后端只对 provider `/models` 响应做保守能力标注：
+
+| 能力 | 含义 |
+| --- | --- |
+| `CHAT` | provider 明确返回 Chat / Completion / Text Generation 能力。 |
+| `EMBEDDING` | provider 明确返回 Embedding 能力，或模型 ID 命中 embedding、bge、gte、e5、jina-embeddings 等常见向量模型特征。 |
+| `UNKNOWN` | provider 没有返回足够能力信息。该值不代表模型不可用，前端仍会展示并允许选择。 |
+
+模型列表只做辅助选择和排序，不会补造 provider 没返回的模型，也不会因为能力是 `UNKNOWN` 就隐藏模型。如果获取失败，可以继续手动输入模型 ID 后保存。
 
 对话模型表单中的“上下文长度”只在 `CHAT` 类型显示，可以使用预设值，也可以手动输入。保存时后端校验范围为 `1024` 到 `2000000`；超出范围会返回参数校验错误。保存成功后，聊天页会按 active Chat 配置重新计算当前会话的上下文占用。
 
@@ -99,7 +115,7 @@ OpenAI-compatible 的 Embedding 继续使用 Spring AI OpenAI runtime 的标准 
 
 该策略是全局知识库设置，不跟随单个 Chat 配置保存。它只影响知识库检索 query，不会修改聊天记录中的用户原文，也不会影响纯模型对话。保存策略时前端调用 `PUT /api/chat/settings` 写入 SQLite，刷新页面后通过 `GET /api/chat/settings` 回显。
 
-保存或激活 Embedding 配置后，如果模型或维度发生变化，需要在知识库中手动重建索引。系统不会自动重建旧向量，避免用户不知情地产生大量外部模型调用。第 20 阶段调整了中文 Analyzer、代码块索引文本和混合检索融合方式，升级后也需要重建 Lucene 索引；如果旧 chunks 已经丢失代码缩进，需要重新导入原始文件才能恢复代码格式。
+启用向量配置，或保存已启用的向量配置时，如果 Provider、Base URL、模型 ID 或向量维度发生变化，需要在知识库中手动重建索引。系统不会自动重建旧向量，避免用户不知情地产生大量外部模型调用。只修改配置名称、API Key，或保存时这些索引相关字段没有变化，不会弹出重建索引提示。第 20 阶段调整了中文 Analyzer、代码块索引文本和混合检索融合方式，升级后也需要重建 Lucene 索引；如果旧 chunks 已经丢失代码缩进，需要重新导入原始文件才能恢复代码格式。
 
 ## 前端回显规则
 
@@ -154,7 +170,7 @@ $env:COGNINOTE_EMBEDDING_MODEL="text-embedding-v4"
 
 ### 获取模型失败
 
-模型列表接口并不是所有服务都实现完整。如果获取失败，可以手动输入模型 ID 后保存。Chat 调用和 Embedding 调用只依赖最终保存的模型名。
+模型列表接口并不是所有服务都实现完整。如果获取失败，或者返回列表缺少实际可用的模型，可以手动输入模型 ID 后保存。Chat 调用和 Embedding 调用只依赖最终保存的模型名。
 
 ### Embedding 不可用
 
