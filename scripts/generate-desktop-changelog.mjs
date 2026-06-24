@@ -20,8 +20,6 @@ const releaseTag = args.releaseTag || `v${args.version}`
 const previousTag = args.previousTag || findPreviousTag(releaseTag)
 const range = previousTag ? `${previousTag}..HEAD` : 'HEAD'
 const commits = readCommits(range, maxCommits)
-const shortHead = runGit(['rev-parse', '--short', 'HEAD']).trim()
-const rangeLabel = previousTag ? `${previousTag}...${shortHead}` : `初始提交...${shortHead}`
 
 const changeCategories = [
   { key: 'features', title: '新增与改进' },
@@ -44,9 +42,9 @@ const scopeLabels = new Map([
 
 mkdirSync(dirname(args.output), { recursive: true })
 writeFileSync(args.output, renderUserNotes(args.version, commits), 'utf8')
-if (args.technicalOutput) {
-  mkdirSync(dirname(args.technicalOutput), { recursive: true })
-  writeFileSync(args.technicalOutput, renderTechnicalNotes(range, rangeLabel, commits, maxCommits), 'utf8')
+if (args.rawCommitsOutput) {
+  mkdirSync(dirname(args.rawCommitsOutput), { recursive: true })
+  writeFileSync(args.rawCommitsOutput, renderRawCommitNotes(range, commits, maxCommits), 'utf8')
 }
 
 function findPreviousTag(currentTag) {
@@ -147,15 +145,8 @@ function renderUserNotes(version, parsedCommits) {
   return `${lines.join('\n').trim()}\n`
 }
 
-function renderTechnicalNotes(range, rangeLabel, parsedCommits, limit) {
-  const lines = [
-    '## 技术详情',
-    '',
-    `- 变更范围：${rangeLabel}`,
-    '',
-    '### 原始提交记录',
-    ''
-  ]
+function renderRawCommitNotes(range, parsedCommits, limit) {
+  const lines = ['## 原始提交记录', '']
 
   if (parsedCommits.length === 0) {
     lines.push('- 暂无可识别的代码变更记录。')

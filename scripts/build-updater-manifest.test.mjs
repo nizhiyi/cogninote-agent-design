@@ -30,11 +30,11 @@ try {
       '',
       '下载安装包。',
       '<!-- COGNINOTE_RELEASE_SECTION:windows:end -->',
-      '<!-- COGNINOTE_RELEASE_TECHNICAL:start -->',
-      '## 技术详情',
+      '<!-- COGNINOTE_RELEASE_LEGACY_EXTRA:start -->',
+      '## 页面附加内容',
       '',
       '- abc123 feat(updater): 这条不应进入应用内更新说明。',
-      '<!-- COGNINOTE_RELEASE_TECHNICAL:end -->'
+      '<!-- COGNINOTE_RELEASE_LEGACY_EXTRA:end -->'
     ].join('\n'),
     'utf8'
   )
@@ -76,7 +76,7 @@ try {
 
   const notesFileVersion = readManifest(manifestPath)
   assert.equal(notesFileVersion.notes, '## 更新内容\n\n- 修复自动更新说明。')
-  assert(!notesFileVersion.notes.includes('技术详情'))
+  assert(!notesFileVersion.notes.includes('页面附加内容'))
   assert(!notesFileVersion.notes.includes('Windows x64'))
 } finally {
   rmSync(tempDir, { recursive: true, force: true })

@@ -25,6 +25,7 @@ const sections = {
   ...extractMarkedSections(existing)
 }
 const changelog = readChangelog(args.changelogFile) || extractMarkedChangelog(existing)
+const rawCommits = readOptionalFile(args.rawCommitsFile) || extractMarkedRawCommits(existing)
 sections[args.platform] = renderTemplate(args.template, args)
 
 const parts = []
@@ -35,6 +36,9 @@ for (const platform of platformOrder) {
   if (sections[platform]?.trim()) {
     parts.push(wrapSection(platform, sections[platform].trim()))
   }
+}
+if (rawCommits) {
+  parts.push(wrapRawCommits(rawCommits))
 }
 
 mkdirSync(dirname(args.output), { recursive: true })
@@ -104,6 +108,14 @@ function readChangelog(changelogFile) {
   return readOptionalFile(changelogFile)
 }
 
+function extractMarkedRawCommits(body) {
+  const pattern = new RegExp(
+    `${escapeRegExp(rawCommitsMarker('start'))}\\s*([\\s\\S]*?)\\s*${escapeRegExp(rawCommitsMarker('end'))}`,
+    'm'
+  )
+  return body.match(pattern)?.[1]?.trim() || ''
+}
+
 function readOptionalFile(changelogFile) {
   if (!changelogFile || !existsSync(changelogFile)) {
     return ''
@@ -146,12 +158,20 @@ function wrapChangelog(content) {
   return `<!-- COGNINOTE_RELEASE_CHANGELOG:start\n${content}\nCOGNINOTE_RELEASE_CHANGELOG:end -->`
 }
 
+function wrapRawCommits(content) {
+  return `${rawCommitsMarker('start')}\n${content}\n${rawCommitsMarker('end')}`
+}
+
 function sectionMarker(platform, boundary) {
   return `<!-- COGNINOTE_RELEASE_SECTION:${platform}:${boundary} -->`
 }
 
 function changelogMarker(boundary) {
   return `<!-- COGNINOTE_RELEASE_CHANGELOG:${boundary} -->`
+}
+
+function rawCommitsMarker(boundary) {
+  return `<!-- COGNINOTE_RELEASE_RAW_COMMITS:${boundary} -->`
 }
 
 function escapeRegExp(value) {

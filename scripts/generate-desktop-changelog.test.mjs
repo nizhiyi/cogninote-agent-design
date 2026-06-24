@@ -23,13 +23,13 @@ try {
   commit('chore(release): 更新版本号至 0.1.51，发布正式版本')
 
   const userNotesPath = join(tempDir, 'user-notes.md')
-  const technicalNotesPath = join(tempDir, 'technical-notes.md')
+  const rawCommitNotesPath = join(tempDir, 'raw-commits.md')
   execFileSync(process.execPath, [
     scriptPath,
     '--output',
     userNotesPath,
-    '--technicalOutput',
-    technicalNotesPath,
+    '--rawCommitsOutput',
+    rawCommitNotesPath,
     '--version',
     '0.1.51',
     '--releaseTag',
@@ -50,11 +50,13 @@ try {
   assert(!userNotes.includes('docs('))
   assert(!/[0-9a-f]{7}\s/.test(userNotes))
 
-  const technicalNotes = readFileSync(technicalNotesPath, 'utf8')
-  assert(technicalNotes.includes('## 技术详情'))
-  assert(technicalNotes.includes('docs(knowledge): 更新知识库维护文档'))
-  assert(technicalNotes.includes('test(ui): 添加更新说明渲染测试'))
-  assert(!technicalNotes.includes('chore(release): 更新版本号至 0.1.51'))
+  const rawCommitNotes = readFileSync(rawCommitNotesPath, 'utf8')
+  assert(rawCommitNotes.includes('## 原始提交记录'))
+  assert(rawCommitNotes.includes('docs(knowledge): 更新知识库维护文档'))
+  assert(rawCommitNotes.includes('test(ui): 添加更新说明渲染测试'))
+  assert(!rawCommitNotes.includes('## 技术详情'))
+  assert(!rawCommitNotes.includes('变更范围'))
+  assert(!rawCommitNotes.includes('chore(release): 更新版本号至 0.1.51'))
 } finally {
   rmSync(tempDir, { recursive: true, force: true })
 }

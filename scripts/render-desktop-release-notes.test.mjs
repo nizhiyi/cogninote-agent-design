@@ -14,9 +14,11 @@ try {
   const existingPath = join(tempDir, 'existing.md')
   const outputPath = join(tempDir, 'release-notes.md')
   const changelogPath = join(tempDir, 'user-notes.md')
+  const rawCommitsPath = join(tempDir, 'raw-commits.md')
 
   writeFileSync(existingPath, '', 'utf8')
   writeFileSync(changelogPath, '## 知记空间 0.1.51 更新内容\n\n### 新增与改进\n\n- 应用更新：更新说明更容易阅读。\n', 'utf8')
+  writeFileSync(rawCommitsPath, '## 原始提交记录\n\n- abc123 feat(updater): 改进更新说明。\n', 'utf8')
 
   execFileSync(process.execPath, [
     scriptPath,
@@ -26,6 +28,8 @@ try {
     outputPath,
     '--changelogFile',
     changelogPath,
+    '--rawCommitsFile',
+    rawCommitsPath,
     '--version',
     '0.1.51',
     '--releaseKind',
@@ -47,15 +51,19 @@ try {
   const rendered = readFileSync(outputPath, 'utf8')
   const changelogIndex = rendered.indexOf('<!-- COGNINOTE_RELEASE_CHANGELOG:start')
   const windowsIndex = rendered.indexOf('<!-- COGNINOTE_RELEASE_SECTION:windows:start -->')
+  const rawCommitsIndex = rendered.indexOf('<!-- COGNINOTE_RELEASE_RAW_COMMITS:start -->')
 
   assert(changelogIndex >= 0)
   assert(windowsIndex > changelogIndex)
+  assert(rawCommitsIndex > windowsIndex)
   assert(rendered.includes('## Windows x64'))
   assert(rendered.includes('## 知记空间 0.1.51 更新内容'))
   const visibleRendered = rendered.replace(/<!--[\s\S]*?-->/g, '')
   assert(!visibleRendered.includes('知记空间 0.1.51 更新内容'))
   assert(!visibleRendered.includes('## 技术详情'))
-  assert(!visibleRendered.includes('原始提交记录'))
+  assert(!visibleRendered.includes('变更范围'))
+  assert(visibleRendered.includes('## 原始提交记录'))
+  assert(visibleRendered.includes('abc123 feat(updater): 改进更新说明。'))
 } finally {
   rmSync(tempDir, { recursive: true, force: true })
 }

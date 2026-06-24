@@ -299,6 +299,7 @@ jobs:
           notes_path="$RUNNER_TEMP/cogninote-desktop-release-notes.md"
           existing_notes_path="$RUNNER_TEMP/cogninote-existing-release-notes.md"
           changelog_path="$RUNNER_TEMP/cogninote-desktop-changelog.md"
+          raw_commits_path="$RUNNER_TEMP/cogninote-desktop-raw-commits.md"
           if gh release view "$tag" >/dev/null 2>&1; then
             release_exists=true
             gh release view "$tag" --json body --jq .body > "$existing_notes_path"
@@ -309,6 +310,7 @@ jobs:
 
           node scripts/generate-desktop-changelog.mjs \
             --output "$changelog_path" \
+            --rawCommitsOutput "$raw_commits_path" \
             --version "$version" \
             --releaseTag "$tag"
 
@@ -340,6 +342,7 @@ jobs:
             --existing "$existing_notes_path" \
             --output "$notes_path" \
             --changelogFile "$changelog_path" \
+            --rawCommitsFile "$raw_commits_path" \
             --version "$version" \
             --releaseKind "$release_kind" \
             --platform macos \
