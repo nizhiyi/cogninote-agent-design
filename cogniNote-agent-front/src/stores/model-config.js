@@ -51,6 +51,7 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
   })
   const modelOptionsByRole = ref({ CHAT: [], EMBEDDING: [] })
   const modelsFetchedAtByRole = ref({ CHAT: null, EMBEDDING: null })
+  const modelOptionsSignatureByRole = ref({ CHAT: '', EMBEDDING: '' })
   const visibleApiKeyByRole = ref({ CHAT: false, EMBEDDING: false })
   const isFetchingModels = ref(false)
   const isTestingModelConfig = ref(false)
@@ -154,6 +155,7 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     const state = roleState.value[normalizedRole]
     state.selectedConfig = null
     replaceEditorForm(normalizedRole, defaultForm(normalizedRole))
+    invalidateModelOptionsIfStale(normalizedRole)
     state.error = ''
     state.revision += 1
     visibleApiKeyByRole.value[normalizedRole] = false
@@ -259,6 +261,7 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
   async function fetchModels(formOverride = null) {
     const role = activeRole.value
     const state = roleState.value[role]
+    const signature = modelOptionsSignatureForRole(role, formOverride)
     isFetchingModels.value = true
     state.error = ''
     message.value = ''
@@ -267,6 +270,7 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
       const result = await requestFetchModelOptions(formPayload(role, formOverride))
       modelOptionsByRole.value[role] = result.models || []
       modelsFetchedAtByRole.value[role] = result.fetchedAt || Date.now()
+      modelOptionsSignatureByRole.value[role] = signature
       autoSelectModel(role)
       message.value = modelOptionsByRole.value[role].length
         ? `已获取 ${modelOptionsByRole.value[role].length} 个模型`
@@ -276,6 +280,11 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     } finally {
       isFetchingModels.value = false
     }
+  }
+
+  function hasFreshModelOptions(role = activeRole.value, formOverride = null) {
+    return Boolean(modelsFetchedAtByRole.value[role])
+      && modelOptionsSignatureByRole.value[role] === modelOptionsSignatureForRole(role, formOverride)
   }
 
   async function testModelConfig(formOverride = null) {
@@ -320,8 +329,7 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
         ? normalizeContextWindowTokens(currentForm.contextWindowTokens)
         : null
     })
-    // Provider 切换后旧模型列表不再可信，必须重新从对应 Provider 拉取。
-    modelOptionsByRole.value[role] = []
+    invalidateModelOptions(role)
     state.error = ''
     message.value = ''
   }
@@ -394,6 +402,7 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     replaceEditorForm(role, snapshot.selectedConfig
       ? formFromConfig(state.selectedConfig)
       : defaultForm(role))
+    invalidateModelOptionsIfStale(role)
     state.loaded = true
     state.error = ''
     state.revision += 1
@@ -405,6 +414,7 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     const normalizedConfig = config ? normalizeConfigForRole(config, normalizedRole) : null
     state.selectedConfig = normalizedConfig
     replaceEditorForm(normalizedRole, normalizedConfig ? formFromConfig(normalizedConfig) : defaultForm(normalizedRole))
+    invalidateModelOptionsIfStale(normalizedRole)
     state.revision += 1
   }
 
@@ -426,6 +436,17 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     }
   }
 
+  function modelOptionsSignatureForRole(role = activeRole.value, formOverride = null) {
+    const current = formOverride || roleState.value[role].form
+    const selectedConfigId = roleState.value[role].selectedConfig?.id || 'new'
+    return [
+      role,
+      selectedConfigId,
+      normalizeProviderValue(current.provider, current.baseUrl),
+      String(current.baseUrl || '').trim()
+    ].join('|')
+  }
+
   function setContextWindowTokens(value, role = activeRole.value) {
     if (role !== ROLES.CHAT) {
       return
@@ -442,7 +463,7 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     }
     const options = chatModelOptions.value
     const state = roleState.value[role]
-    if (options.length && !options.some(model => model.id === state.form.modelName)) {
+    if (options.length && !state.form.modelName) {
       replaceEditorForm(role, {
         ...state.form,
         modelName: options[0].id
@@ -459,6 +480,18 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     // 避免“全局表单”和“role 表单”互相覆盖导致 Provider select 停在旧值。
     const normalizedForm = normalizeFormForRole(nextForm, role)
     roleState.value[role].form = { ...normalizedForm }
+  }
+
+  function invalidateModelOptions(role) {
+    modelOptionsByRole.value[role] = []
+    modelsFetchedAtByRole.value[role] = null
+    modelOptionsSignatureByRole.value[role] = ''
+  }
+
+  function invalidateModelOptionsIfStale(role) {
+    if (!hasFreshModelOptions(role)) {
+      invalidateModelOptions(role)
+    }
   }
 
   function roleSnapshot(role) {
@@ -492,6 +525,7 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     modelOptions,
     modelsFetchedAt,
     modelsFetchedAtByRole,
+    modelOptionsSignatureByRole,
     error,
     message,
     form,
@@ -524,6 +558,7 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     formatContextWindowTokens,
     copyApiKey,
     fetchModels,
+    hasFreshModelOptions,
     saveModelConfig,
     testModelConfig,
     activateConfig,

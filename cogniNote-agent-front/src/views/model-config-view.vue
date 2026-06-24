@@ -1,6 +1,6 @@
 <script setup>
 // 模型配置页只编排表单交互；配置保存、激活和默认值归 model-config store 管理。
-import { computed, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useModelConfigStore } from '../stores/model-config'
 import { useSearchStore } from '../stores/search'
@@ -14,16 +14,36 @@ const props = defineProps({
 
 const modelConfigStore = useModelConfigStore()
 const searchStore = useSearchStore()
+const modelSelectRef = ref(null)
+const modelSelectKeyword = ref('')
 const selectableModelOptions = computed(() => {
   return modelConfigStore.activeRole === modelConfigStore.ROLES.CHAT
     ? modelConfigStore.chatModelOptions
     : modelConfigStore.embeddingModelOptions
+})
+const filteredModelOptions = computed(() => {
+  const keyword = modelSelectKeyword.value.trim().toLowerCase()
+  if (!keyword) {
+    return selectableModelOptions.value
+  }
+  return selectableModelOptions.value.filter(model => {
+    return [model.id, model.name, model.capability]
+      .filter(Boolean)
+      .some(value => String(value).toLowerCase().includes(keyword))
+  })
 })
 
 watch(
   () => props.initialRole,
   () => loadInitialSettings(),
   { immediate: true }
+)
+
+watch(
+  () => modelConfigStore.activeRole,
+  () => {
+    modelSelectKeyword.value = ''
+  }
 )
 
 function roleActiveConfig(role) {
@@ -48,11 +68,39 @@ function handleEditConfig(config) {
   modelConfigStore.editConfig(config)
 }
 
-function modelSelectLabel(model) {
-  if (!model?.name || model.name === model.id) {
-    return model?.id || ''
+function filterModelOptions(query) {
+  modelSelectKeyword.value = String(query || '')
+}
+
+function handleModelSelectChange(value) {
+  modelConfigStore.form.modelName = value || ''
+}
+
+async function handleModelSelectVisibleChange(visible) {
+  if (!visible) {
+    modelSelectKeyword.value = ''
+    return
   }
-  return `${model.id} · ${model.name}`
+  moveModelSelectCursorToEnd()
+  if (shouldFetchModelOptionsOnOpen()) {
+    await modelConfigStore.fetchModels()
+    moveModelSelectCursorToEnd()
+  }
+}
+
+function shouldFetchModelOptionsOnOpen() {
+  return !modelConfigStore.isFetchingModels && !modelConfigStore.hasFreshModelOptions()
+}
+
+function moveModelSelectCursorToEnd() {
+  nextTick(() => {
+    const input = modelSelectRef.value?.$el?.querySelector('.el-select__input')
+    if (!input || typeof input.setSelectionRange !== 'function') {
+      return
+    }
+    const end = input.value.length
+    input.setSelectionRange(end, end)
+  })
 }
 
 async function handleReload() {
@@ -254,22 +302,29 @@ function normalizeInitialRole(role) {
           <label class="field field--full">
             <span>模型 ID</span>
             <el-select
+              ref="modelSelectRef"
               v-model="modelConfigStore.form.modelName"
               class="model-id-select"
+              clearable
               filterable
               allow-create
               default-first-option
-              clearable
+              :loading="modelConfigStore.isFetchingModels"
+              loading-text="正在获取模型..."
+              no-data-text="暂无模型，可手动输入模型 ID"
+              :filter-method="filterModelOptions"
               popper-class="model-id-select-popper"
               :placeholder="modelConfigStore.activeRole === modelConfigStore.ROLES.CHAT
                 ? '例如 qwen-plus 或 gpt-4.1-mini'
                 : '例如 text-embedding-v4'"
+              @change="handleModelSelectChange"
+              @visible-change="handleModelSelectVisibleChange"
             >
               <el-option
-                v-for="model in selectableModelOptions"
+                v-for="model in filteredModelOptions"
                 :key="model.id"
+                :label="model.id"
                 :value="model.id"
-                :label="modelSelectLabel(model)"
               >
                 <div class="model-id-option">
                   <strong>{{ model.id }}</strong>
@@ -322,13 +377,6 @@ function normalizeInitialRole(role) {
           </label>
 
           <div class="model-form__actions">
-            <el-button
-              :disabled="modelConfigStore.isFetchingModels"
-              :loading="modelConfigStore.isFetchingModels"
-              @click="modelConfigStore.fetchModels()"
-            >
-              获取模型
-            </el-button>
             <el-button type="primary" native-type="submit" :loading="modelConfigStore.isSavingModelConfig">
               {{ modelConfigStore.isEditingExisting ? '保存配置' : '创建配置' }}
             </el-button>
@@ -364,23 +412,6 @@ function normalizeInitialRole(role) {
 
         <p v-if="modelConfigStore.error" class="error-message">{{ modelConfigStore.error }}</p>
         <p v-if="modelConfigStore.message" class="success-message">{{ modelConfigStore.message }}</p>
-
-        <section v-if="modelConfigStore.modelOptions.length" class="model-options-panel">
-          <div class="section-title-line">
-            <h3>模型列表</h3>
-            <span>{{ modelConfigStore.modelOptions.length }} 个模型</span>
-          </div>
-          <div class="model-options-grid">
-            <span
-              v-for="model in modelConfigStore.modelOptions"
-              :key="model.id"
-              class="model-option-chip"
-            >
-              <strong>{{ model.name || model.id }}</strong>
-              <em>{{ model.capability }}</em>
-            </span>
-          </div>
-        </section>
       </section>
     </div>
 
