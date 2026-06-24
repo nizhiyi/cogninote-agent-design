@@ -1,10 +1,9 @@
 <script setup>
 // 模型配置页只编排表单交互；配置保存、激活和默认值归 model-config store 管理。
-import { computed, watch } from 'vue'
+import { watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useModelConfigStore } from '../stores/model-config'
 import { useSearchStore } from '../stores/search'
-import { formatTime } from '../utils/formatters'
 
 const props = defineProps({
   initialRole: {
@@ -15,14 +14,6 @@ const props = defineProps({
 
 const modelConfigStore = useModelConfigStore()
 const searchStore = useSearchStore()
-const apiKeyConfigured = computed(() => {
-  return Boolean(modelConfigStore.form.apiKey || modelConfigStore.selectedConfig?.apiKeyConfigured)
-})
-const apiKeySummary = computed(() => apiKeyConfigured.value ? '已配置' : '未配置')
-const updatedAtSummary = computed(() => {
-  return formatTime(modelConfigStore.activeConfigForRole?.updatedAt)
-})
-
 watch(
   () => props.initialRole,
   () => loadInitialSettings(),
@@ -77,10 +68,6 @@ async function handleActivate() {
 
 async function handleRemove() {
   await modelConfigStore.removeConfig(modelConfigStore.selectedConfig)
-}
-
-function providerLabel(provider) {
-  return modelConfigStore.providerOptions.find(option => option.value === provider)?.label || provider
 }
 
 async function promptRebuildIndexIfVectorConfigChanged(snapshot) {
@@ -181,32 +168,40 @@ function normalizeInitialRole(role) {
             <el-input v-model="modelConfigStore.form.displayName" autocomplete="off" />
           </label>
 
-          <label class="field">
+          <label class="field field--provider">
             <span class="field-heading">
-              <span>Provider</span>
+              <span>模型服务商</span>
+            </span>
+            <div class="provider-field-control">
+              <el-select
+                :model-value="modelConfigStore.form.provider"
+                @change="modelConfigStore.changeProvider"
+              >
+                <el-option
+                  v-for="provider in modelConfigStore.providerOptions"
+                  :key="provider.value"
+                  :value="provider.value"
+                  :label="provider.label"
+                >
+                  {{ provider.label }}
+                </el-option>
+              </el-select>
+              <span
+                v-if="modelConfigStore.isEditingExisting && modelConfigStore.selectedConfig?.active"
+                class="active-config-badge"
+              >
+                已启用
+              </span>
               <button
-                v-if="modelConfigStore.isEditingExisting"
+                v-else-if="modelConfigStore.isEditingExisting"
                 class="enable-config-button"
                 type="button"
-                :disabled="modelConfigStore.selectedConfig?.active || modelConfigStore.isActivating"
+                :disabled="modelConfigStore.isActivating"
                 @click="handleActivate"
               >
-                {{ modelConfigStore.selectedConfig?.active ? '已启用' : (modelConfigStore.isActivating ? '启用中...' : '启用') }}
+                {{ modelConfigStore.isActivating ? '启用中...' : '设为启用' }}
               </button>
-            </span>
-            <el-select
-              :model-value="modelConfigStore.form.provider"
-              @change="modelConfigStore.changeProvider"
-            >
-              <el-option
-                v-for="provider in modelConfigStore.providerOptions"
-                :key="provider.value"
-                :value="provider.value"
-                :label="provider.label"
-              >
-                {{ provider.label }}
-              </el-option>
-            </el-select>
+            </div>
           </label>
 
           <label class="field field--full">
@@ -351,56 +346,6 @@ function normalizeInitialRole(role) {
 
         <p v-if="modelConfigStore.error" class="error-message">{{ modelConfigStore.error }}</p>
         <p v-if="modelConfigStore.message" class="success-message">{{ modelConfigStore.message }}</p>
-
-        <section class="model-config-summary" aria-label="当前模型配置摘要">
-          <div class="model-config-summary__header">
-            <div>
-              <p class="eyebrow">当前配置</p>
-              <h3>{{ modelConfigStore.form.displayName || modelConfigStore.roleLabel }}</h3>
-            </div>
-            <span class="model-config-summary__badge" :class="{ 'is-ready': apiKeyConfigured }">
-              API Key {{ apiKeySummary }}
-            </span>
-          </div>
-
-          <dl class="model-config-summary__meta">
-            <div>
-              <dt>类型</dt>
-              <dd>{{ modelConfigStore.roleLabel }}</dd>
-            </div>
-            <div>
-              <dt>Provider</dt>
-              <dd :title="providerLabel(modelConfigStore.form.provider)">
-                {{ providerLabel(modelConfigStore.form.provider) }}
-              </dd>
-            </div>
-            <div>
-              <dt>更新于</dt>
-              <dd>{{ updatedAtSummary }}</dd>
-            </div>
-          </dl>
-
-          <dl class="model-config-summary__details">
-            <div>
-              <dt>Base URL</dt>
-              <dd class="path-text" :title="modelConfigStore.form.baseUrl || '-'">
-                {{ modelConfigStore.form.baseUrl || '-' }}
-              </dd>
-            </div>
-            <div>
-              <dt>模型 ID</dt>
-              <dd :title="modelConfigStore.form.modelName || '-'">
-                {{ modelConfigStore.form.modelName || '-' }}
-              </dd>
-            </div>
-            <div v-if="modelConfigStore.activeRole === modelConfigStore.ROLES.CHAT">
-              <dt>上下文窗口</dt>
-              <dd>
-                {{ modelConfigStore.formatContextWindowTokens(modelConfigStore.form.contextWindowTokens) }}
-              </dd>
-            </div>
-          </dl>
-        </section>
 
         <section v-if="modelConfigStore.modelOptions.length" class="model-options-panel">
           <div class="section-title-line">

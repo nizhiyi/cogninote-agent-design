@@ -202,7 +202,6 @@ body {
 .source-row,
 .model-config-list,
 .model-config-editor,
-.model-config-summary,
 .model-active-summary article,
 .model-options-panel,
 .stat-grid div {
@@ -588,40 +587,10 @@ body {
   gap: 14px 18px;
 }
 
-.model-config-summary {
-  border-color: var(--color-border);
-  background: color-mix(in srgb, var(--color-surface-strong) 92%, transparent);
-}
-
-.model-config-summary__header h3,
-.model-config-summary dd {
-  color: var(--color-text-strong);
-}
-
-.model-config-summary__badge {
-  color: var(--color-warning);
-  background: var(--color-warning-soft);
-}
-
-.model-config-summary__badge.is-ready {
-  color: var(--color-success);
-  background: var(--color-success-soft);
-}
-
-.model-config-summary__meta > div,
-.model-config-summary__details > div {
-  border-color: var(--color-border);
-  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
-}
-
-.model-config-summary dt {
-  color: var(--color-text-muted);
-}
-
 .enable-config-button {
   border-color: var(--color-action-border);
   color: var(--color-action-strong);
-  background: var(--color-action-soft);
+  background: color-mix(in srgb, var(--color-action-soft) 72%, transparent);
 }
 
 .context-window-preset {
@@ -640,15 +609,21 @@ body {
 
 .enable-config-button:hover:not(:disabled),
 .enable-config-button:focus-visible:not(:disabled) {
-  border-color: var(--color-action-border);
-  color: var(--color-text-strong);
-  background: color-mix(in srgb, var(--color-action-soft) 72%, var(--color-surface-strong));
+  border-color: var(--color-action);
+  color: #ffffff;
+  background: var(--color-action);
 }
 
 .enable-config-button:disabled {
   border-color: var(--color-border);
   color: var(--color-text-faint);
   background: color-mix(in srgb, var(--color-surface-muted) 68%, transparent);
+}
+
+.active-config-badge {
+  border-color: color-mix(in srgb, var(--color-success) 28%, transparent);
+  color: var(--color-success);
+  background: var(--color-success-soft);
 }
 
 .model-active-summary {
@@ -728,7 +703,6 @@ body {
 .settings-center-page .knowledge-folder-card,
 .settings-center-page .model-config-list,
 .settings-center-page .model-config-editor,
-.settings-center-page .model-config-summary,
 .settings-center-page .model-active-summary article,
 .settings-center-page .model-options-panel,
 .settings-center-page .stat-grid div {
@@ -741,7 +715,6 @@ body {
 .settings-center-page .settings-panel__header h3,
 .settings-center-page .settings-theme-card h4,
 .settings-center-page .model-config-toolbar__title h3,
-.settings-center-page .model-config-summary__header h3,
 .settings-center-page .folder-toggle-button {
   color: var(--color-text-strong);
 }
@@ -755,8 +728,7 @@ body {
 }
 
 .settings-center-page .stat-grid strong,
-.settings-center-page .path-text--index,
-.settings-center-page .model-config-summary dd {
+.settings-center-page .path-text--index {
   color: var(--color-text-strong);
 }
 
@@ -766,8 +738,6 @@ body {
 }
 
 .settings-center-page .document-row--nested,
-.settings-center-page .model-config-summary__meta > div,
-.settings-center-page .model-config-summary__details > div,
 .settings-center-page .model-option-chip {
   border-color: var(--color-border);
   background: color-mix(in srgb, var(--color-surface-muted) 42%, transparent);
