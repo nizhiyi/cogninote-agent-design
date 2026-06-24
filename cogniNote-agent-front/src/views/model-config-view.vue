@@ -1,6 +1,6 @@
 <script setup>
 // 模型配置页只编排表单交互；配置保存、激活和默认值归 model-config store 管理。
-import { watch } from 'vue'
+import { computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useModelConfigStore } from '../stores/model-config'
 import { useSearchStore } from '../stores/search'
@@ -14,6 +14,12 @@ const props = defineProps({
 
 const modelConfigStore = useModelConfigStore()
 const searchStore = useSearchStore()
+const selectableModelOptions = computed(() => {
+  return modelConfigStore.activeRole === modelConfigStore.ROLES.CHAT
+    ? modelConfigStore.chatModelOptions
+    : modelConfigStore.embeddingModelOptions
+})
+
 watch(
   () => props.initialRole,
   () => loadInitialSettings(),
@@ -40,6 +46,13 @@ function handleStartCreate() {
 
 function handleEditConfig(config) {
   modelConfigStore.editConfig(config)
+}
+
+function modelSelectLabel(model) {
+  if (!model?.name || model.name === model.id) {
+    return model?.id || ''
+  }
+  return `${model.id} · ${model.name}`
 }
 
 async function handleReload() {
@@ -240,26 +253,31 @@ function normalizeInitialRole(role) {
 
           <label class="field field--full">
             <span>模型 ID</span>
-            <el-input
+            <el-select
               v-model="modelConfigStore.form.modelName"
-              :list="modelConfigStore.activeRole === modelConfigStore.ROLES.CHAT
-                ? 'chat-model-options'
-                : 'embedding-model-options'"
-              autocomplete="off"
+              class="model-id-select"
+              filterable
+              allow-create
+              default-first-option
+              clearable
+              popper-class="model-id-select-popper"
               :placeholder="modelConfigStore.activeRole === modelConfigStore.ROLES.CHAT
                 ? '例如 qwen-plus 或 gpt-4.1-mini'
                 : '例如 text-embedding-v4'"
-            />
-            <datalist id="chat-model-options">
-              <option v-for="model in modelConfigStore.chatModelOptions" :key="model.id" :value="model.id">
-                {{ model.name || model.id }}
-              </option>
-            </datalist>
-            <datalist id="embedding-model-options">
-              <option v-for="model in modelConfigStore.embeddingModelOptions" :key="model.id" :value="model.id">
-                {{ model.name || model.id }}
-              </option>
-            </datalist>
+            >
+              <el-option
+                v-for="model in selectableModelOptions"
+                :key="model.id"
+                :value="model.id"
+                :label="modelSelectLabel(model)"
+              >
+                <div class="model-id-option">
+                  <strong>{{ model.id }}</strong>
+                  <span v-if="model.name && model.name !== model.id">{{ model.name }}</span>
+                  <em>{{ model.capability }}</em>
+                </div>
+              </el-option>
+            </el-select>
           </label>
 
           <label v-if="modelConfigStore.activeRole === modelConfigStore.ROLES.EMBEDDING" class="field">

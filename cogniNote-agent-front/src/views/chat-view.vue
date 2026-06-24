@@ -48,18 +48,19 @@ const firstSourceMessageId = computed(() =>
   chatStore.activeMessages.find((message) => message.sources?.length)?.id || ''
 )
 const activeModelSummary = computed(() => {
-  const chat = modelConfigStore.activeChatConfig?.modelName || '未配置对话模型'
-  const embedding = modelConfigStore.activeEmbeddingConfig?.modelName || '未配置向量模型'
-  return `${chat} / ${embedding}`
+  const chat = modelConfigStore.activeChatConfig?.apiKeyConfigured
+    ? modelConfigStore.activeChatConfig?.modelName
+    : ''
+  const embedding = modelConfigStore.activeEmbeddingConfig?.apiKeyConfigured
+    ? modelConfigStore.activeEmbeddingConfig?.modelName
+    : ''
+  return [chat, embedding].filter(Boolean).join(' / ')
 })
 const activeRetrievalModeLabel = computed(() => formatRetrievalModeLabel(chatStore.mode))
 
-// Header 状态必须先表达业务语义，再由 CSS 映射颜色，避免把未配置等警示态误染成成功绿。
+// Header 只展示已经真实可用的运行状态；未配置模型的引导留给输入区提示。
 const conversationMetaItems = computed(() => {
-  const isChatModelConfigured = Boolean(modelConfigStore.activeChatConfig?.modelName)
-  const isEmbeddingModelConfigured = Boolean(modelConfigStore.activeEmbeddingConfig?.modelName)
-
-  return [
+  const items = [
     {
       id: 'knowledge',
       label: chatStore.useKnowledgeBase ? '知识库已启用' : '纯模型对话',
@@ -69,14 +70,19 @@ const conversationMetaItems = computed(() => {
       id: 'mode',
       label: activeRetrievalModeLabel.value,
       state: 'info'
-    },
-    {
-      id: 'model',
-      label: activeModelSummary.value,
-      state: isChatModelConfigured && isEmbeddingModelConfigured ? 'neutral' : 'warning',
-      className: 'conversation-meta__model'
     }
   ]
+
+  if (activeModelSummary.value) {
+    items.push({
+      id: 'model',
+      label: activeModelSummary.value,
+      state: 'neutral',
+      className: 'conversation-meta__model'
+    })
+  }
+
+  return items
 })
 const activeContextUsage = computed(() => {
   const usage = chatStore.activeContextUsage

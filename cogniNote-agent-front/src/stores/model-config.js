@@ -307,7 +307,7 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     const previousProvider = currentForm.provider
     const nextModelName = previousProvider === option.value
       ? currentForm.modelName
-      : role === ROLES.CHAT ? 'qwen-plus' : 'text-embedding-v4'
+      : ''
     replaceEditorForm(role, {
       ...currentForm,
       role,
@@ -554,7 +554,7 @@ function defaultForm(role) {
     displayName: role === ROLES.CHAT ? 'DashScope Chat' : 'DashScope 向量模型',
     baseUrl: 'https://dashscope.aliyuncs.com/api/v1',
     apiKey: '',
-    modelName: role === ROLES.CHAT ? 'qwen-plus' : 'text-embedding-v4',
+    modelName: '',
     embeddingDimensions: role === ROLES.EMBEDDING ? FIXED_EMBEDDING_DIMENSIONS : null,
     temperature: role === ROLES.CHAT ? 0.7 : null,
     defaultTopK: role === ROLES.CHAT ? 8 : null,
@@ -572,7 +572,7 @@ function formFromConfig(config) {
     displayName: config.displayName || defaults.displayName,
     baseUrl: config.baseUrl || defaults.baseUrl,
     apiKey: config.apiKey || '',
-    modelName: config.modelName || defaults.modelName,
+    modelName: config.modelName || '',
     embeddingDimensions: role === ROLES.EMBEDDING
       ? FIXED_EMBEDDING_DIMENSIONS
       : null,
@@ -616,7 +616,7 @@ function normalizeFormForRole(nextForm, role = normalizeRoleValue(nextForm?.role
     displayName: nextForm?.displayName || defaults.displayName,
     baseUrl: nextForm?.baseUrl ?? defaults.baseUrl,
     apiKey: nextForm?.apiKey || '',
-    modelName: nextForm?.modelName || defaults.modelName,
+    modelName: nextForm?.modelName || '',
     embeddingDimensions: role === ROLES.EMBEDDING ? FIXED_EMBEDDING_DIMENSIONS : null,
     temperature: role === ROLES.CHAT ? (nextForm?.temperature ?? defaults.temperature) : null,
     defaultTopK: role === ROLES.CHAT ? (nextForm?.defaultTopK ?? defaults.defaultTopK) : null,
