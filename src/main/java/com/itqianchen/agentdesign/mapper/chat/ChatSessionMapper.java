@@ -1,7 +1,7 @@
 package com.itqianchen.agentdesign.mapper.chat;
 
-import com.itqianchen.agentdesign.domain.chat.ChatMessage;
-import com.itqianchen.agentdesign.domain.chat.ChatSession;
+import com.itqianchen.agentdesign.domain.entity.chat.ChatMessage;
+import com.itqianchen.agentdesign.domain.entity.chat.ChatSession;
 import java.util.List;
 import org.apache.ibatis.annotations.Param;
 

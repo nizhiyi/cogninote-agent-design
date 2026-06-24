@@ -1,22 +1,24 @@
 package com.itqianchen.agentdesign.chat;
 
+
+import com.itqianchen.agentdesign.domain.support.model.ModelConfigDefaults;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.itqianchen.agentdesign.domain.ai.AiChatRuntime;
-import com.itqianchen.agentdesign.domain.ai.AiEmbeddingRuntime;
-import com.itqianchen.agentdesign.domain.ai.AiRuntimeFactory;
-import com.itqianchen.agentdesign.domain.document.DocumentStatus;
-import com.itqianchen.agentdesign.domain.document.FileType;
-import com.itqianchen.agentdesign.domain.document.KnowledgeChunk;
-import com.itqianchen.agentdesign.domain.document.KnowledgeDocument;
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
-import com.itqianchen.agentdesign.domain.model.ModelConfigDefaults;
-import com.itqianchen.agentdesign.domain.search.EmbeddingGateway;
-import com.itqianchen.agentdesign.domain.search.KnowledgeStore;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
+import com.itqianchen.agentdesign.domain.interfaces.ai.AiChatRuntime;
+import com.itqianchen.agentdesign.domain.interfaces.ai.AiEmbeddingRuntime;
+import com.itqianchen.agentdesign.domain.interfaces.ai.AiRuntimeFactory;
+import com.itqianchen.agentdesign.domain.enums.document.DocumentStatus;
+import com.itqianchen.agentdesign.domain.enums.document.FileType;
+import com.itqianchen.agentdesign.domain.entity.document.KnowledgeChunk;
+import com.itqianchen.agentdesign.domain.entity.document.KnowledgeDocument;
+import com.itqianchen.agentdesign.domain.entity.model.ModelConfig;
+import com.itqianchen.agentdesign.domain.support.model.ModelConfigDefaults;
+import com.itqianchen.agentdesign.domain.interfaces.search.EmbeddingGateway;
+import com.itqianchen.agentdesign.domain.interfaces.search.KnowledgeStore;
+import com.itqianchen.agentdesign.domain.dto.model.ModelConfigRequest;
 import com.itqianchen.agentdesign.repository.document.DocumentRepository;
 import com.itqianchen.agentdesign.service.model.ModelConfigService;
 import com.itqianchen.agentdesign.support.TestDatabaseCleaner;

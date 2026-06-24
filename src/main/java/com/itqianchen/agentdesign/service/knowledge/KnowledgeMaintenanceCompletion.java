@@ -1,6 +1,8 @@
 package com.itqianchen.agentdesign.service.knowledge;
 
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunStatus;
+
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunStatus;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunStatus;
 
 /**
  * 维护任务执行完成后的统计快照。

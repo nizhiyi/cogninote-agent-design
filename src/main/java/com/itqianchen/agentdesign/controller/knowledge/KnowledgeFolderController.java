@@ -1,11 +1,11 @@
 package com.itqianchen.agentdesign.controller.knowledge;
 
 import com.itqianchen.agentdesign.common.api.ApiResponse;
-import com.itqianchen.agentdesign.dto.document.IngestDocumentsResponse;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderEnabledRequest;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderImportRequest;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRebuildResponse;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFoldersResponse;
+import com.itqianchen.agentdesign.domain.dto.document.IngestDocumentsResponse;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeFolderEnabledRequest;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeFolderImportRequest;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeFolderRebuildResponse;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeFoldersResponse;
 import com.itqianchen.agentdesign.service.knowledge.KnowledgeFolderService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;

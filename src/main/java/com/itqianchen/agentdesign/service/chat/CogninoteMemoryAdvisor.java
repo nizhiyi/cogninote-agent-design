@@ -1,9 +1,11 @@
 package com.itqianchen.agentdesign.service.chat;
 
+
+import com.itqianchen.agentdesign.domain.enums.chat.ChatMessageRole;
 import java.util.ArrayList;
 import java.util.List;
-import com.itqianchen.agentdesign.domain.agent.AgentType;
-import com.itqianchen.agentdesign.domain.chat.ChatMessageRole;
+import com.itqianchen.agentdesign.domain.enums.agent.AgentType;
+import com.itqianchen.agentdesign.domain.enums.chat.ChatMessageRole;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.api.Advisor;

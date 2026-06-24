@@ -1,5 +1,9 @@
 package com.itqianchen.agentdesign.service.knowledge;
 
+
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunOperation;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunScopeType;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunStatus;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
@@ -8,13 +12,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.itqianchen.agentdesign.domain.ingestion.DocumentIdentity;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRun;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunOperation;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunScopeType;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunStatus;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeMaintenanceException;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunResponse;
+import com.itqianchen.agentdesign.domain.vo.ingestion.DocumentIdentity;
+import com.itqianchen.agentdesign.domain.entity.knowledge.KnowledgeFolderRun;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunOperation;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunScopeType;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunStatus;
+import com.itqianchen.agentdesign.domain.exception.knowledge.KnowledgeMaintenanceException;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeFolderRunResponse;
 import com.itqianchen.agentdesign.repository.knowledge.KnowledgeFolderRunRepository;
 import com.itqianchen.agentdesign.service.index.IndexService;
 import java.util.Optional;

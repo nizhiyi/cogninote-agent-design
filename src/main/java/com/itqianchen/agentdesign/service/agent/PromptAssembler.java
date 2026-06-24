@@ -1,7 +1,7 @@
 package com.itqianchen.agentdesign.service.agent;
 
-import com.itqianchen.agentdesign.domain.agent.AgentType;
-import com.itqianchen.agentdesign.domain.chat.ChatPromptProperties;
+import com.itqianchen.agentdesign.domain.enums.agent.AgentType;
+import com.itqianchen.agentdesign.domain.properties.chat.ChatPromptProperties;
 import org.springframework.stereotype.Service;
 
 /**

@@ -1,12 +1,12 @@
 package com.itqianchen.agentdesign.repository.graph;
 
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphChunkExtraction;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphEdge;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphEvidence;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphNode;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphRun;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphScope;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphView;
+import com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphChunkExtraction;
+import com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphEdge;
+import com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphEvidence;
+import com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphNode;
+import com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphRun;
+import com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphScope;
+import com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphView;
 import com.itqianchen.agentdesign.mapper.graph.KnowledgeGraphEvidenceDetailRow;
 import com.itqianchen.agentdesign.mapper.graph.KnowledgeGraphMapper;
 import com.itqianchen.agentdesign.mapper.graph.KnowledgeGraphSummaryRow;

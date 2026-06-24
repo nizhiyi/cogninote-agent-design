@@ -1,9 +1,9 @@
 package com.itqianchen.agentdesign.controller.chat;
 
 import com.itqianchen.agentdesign.common.api.ApiResponse;
-import com.itqianchen.agentdesign.dto.chat.ChatSessionCreateRequest;
-import com.itqianchen.agentdesign.dto.chat.ChatSessionResponse;
-import com.itqianchen.agentdesign.dto.chat.ChatSessionUpdateRequest;
+import com.itqianchen.agentdesign.domain.dto.chat.ChatSessionCreateRequest;
+import com.itqianchen.agentdesign.domain.dto.chat.ChatSessionResponse;
+import com.itqianchen.agentdesign.domain.dto.chat.ChatSessionUpdateRequest;
 import com.itqianchen.agentdesign.service.chat.ChatSessionService;
 import jakarta.validation.Valid;
 import java.util.List;

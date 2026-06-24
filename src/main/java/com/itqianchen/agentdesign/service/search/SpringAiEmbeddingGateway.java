@@ -1,11 +1,13 @@
 package com.itqianchen.agentdesign.service.search;
 
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
-import com.itqianchen.agentdesign.domain.model.ModelConfigRole;
-import com.itqianchen.agentdesign.domain.ai.AiRuntimeFactory;
-import com.itqianchen.agentdesign.domain.search.EmbeddingGateway;
-import com.itqianchen.agentdesign.domain.search.EmbeddingProperties;
-import com.itqianchen.agentdesign.domain.search.EmbeddingUnavailableException;
+
+import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
+import com.itqianchen.agentdesign.domain.entity.model.ModelConfig;
+import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
+import com.itqianchen.agentdesign.domain.interfaces.ai.AiRuntimeFactory;
+import com.itqianchen.agentdesign.domain.interfaces.search.EmbeddingGateway;
+import com.itqianchen.agentdesign.domain.properties.search.EmbeddingProperties;
+import com.itqianchen.agentdesign.domain.exception.search.EmbeddingUnavailableException;
 import com.itqianchen.agentdesign.repository.model.ModelConfigRepository;
 import java.util.ArrayList;
 import java.util.List;

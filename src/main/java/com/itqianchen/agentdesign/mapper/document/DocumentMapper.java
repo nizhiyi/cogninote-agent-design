@@ -1,9 +1,11 @@
 package com.itqianchen.agentdesign.mapper.document;
 
-import com.itqianchen.agentdesign.domain.document.KnowledgeChunk;
-import com.itqianchen.agentdesign.domain.document.KnowledgeDocument;
-import com.itqianchen.agentdesign.domain.search.IndexStatistics;
-import com.itqianchen.agentdesign.domain.search.StoredChunk;
+
+import com.itqianchen.agentdesign.domain.vo.search.IndexedDocument;
+import com.itqianchen.agentdesign.domain.entity.document.KnowledgeChunk;
+import com.itqianchen.agentdesign.domain.entity.document.KnowledgeDocument;
+import com.itqianchen.agentdesign.domain.vo.search.IndexStatistics;
+import com.itqianchen.agentdesign.domain.vo.search.StoredChunk;
 import java.util.List;
 import org.apache.ibatis.annotations.Param;
 

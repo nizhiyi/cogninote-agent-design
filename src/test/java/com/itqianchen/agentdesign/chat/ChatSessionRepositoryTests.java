@@ -1,12 +1,15 @@
 package com.itqianchen.agentdesign.chat;
 
+
+import com.itqianchen.agentdesign.domain.enums.chat.ChatMessageRole;
+import com.itqianchen.agentdesign.domain.enums.chat.ChatMessageStatus;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.itqianchen.agentdesign.domain.agent.AgentType;
-import com.itqianchen.agentdesign.domain.chat.ChatMessageRole;
-import com.itqianchen.agentdesign.domain.chat.ChatMessageStatus;
-import com.itqianchen.agentdesign.domain.chat.ChatSession;
-import com.itqianchen.agentdesign.domain.search.SearchMode;
+import com.itqianchen.agentdesign.domain.enums.agent.AgentType;
+import com.itqianchen.agentdesign.domain.enums.chat.ChatMessageRole;
+import com.itqianchen.agentdesign.domain.enums.chat.ChatMessageStatus;
+import com.itqianchen.agentdesign.domain.entity.chat.ChatSession;
+import com.itqianchen.agentdesign.domain.enums.search.SearchMode;
 import com.itqianchen.agentdesign.mapper.test.TestDatabaseMapper;
 import com.itqianchen.agentdesign.repository.chat.ChatSessionRepository;
 import com.itqianchen.agentdesign.support.TestDatabaseCleaner;

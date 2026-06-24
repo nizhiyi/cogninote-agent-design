@@ -1,7 +1,9 @@
 package com.itqianchen.agentdesign.repository.knowledge;
 
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolder;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderSummary;
+
+import com.itqianchen.agentdesign.domain.vo.knowledge.KnowledgeFolderSummary;
+import com.itqianchen.agentdesign.domain.entity.knowledge.KnowledgeFolder;
+import com.itqianchen.agentdesign.domain.vo.knowledge.KnowledgeFolderSummary;
 import com.itqianchen.agentdesign.mapper.knowledge.KnowledgeFolderMapper;
 import com.itqianchen.agentdesign.mapper.knowledge.KnowledgeFolderSummaryRow;
 import java.util.List;

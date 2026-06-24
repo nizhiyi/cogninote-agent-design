@@ -1,13 +1,15 @@
 package com.itqianchen.agentdesign.service.agent;
 
+
+import com.itqianchen.agentdesign.domain.enums.chat.ChatMessageRole;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.itqianchen.agentdesign.domain.ai.AiRuntimeFactory;
-import com.itqianchen.agentdesign.domain.chat.ChatMessageRole;
-import com.itqianchen.agentdesign.domain.chat.ChatPromptProperties;
-import com.itqianchen.agentdesign.domain.chat.QueryContextualizerMode;
-import com.itqianchen.agentdesign.domain.chat.QueryContextualizerProperties;
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
+import com.itqianchen.agentdesign.domain.interfaces.ai.AiRuntimeFactory;
+import com.itqianchen.agentdesign.domain.enums.chat.ChatMessageRole;
+import com.itqianchen.agentdesign.domain.properties.chat.ChatPromptProperties;
+import com.itqianchen.agentdesign.domain.enums.chat.QueryContextualizerMode;
+import com.itqianchen.agentdesign.domain.properties.chat.QueryContextualizerProperties;
+import com.itqianchen.agentdesign.domain.entity.model.ModelConfig;
 import com.itqianchen.agentdesign.service.chat.ChatSettingsService;
 import com.itqianchen.agentdesign.service.chat.ConversationMemoryEntry;
 import com.itqianchen.agentdesign.service.chat.ConversationMemorySnapshot;

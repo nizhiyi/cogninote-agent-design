@@ -1,18 +1,22 @@
 package com.itqianchen.agentdesign.service.knowledge;
 
+
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunOperation;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunScopeType;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunStatus;
 import com.itqianchen.agentdesign.common.api.ResourceNotFoundException;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRun;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunOperation;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunScopeType;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunStatus;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeMaintenanceException;
-import com.itqianchen.agentdesign.domain.ingestion.DocumentParseException;
-import com.itqianchen.agentdesign.domain.ingestion.DocumentIdentity;
-import com.itqianchen.agentdesign.dto.document.IngestDocumentsResponse;
-import com.itqianchen.agentdesign.dto.index.RebuildIndexResponse;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRebuildResponse;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunResponse;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeMaintenanceQueueResponse;
+import com.itqianchen.agentdesign.domain.entity.knowledge.KnowledgeFolderRun;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunOperation;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunScopeType;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunStatus;
+import com.itqianchen.agentdesign.domain.exception.knowledge.KnowledgeMaintenanceException;
+import com.itqianchen.agentdesign.domain.exception.ingestion.DocumentParseException;
+import com.itqianchen.agentdesign.domain.vo.ingestion.DocumentIdentity;
+import com.itqianchen.agentdesign.domain.dto.document.IngestDocumentsResponse;
+import com.itqianchen.agentdesign.domain.dto.index.RebuildIndexResponse;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeFolderRebuildResponse;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeFolderRunResponse;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeMaintenanceQueueResponse;
 import com.itqianchen.agentdesign.repository.knowledge.KnowledgeFolderRunRepository;
 import com.itqianchen.agentdesign.service.index.IndexService;
 import java.nio.file.Files;

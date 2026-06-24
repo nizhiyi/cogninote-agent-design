@@ -1,10 +1,13 @@
 package com.itqianchen.agentdesign.service.chat;
 
-import com.itqianchen.agentdesign.domain.agent.AgentType;
-import com.itqianchen.agentdesign.domain.chat.ChatMessage;
-import com.itqianchen.agentdesign.domain.chat.ChatMessageRole;
-import com.itqianchen.agentdesign.domain.chat.ChatMessageStatus;
-import com.itqianchen.agentdesign.domain.search.SearchMode;
+
+import com.itqianchen.agentdesign.domain.enums.chat.ChatMessageRole;
+import com.itqianchen.agentdesign.domain.enums.chat.ChatMessageStatus;
+import com.itqianchen.agentdesign.domain.enums.agent.AgentType;
+import com.itqianchen.agentdesign.domain.entity.chat.ChatMessage;
+import com.itqianchen.agentdesign.domain.enums.chat.ChatMessageRole;
+import com.itqianchen.agentdesign.domain.enums.chat.ChatMessageStatus;
+import com.itqianchen.agentdesign.domain.enums.search.SearchMode;
 import com.itqianchen.agentdesign.repository.chat.ChatSessionRepository;
 import java.util.List;
 import org.springframework.ai.chat.memory.ChatMemory;

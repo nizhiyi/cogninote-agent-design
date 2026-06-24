@@ -2,11 +2,11 @@ package com.itqianchen.agentdesign.document;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.itqianchen.agentdesign.domain.document.DocumentStatus;
-import com.itqianchen.agentdesign.domain.document.FileType;
-import com.itqianchen.agentdesign.domain.document.KnowledgeChunk;
-import com.itqianchen.agentdesign.domain.document.KnowledgeDocument;
-import com.itqianchen.agentdesign.dto.document.IngestDocumentsResponse;
+import com.itqianchen.agentdesign.domain.enums.document.DocumentStatus;
+import com.itqianchen.agentdesign.domain.enums.document.FileType;
+import com.itqianchen.agentdesign.domain.entity.document.KnowledgeChunk;
+import com.itqianchen.agentdesign.domain.entity.document.KnowledgeDocument;
+import com.itqianchen.agentdesign.domain.dto.document.IngestDocumentsResponse;
 import com.itqianchen.agentdesign.repository.document.DocumentRepository;
 import com.itqianchen.agentdesign.service.document.DocumentIngestionService;
 import com.itqianchen.agentdesign.support.TestDatabaseCleaner;

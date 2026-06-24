@@ -1,8 +1,8 @@
 package com.itqianchen.agentdesign.service.agent;
 
-import com.itqianchen.agentdesign.domain.agent.AgentRequest;
-import com.itqianchen.agentdesign.domain.agent.AgentChatStream;
-import com.itqianchen.agentdesign.domain.agent.AgentType;
+import com.itqianchen.agentdesign.domain.vo.agent.AgentRequest;
+import com.itqianchen.agentdesign.domain.vo.agent.AgentChatStream;
+import com.itqianchen.agentdesign.domain.enums.agent.AgentType;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;

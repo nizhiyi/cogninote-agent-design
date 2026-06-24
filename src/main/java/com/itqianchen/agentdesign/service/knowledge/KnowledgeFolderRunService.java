@@ -1,15 +1,19 @@
 package com.itqianchen.agentdesign.service.knowledge;
 
+
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunOperation;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunScopeType;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunStatus;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRun;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunOperation;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunScopeType;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunStatus;
-import com.itqianchen.agentdesign.dto.document.IngestDocumentsResponse;
-import com.itqianchen.agentdesign.dto.document.IngestFailureResponse;
-import com.itqianchen.agentdesign.dto.index.RebuildIndexResponse;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRebuildResponse;
+import com.itqianchen.agentdesign.domain.entity.knowledge.KnowledgeFolderRun;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunOperation;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunScopeType;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunStatus;
+import com.itqianchen.agentdesign.domain.dto.document.IngestDocumentsResponse;
+import com.itqianchen.agentdesign.domain.dto.document.IngestFailureResponse;
+import com.itqianchen.agentdesign.domain.dto.index.RebuildIndexResponse;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeFolderRebuildResponse;
 import com.itqianchen.agentdesign.repository.knowledge.KnowledgeFolderRunRepository;
 import java.util.List;
 import java.util.UUID;

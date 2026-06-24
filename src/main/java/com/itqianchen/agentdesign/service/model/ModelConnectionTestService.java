@@ -1,10 +1,12 @@
 package com.itqianchen.agentdesign.service.model;
 
-import com.itqianchen.agentdesign.domain.ai.AiRuntimeFactory;
-import com.itqianchen.agentdesign.domain.chat.ChatPromptProperties;
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
-import com.itqianchen.agentdesign.domain.model.ModelConfigRole;
-import com.itqianchen.agentdesign.dto.model.ModelConfigTestResponse;
+
+import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
+import com.itqianchen.agentdesign.domain.interfaces.ai.AiRuntimeFactory;
+import com.itqianchen.agentdesign.domain.properties.chat.ChatPromptProperties;
+import com.itqianchen.agentdesign.domain.entity.model.ModelConfig;
+import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
+import com.itqianchen.agentdesign.domain.dto.model.ModelConfigTestResponse;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;

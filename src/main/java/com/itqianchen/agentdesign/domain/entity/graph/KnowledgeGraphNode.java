@@ -1,0 +1,21 @@
+package com.itqianchen.agentdesign.domain.entity.graph;
+
+
+import com.itqianchen.agentdesign.domain.enums.graph.KnowledgeGraphScopeType;
+/**
+ * scope 内合并后的图谱节点。
+ */
+public record KnowledgeGraphNode(
+        String id,
+        KnowledgeGraphScopeType scopeType,
+        String scopeId,
+        String canonicalName,
+        String displayName,
+        String nodeType,
+        String description,
+        double confidence,
+        int mentionCount,
+        long createdAt,
+        long updatedAt
+) {
+}

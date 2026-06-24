@@ -1,8 +1,8 @@
 package com.itqianchen.agentdesign.service.document;
 
 import com.itqianchen.agentdesign.common.api.ResourceNotFoundException;
-import com.itqianchen.agentdesign.dto.document.DocumentChunkResponse;
-import com.itqianchen.agentdesign.dto.document.DocumentSummaryResponse;
+import com.itqianchen.agentdesign.domain.dto.document.DocumentChunkResponse;
+import com.itqianchen.agentdesign.domain.dto.document.DocumentSummaryResponse;
 import com.itqianchen.agentdesign.repository.document.DocumentRepository;
 import java.util.List;
 import org.springframework.stereotype.Service;

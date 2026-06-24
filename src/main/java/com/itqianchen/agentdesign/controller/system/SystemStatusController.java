@@ -1,7 +1,7 @@
 package com.itqianchen.agentdesign.controller.system;
 
 import com.itqianchen.agentdesign.common.api.ApiResponse;
-import com.itqianchen.agentdesign.dto.system.SystemStatusResponse;
+import com.itqianchen.agentdesign.domain.dto.system.SystemStatusResponse;
 import com.itqianchen.agentdesign.service.system.SystemStatusService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;

@@ -1,14 +1,17 @@
 package com.itqianchen.agentdesign.service.model;
 
+
+import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
+import com.itqianchen.agentdesign.domain.support.model.ModelConfigDefaults;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
-import com.itqianchen.agentdesign.domain.model.ModelConfigDefaults;
-import com.itqianchen.agentdesign.domain.model.ModelConfigRole;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
+import com.itqianchen.agentdesign.domain.entity.model.ModelConfig;
+import com.itqianchen.agentdesign.domain.support.model.ModelConfigDefaults;
+import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
+import com.itqianchen.agentdesign.domain.enums.model.ModelProvider;
 import io.micrometer.observation.ObservationRegistry;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.ObjectProvider;

@@ -1,7 +1,7 @@
 package com.itqianchen.agentdesign.service.chat;
 
-import com.itqianchen.agentdesign.dto.chat.ChatReferenceRequest;
-import com.itqianchen.agentdesign.dto.chat.ChatReferenceResponse;
+import com.itqianchen.agentdesign.domain.dto.chat.ChatReferenceRequest;
+import com.itqianchen.agentdesign.domain.dto.chat.ChatReferenceResponse;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;

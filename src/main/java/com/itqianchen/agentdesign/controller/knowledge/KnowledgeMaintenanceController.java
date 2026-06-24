@@ -1,10 +1,10 @@
 package com.itqianchen.agentdesign.controller.knowledge;
 
 import com.itqianchen.agentdesign.common.api.ApiResponse;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderEnabledRequest;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderImportRequest;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunResponse;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeMaintenanceQueueResponse;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeFolderEnabledRequest;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeFolderImportRequest;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeFolderRunResponse;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeMaintenanceQueueResponse;
 import com.itqianchen.agentdesign.service.knowledge.KnowledgeMaintenanceQueueService;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;

@@ -1,13 +1,13 @@
 package com.itqianchen.agentdesign.repository.document;
 
-import com.itqianchen.agentdesign.domain.document.DocumentStatus;
-import com.itqianchen.agentdesign.domain.document.FileType;
-import com.itqianchen.agentdesign.domain.document.KnowledgeChunk;
-import com.itqianchen.agentdesign.domain.document.KnowledgeDocument;
-import com.itqianchen.agentdesign.domain.search.IndexStatistics;
-import com.itqianchen.agentdesign.domain.search.IndexedChunk;
-import com.itqianchen.agentdesign.domain.search.IndexedDocument;
-import com.itqianchen.agentdesign.domain.search.StoredChunk;
+import com.itqianchen.agentdesign.domain.enums.document.DocumentStatus;
+import com.itqianchen.agentdesign.domain.enums.document.FileType;
+import com.itqianchen.agentdesign.domain.entity.document.KnowledgeChunk;
+import com.itqianchen.agentdesign.domain.entity.document.KnowledgeDocument;
+import com.itqianchen.agentdesign.domain.vo.search.IndexStatistics;
+import com.itqianchen.agentdesign.domain.vo.search.IndexedChunk;
+import com.itqianchen.agentdesign.domain.vo.search.IndexedDocument;
+import com.itqianchen.agentdesign.domain.vo.search.StoredChunk;
 import com.itqianchen.agentdesign.mapper.document.DocumentMapper;
 import com.itqianchen.agentdesign.mapper.document.IndexedDocumentRow;
 import java.util.ArrayList;

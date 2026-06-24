@@ -1,8 +1,10 @@
 package com.itqianchen.agentdesign.service.model;
 
+
+import com.itqianchen.agentdesign.domain.support.model.ModelConfigDefaults;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.itqianchen.agentdesign.domain.model.ModelConfigDefaults;
+import com.itqianchen.agentdesign.domain.support.model.ModelConfigDefaults;
 import org.junit.jupiter.api.Test;
 
 class DashScopeBaseUrlsTests {

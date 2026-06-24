@@ -1,8 +1,10 @@
 package com.itqianchen.agentdesign.service.chat;
 
-import com.itqianchen.agentdesign.domain.agent.AgentType;
-import com.itqianchen.agentdesign.domain.chat.ChatMessageRole;
-import com.itqianchen.agentdesign.domain.search.SearchMode;
+
+import com.itqianchen.agentdesign.domain.enums.chat.ChatMessageRole;
+import com.itqianchen.agentdesign.domain.enums.agent.AgentType;
+import com.itqianchen.agentdesign.domain.enums.chat.ChatMessageRole;
+import com.itqianchen.agentdesign.domain.enums.search.SearchMode;
 
 /**
  * 注入模型上下文的历史消息条目。

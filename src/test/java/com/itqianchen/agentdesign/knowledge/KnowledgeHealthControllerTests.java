@@ -9,11 +9,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.itqianchen.agentdesign.domain.document.DocumentStatus;
-import com.itqianchen.agentdesign.domain.document.FileType;
-import com.itqianchen.agentdesign.domain.document.KnowledgeDocument;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolder;
-import com.itqianchen.agentdesign.domain.search.KnowledgeStore;
+import com.itqianchen.agentdesign.domain.enums.document.DocumentStatus;
+import com.itqianchen.agentdesign.domain.enums.document.FileType;
+import com.itqianchen.agentdesign.domain.entity.document.KnowledgeDocument;
+import com.itqianchen.agentdesign.domain.entity.knowledge.KnowledgeFolder;
+import com.itqianchen.agentdesign.domain.interfaces.search.KnowledgeStore;
 import com.itqianchen.agentdesign.repository.document.DocumentRepository;
 import com.itqianchen.agentdesign.repository.knowledge.KnowledgeFolderRepository;
 import com.itqianchen.agentdesign.support.TestDatabaseCleaner;

@@ -1,12 +1,12 @@
 package com.itqianchen.agentdesign.controller.graph;
 
 import com.itqianchen.agentdesign.common.api.ApiResponse;
-import com.itqianchen.agentdesign.dto.graph.KnowledgeGraphEvidenceResponse;
-import com.itqianchen.agentdesign.dto.graph.KnowledgeGraphRebuildRequest;
-import com.itqianchen.agentdesign.dto.graph.KnowledgeGraphRunResponse;
-import com.itqianchen.agentdesign.dto.graph.KnowledgeGraphStatusResponse;
-import com.itqianchen.agentdesign.dto.graph.KnowledgeGraphSummaryResponse;
-import com.itqianchen.agentdesign.dto.graph.KnowledgeGraphViewResponse;
+import com.itqianchen.agentdesign.domain.dto.graph.KnowledgeGraphEvidenceResponse;
+import com.itqianchen.agentdesign.domain.dto.graph.KnowledgeGraphRebuildRequest;
+import com.itqianchen.agentdesign.domain.dto.graph.KnowledgeGraphRunResponse;
+import com.itqianchen.agentdesign.domain.dto.graph.KnowledgeGraphStatusResponse;
+import com.itqianchen.agentdesign.domain.dto.graph.KnowledgeGraphSummaryResponse;
+import com.itqianchen.agentdesign.domain.dto.graph.KnowledgeGraphViewResponse;
 import com.itqianchen.agentdesign.service.graph.KnowledgeGraphService;
 import jakarta.validation.Valid;
 import java.util.List;

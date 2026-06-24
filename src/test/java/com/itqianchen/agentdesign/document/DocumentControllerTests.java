@@ -5,8 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.itqianchen.agentdesign.domain.document.KnowledgeChunk;
-import com.itqianchen.agentdesign.domain.document.KnowledgeDocument;
+import com.itqianchen.agentdesign.domain.entity.document.KnowledgeChunk;
+import com.itqianchen.agentdesign.domain.entity.document.KnowledgeDocument;
 import com.itqianchen.agentdesign.repository.document.DocumentRepository;
 import com.itqianchen.agentdesign.service.document.DocumentIngestionService;
 import com.itqianchen.agentdesign.support.TestDatabaseCleaner;

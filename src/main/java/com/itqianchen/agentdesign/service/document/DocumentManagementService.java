@@ -1,6 +1,6 @@
 package com.itqianchen.agentdesign.service.document;
 
-import com.itqianchen.agentdesign.domain.search.KnowledgeStore;
+import com.itqianchen.agentdesign.domain.interfaces.search.KnowledgeStore;
 import com.itqianchen.agentdesign.repository.document.DocumentRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

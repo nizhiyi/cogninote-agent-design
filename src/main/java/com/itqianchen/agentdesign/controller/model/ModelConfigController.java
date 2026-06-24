@@ -1,16 +1,19 @@
 package com.itqianchen.agentdesign.controller.model;
 
+
+import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
+import com.itqianchen.agentdesign.domain.exception.model.ModelConfigurationException;
 import com.itqianchen.agentdesign.common.api.ApiResponse;
-import com.itqianchen.agentdesign.domain.model.ModelConfigRole;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
-import com.itqianchen.agentdesign.dto.model.ActiveModelConfigsResponse;
-import com.itqianchen.agentdesign.dto.model.LegacyModelConfigResponse;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.dto.model.ModelConfigResponse;
-import com.itqianchen.agentdesign.dto.model.ModelConfigSettingsResponse;
-import com.itqianchen.agentdesign.dto.model.ModelConfigTestResponse;
-import com.itqianchen.agentdesign.dto.model.ModelConfigUpsertRequest;
-import com.itqianchen.agentdesign.dto.model.ModelOptionsResponse;
+import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
+import com.itqianchen.agentdesign.domain.exception.model.ModelConfigurationException;
+import com.itqianchen.agentdesign.domain.dto.model.ActiveModelConfigsResponse;
+import com.itqianchen.agentdesign.domain.dto.model.LegacyModelConfigResponse;
+import com.itqianchen.agentdesign.domain.dto.model.ModelConfigRequest;
+import com.itqianchen.agentdesign.domain.dto.model.ModelConfigResponse;
+import com.itqianchen.agentdesign.domain.dto.model.ModelConfigSettingsResponse;
+import com.itqianchen.agentdesign.domain.dto.model.ModelConfigTestResponse;
+import com.itqianchen.agentdesign.domain.dto.model.ModelConfigUpsertRequest;
+import com.itqianchen.agentdesign.domain.dto.model.ModelOptionsResponse;
 import com.itqianchen.agentdesign.service.model.ModelCatalogService;
 import com.itqianchen.agentdesign.service.model.ModelConnectionTestService;
 import com.itqianchen.agentdesign.service.model.ModelConfigService;

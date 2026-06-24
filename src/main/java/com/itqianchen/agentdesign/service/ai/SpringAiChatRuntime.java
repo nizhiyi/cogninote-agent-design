@@ -1,7 +1,9 @@
 package com.itqianchen.agentdesign.service.ai;
 
-import com.itqianchen.agentdesign.domain.ai.AiChatRuntime;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
+
+import com.itqianchen.agentdesign.domain.exception.model.ModelConfigurationException;
+import com.itqianchen.agentdesign.domain.interfaces.ai.AiChatRuntime;
+import com.itqianchen.agentdesign.domain.exception.model.ModelConfigurationException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;

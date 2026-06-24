@@ -16,9 +16,8 @@
 
 ## 下载与体验
 
-测试版和后续正式版都会通过 [GitHub Releases](https://github.com/ItQianChen/cogninote-agent-design/releases) 分发。当前 `0.1.51` 定位为可安装测试分发版；发布 `v0.1.51-test.1` 后，优先从 Releases 下载对应平台安装包体验。
+测试版和后续正式版都会通过 [GitHub Releases](https://github.com/ItQianChen/cogninote-agent-design/releases) 分发。从 Releases 下载对应平台安装包体验。
 
-> 预发行测试包默认未签名，适合内部测试和小范围试用；正式版发布后优先推荐 signed / notarized 安装包。
 
 | 平台 | 推荐下载 | 说明 |
 | --- | --- | --- |

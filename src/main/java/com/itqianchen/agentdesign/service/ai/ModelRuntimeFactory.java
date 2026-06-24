@@ -1,10 +1,10 @@
 package com.itqianchen.agentdesign.service.ai;
 
-import com.itqianchen.agentdesign.domain.ai.AiChatRuntime;
-import com.itqianchen.agentdesign.domain.ai.AiEmbeddingRuntime;
-import com.itqianchen.agentdesign.domain.ai.AiRuntimeFactory;
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
+import com.itqianchen.agentdesign.domain.interfaces.ai.AiChatRuntime;
+import com.itqianchen.agentdesign.domain.interfaces.ai.AiEmbeddingRuntime;
+import com.itqianchen.agentdesign.domain.interfaces.ai.AiRuntimeFactory;
+import com.itqianchen.agentdesign.domain.entity.model.ModelConfig;
+import com.itqianchen.agentdesign.domain.enums.model.ModelProvider;
 import org.springframework.stereotype.Component;
 
 /**

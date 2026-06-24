@@ -7,8 +7,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.itqianchen.agentdesign.service.document.DocumentIngestionService;
-import com.itqianchen.agentdesign.domain.search.EmbeddingGateway;
-import com.itqianchen.agentdesign.domain.search.KnowledgeStore;
+import com.itqianchen.agentdesign.domain.interfaces.search.EmbeddingGateway;
+import com.itqianchen.agentdesign.domain.interfaces.search.KnowledgeStore;
 import com.itqianchen.agentdesign.support.TestDatabaseCleaner;
 import java.nio.file.Files;
 import java.nio.file.Path;

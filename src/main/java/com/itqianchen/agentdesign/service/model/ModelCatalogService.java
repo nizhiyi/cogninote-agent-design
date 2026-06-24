@@ -1,12 +1,14 @@
 package com.itqianchen.agentdesign.service.model;
 
+
+import com.itqianchen.agentdesign.domain.exception.model.ModelConfigurationException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.itqianchen.agentdesign.domain.model.ModelCapability;
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.dto.model.ModelOptionResponse;
-import com.itqianchen.agentdesign.dto.model.ModelOptionsResponse;
+import com.itqianchen.agentdesign.domain.enums.model.ModelCapability;
+import com.itqianchen.agentdesign.domain.entity.model.ModelConfig;
+import com.itqianchen.agentdesign.domain.exception.model.ModelConfigurationException;
+import com.itqianchen.agentdesign.domain.dto.model.ModelConfigRequest;
+import com.itqianchen.agentdesign.domain.dto.model.ModelOptionResponse;
+import com.itqianchen.agentdesign.domain.dto.model.ModelOptionsResponse;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;

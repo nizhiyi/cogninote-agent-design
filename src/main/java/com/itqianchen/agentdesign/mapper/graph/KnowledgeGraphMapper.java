@@ -1,11 +1,11 @@
 package com.itqianchen.agentdesign.mapper.graph;
 
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphChunkExtraction;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphEdge;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphEvidence;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphNode;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphRun;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphView;
+import com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphChunkExtraction;
+import com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphEdge;
+import com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphEvidence;
+import com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphNode;
+import com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphRun;
+import com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphView;
 import java.util.List;
 import org.apache.ibatis.annotations.Param;
 

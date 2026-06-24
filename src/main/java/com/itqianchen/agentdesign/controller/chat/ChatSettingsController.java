@@ -1,8 +1,8 @@
 package com.itqianchen.agentdesign.controller.chat;
 
 import com.itqianchen.agentdesign.common.api.ApiResponse;
-import com.itqianchen.agentdesign.dto.chat.ChatSettingsRequest;
-import com.itqianchen.agentdesign.dto.chat.ChatSettingsResponse;
+import com.itqianchen.agentdesign.domain.dto.chat.ChatSettingsRequest;
+import com.itqianchen.agentdesign.domain.dto.chat.ChatSettingsResponse;
 import com.itqianchen.agentdesign.service.chat.ChatSettingsService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;

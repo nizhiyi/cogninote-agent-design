@@ -1,18 +1,21 @@
 package com.itqianchen.agentdesign.service.graph;
 
+
+import com.itqianchen.agentdesign.domain.enums.graph.KnowledgeGraphScopeType;
+import com.itqianchen.agentdesign.domain.enums.graph.KnowledgeGraphViewType;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.itqianchen.agentdesign.domain.document.FileType;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphEdge;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphNode;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphScope;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphScopeType;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphView;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphViewType;
-import com.itqianchen.agentdesign.domain.search.IndexedChunk;
-import com.itqianchen.agentdesign.domain.search.IndexedDocument;
+import com.itqianchen.agentdesign.domain.enums.document.FileType;
+import com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphEdge;
+import com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphNode;
+import com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphScope;
+import com.itqianchen.agentdesign.domain.enums.graph.KnowledgeGraphScopeType;
+import com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphView;
+import com.itqianchen.agentdesign.domain.enums.graph.KnowledgeGraphViewType;
+import com.itqianchen.agentdesign.domain.vo.search.IndexedChunk;
+import com.itqianchen.agentdesign.domain.vo.search.IndexedDocument;
 import com.itqianchen.agentdesign.mapper.graph.KnowledgeGraphEvidenceDetailRow;
 import com.itqianchen.agentdesign.repository.graph.KnowledgeGraphRepository;
 import java.util.EnumMap;

@@ -1,8 +1,8 @@
 package com.itqianchen.agentdesign.service.search;
 
-import com.itqianchen.agentdesign.domain.search.KnowledgeStore;
-import com.itqianchen.agentdesign.dto.search.SearchRequest;
-import com.itqianchen.agentdesign.dto.search.SearchResponse;
+import com.itqianchen.agentdesign.domain.interfaces.search.KnowledgeStore;
+import com.itqianchen.agentdesign.domain.dto.search.SearchRequest;
+import com.itqianchen.agentdesign.domain.dto.search.SearchResponse;
 import org.springframework.stereotype.Service;
 
 /**

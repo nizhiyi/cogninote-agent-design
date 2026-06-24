@@ -1,9 +1,9 @@
 package com.itqianchen.agentdesign.service.chat;
 
-import com.itqianchen.agentdesign.domain.chat.QueryContextualizerMode;
-import com.itqianchen.agentdesign.domain.chat.QueryContextualizerProperties;
-import com.itqianchen.agentdesign.dto.chat.ChatSettingsRequest;
-import com.itqianchen.agentdesign.dto.chat.ChatSettingsResponse;
+import com.itqianchen.agentdesign.domain.enums.chat.QueryContextualizerMode;
+import com.itqianchen.agentdesign.domain.properties.chat.QueryContextualizerProperties;
+import com.itqianchen.agentdesign.domain.dto.chat.ChatSettingsRequest;
+import com.itqianchen.agentdesign.domain.dto.chat.ChatSettingsResponse;
 import com.itqianchen.agentdesign.repository.settings.AppSettingRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

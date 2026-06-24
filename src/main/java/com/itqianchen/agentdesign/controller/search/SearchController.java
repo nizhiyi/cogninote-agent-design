@@ -1,8 +1,8 @@
 package com.itqianchen.agentdesign.controller.search;
 
 import com.itqianchen.agentdesign.common.api.ApiResponse;
-import com.itqianchen.agentdesign.dto.search.SearchRequest;
-import com.itqianchen.agentdesign.dto.search.SearchResponse;
+import com.itqianchen.agentdesign.domain.dto.search.SearchRequest;
+import com.itqianchen.agentdesign.domain.dto.search.SearchResponse;
 import com.itqianchen.agentdesign.service.search.SearchService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;

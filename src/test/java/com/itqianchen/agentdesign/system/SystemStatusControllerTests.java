@@ -25,7 +25,7 @@ class SystemStatusControllerTests {
 
     @Test
     void statusReturnsApplicationHealthAndStoragePath() {
-        com.itqianchen.agentdesign.dto.system.SystemStatusResponse response = systemStatusService.status();
+        com.itqianchen.agentdesign.domain.dto.system.SystemStatusResponse response = systemStatusService.status();
 
         assertThat(response.appName()).isEqualTo("知记空间");
         assertThat(response.version()).isEqualTo("test-backend-version");

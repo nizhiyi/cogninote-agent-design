@@ -1,7 +1,7 @@
 package com.itqianchen.agentdesign.service.agent;
 
-import com.itqianchen.agentdesign.domain.search.SearchMode;
-import com.itqianchen.agentdesign.dto.chat.RagSourceResponse;
+import com.itqianchen.agentdesign.domain.enums.search.SearchMode;
+import com.itqianchen.agentdesign.domain.dto.chat.RagSourceResponse;
 import java.util.List;
 
 /**

@@ -1,8 +1,8 @@
 package com.itqianchen.agentdesign.service.system;
 
-import com.itqianchen.agentdesign.domain.storage.AppStorage;
-import com.itqianchen.agentdesign.domain.storage.StorageInitializationException;
-import com.itqianchen.agentdesign.domain.storage.StorageProperties;
+import com.itqianchen.agentdesign.domain.vo.storage.AppStorage;
+import com.itqianchen.agentdesign.domain.exception.storage.StorageInitializationException;
+import com.itqianchen.agentdesign.domain.properties.storage.StorageProperties;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

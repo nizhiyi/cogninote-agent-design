@@ -1,16 +1,20 @@
 package com.itqianchen.agentdesign.controller.knowledge;
 
+
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunOperation;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunScopeType;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunStatus;
 import com.itqianchen.agentdesign.common.api.ApiResponse;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunOperation;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunScopeType;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunStatus;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderHealthResponse;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunBatchDeleteRequest;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunDeleteResponse;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunDetailResponse;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunPageResponse;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRunResponse;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeHealthResponse;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunOperation;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunScopeType;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunStatus;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeFolderHealthResponse;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeFolderRunBatchDeleteRequest;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeFolderRunDeleteResponse;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeFolderRunDetailResponse;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeFolderRunPageResponse;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeFolderRunResponse;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeHealthResponse;
 import com.itqianchen.agentdesign.service.knowledge.KnowledgeHealthService;
 import jakarta.validation.Valid;
 import java.util.List;

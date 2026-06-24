@@ -1,6 +1,6 @@
 package com.itqianchen.agentdesign.service.system;
 
-import com.itqianchen.agentdesign.dto.system.SystemStatusResponse;
+import com.itqianchen.agentdesign.domain.dto.system.SystemStatusResponse;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.info.BuildProperties;

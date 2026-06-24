@@ -1,6 +1,6 @@
 package com.itqianchen.agentdesign.service.chat;
 
-import com.itqianchen.agentdesign.dto.chat.ChatReferenceResponse;
+import com.itqianchen.agentdesign.domain.dto.chat.ChatReferenceResponse;
 import java.util.List;
 
 /**

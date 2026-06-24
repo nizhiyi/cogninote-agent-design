@@ -1,7 +1,7 @@
 package com.itqianchen.agentdesign.service.search;
 
-import com.itqianchen.agentdesign.domain.search.IndexedChunk;
-import com.itqianchen.agentdesign.domain.search.IndexedDocument;
+import com.itqianchen.agentdesign.domain.vo.search.IndexedChunk;
+import com.itqianchen.agentdesign.domain.vo.search.IndexedDocument;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;

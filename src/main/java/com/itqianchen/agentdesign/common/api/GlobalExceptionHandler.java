@@ -1,11 +1,13 @@
 package com.itqianchen.agentdesign.common.api;
 
-import com.itqianchen.agentdesign.domain.ingestion.DocumentParseException;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphException;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeMaintenanceException;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
-import com.itqianchen.agentdesign.domain.search.EmbeddingUnavailableException;
-import com.itqianchen.agentdesign.domain.search.SearchIndexException;
+
+import com.itqianchen.agentdesign.domain.exception.model.ModelConfigurationException;
+import com.itqianchen.agentdesign.domain.exception.ingestion.DocumentParseException;
+import com.itqianchen.agentdesign.domain.exception.graph.KnowledgeGraphException;
+import com.itqianchen.agentdesign.domain.exception.knowledge.KnowledgeMaintenanceException;
+import com.itqianchen.agentdesign.domain.exception.model.ModelConfigurationException;
+import com.itqianchen.agentdesign.domain.exception.search.EmbeddingUnavailableException;
+import com.itqianchen.agentdesign.domain.exception.search.SearchIndexException;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

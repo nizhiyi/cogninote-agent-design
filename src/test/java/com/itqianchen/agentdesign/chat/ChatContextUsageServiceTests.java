@@ -1,19 +1,24 @@
 package com.itqianchen.agentdesign.chat;
 
+
+import com.itqianchen.agentdesign.domain.enums.chat.ChatMessageRole;
+import com.itqianchen.agentdesign.domain.enums.chat.ChatMessageStatus;
+import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
+import com.itqianchen.agentdesign.domain.support.model.ModelConfigDefaults;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.itqianchen.agentdesign.domain.agent.AgentType;
-import com.itqianchen.agentdesign.domain.chat.ChatMemoryProperties;
-import com.itqianchen.agentdesign.domain.chat.ChatMessage;
-import com.itqianchen.agentdesign.domain.chat.ChatMessageRole;
-import com.itqianchen.agentdesign.domain.chat.ChatMessageStatus;
-import com.itqianchen.agentdesign.domain.chat.ChatSession;
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
-import com.itqianchen.agentdesign.domain.model.ModelConfigDefaults;
-import com.itqianchen.agentdesign.domain.model.ModelConfigRole;
-import com.itqianchen.agentdesign.domain.search.SearchMode;
-import com.itqianchen.agentdesign.dto.chat.ChatContextUsageResponse;
+import com.itqianchen.agentdesign.domain.enums.agent.AgentType;
+import com.itqianchen.agentdesign.domain.properties.chat.ChatMemoryProperties;
+import com.itqianchen.agentdesign.domain.entity.chat.ChatMessage;
+import com.itqianchen.agentdesign.domain.enums.chat.ChatMessageRole;
+import com.itqianchen.agentdesign.domain.enums.chat.ChatMessageStatus;
+import com.itqianchen.agentdesign.domain.entity.chat.ChatSession;
+import com.itqianchen.agentdesign.domain.entity.model.ModelConfig;
+import com.itqianchen.agentdesign.domain.support.model.ModelConfigDefaults;
+import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
+import com.itqianchen.agentdesign.domain.enums.search.SearchMode;
+import com.itqianchen.agentdesign.domain.dto.chat.ChatContextUsageResponse;
 import com.itqianchen.agentdesign.mapper.chat.ChatSessionMapper;
 import com.itqianchen.agentdesign.mapper.model.ModelConfigMapper;
 import com.itqianchen.agentdesign.mapper.schema.DatabaseSchemaMapper;

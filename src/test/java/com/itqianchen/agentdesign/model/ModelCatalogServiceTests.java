@@ -1,15 +1,18 @@
 package com.itqianchen.agentdesign.model;
 
+
+import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
+import com.itqianchen.agentdesign.domain.support.model.ModelConfigDefaults;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-import com.itqianchen.agentdesign.domain.model.ModelCapability;
-import com.itqianchen.agentdesign.domain.model.ModelConfigDefaults;
-import com.itqianchen.agentdesign.domain.model.ModelConfigRole;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.dto.model.ModelOptionsResponse;
+import com.itqianchen.agentdesign.domain.enums.model.ModelCapability;
+import com.itqianchen.agentdesign.domain.support.model.ModelConfigDefaults;
+import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
+import com.itqianchen.agentdesign.domain.dto.model.ModelConfigRequest;
+import com.itqianchen.agentdesign.domain.dto.model.ModelOptionsResponse;
 import com.itqianchen.agentdesign.repository.model.ModelConfigRepository;
 import com.itqianchen.agentdesign.service.model.ModelCatalogService;
 import com.itqianchen.agentdesign.service.model.ModelConfigService;
@@ -161,7 +164,7 @@ class ModelCatalogServiceTests {
     private static ModelConfigRepository emptyRepository() {
         return new ModelConfigRepository(null) {
             @Override
-            public java.util.Optional<com.itqianchen.agentdesign.domain.model.ModelConfig> findActive(ModelConfigRole role) {
+            public java.util.Optional<com.itqianchen.agentdesign.domain.entity.model.ModelConfig> findActive(ModelConfigRole role) {
                 return Optional.empty();
             }
         };

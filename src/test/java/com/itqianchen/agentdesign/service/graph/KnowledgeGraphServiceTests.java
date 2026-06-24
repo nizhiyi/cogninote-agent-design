@@ -1,24 +1,28 @@
 package com.itqianchen.agentdesign.service.graph;
 
+
+import com.itqianchen.agentdesign.domain.enums.graph.KnowledgeGraphRunStatus;
+import com.itqianchen.agentdesign.domain.enums.graph.KnowledgeGraphScopeType;
+import com.itqianchen.agentdesign.domain.enums.graph.KnowledgeGraphViewType;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.itqianchen.agentdesign.domain.document.DocumentStatus;
-import com.itqianchen.agentdesign.domain.document.FileType;
-import com.itqianchen.agentdesign.domain.document.KnowledgeDocument;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphEdge;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphException;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphRun;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphRunStatus;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphScope;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphScopeType;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphView;
-import com.itqianchen.agentdesign.domain.graph.KnowledgeGraphViewType;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolder;
-import com.itqianchen.agentdesign.dto.graph.KnowledgeGraphSummaryResponse;
-import com.itqianchen.agentdesign.dto.graph.KnowledgeGraphViewResponse;
+import com.itqianchen.agentdesign.domain.enums.document.DocumentStatus;
+import com.itqianchen.agentdesign.domain.enums.document.FileType;
+import com.itqianchen.agentdesign.domain.entity.document.KnowledgeDocument;
+import com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphEdge;
+import com.itqianchen.agentdesign.domain.exception.graph.KnowledgeGraphException;
+import com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphRun;
+import com.itqianchen.agentdesign.domain.enums.graph.KnowledgeGraphRunStatus;
+import com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphScope;
+import com.itqianchen.agentdesign.domain.enums.graph.KnowledgeGraphScopeType;
+import com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphView;
+import com.itqianchen.agentdesign.domain.enums.graph.KnowledgeGraphViewType;
+import com.itqianchen.agentdesign.domain.entity.knowledge.KnowledgeFolder;
+import com.itqianchen.agentdesign.domain.dto.graph.KnowledgeGraphSummaryResponse;
+import com.itqianchen.agentdesign.domain.dto.graph.KnowledgeGraphViewResponse;
 import com.itqianchen.agentdesign.mapper.graph.KnowledgeGraphSummaryRow;
 import com.itqianchen.agentdesign.repository.document.DocumentRepository;
 import com.itqianchen.agentdesign.repository.graph.KnowledgeGraphRepository;

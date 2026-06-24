@@ -4,11 +4,11 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.itqianchen.agentdesign.mapper.model.ModelConfigMapper">
 
-    <resultMap id="ModelConfigMap" type="com.itqianchen.agentdesign.domain.model.ModelConfig">
+    <resultMap id="ModelConfigMap" type="com.itqianchen.agentdesign.domain.entity.model.ModelConfig">
         <constructor>
             <arg column="id" javaType="java.lang.String"/>
-            <arg column="role" javaType="com.itqianchen.agentdesign.domain.model.ModelConfigRole"/>
-            <arg column="provider" javaType="com.itqianchen.agentdesign.domain.model.ModelProvider"/>
+            <arg column="role" javaType="com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole"/>
+            <arg column="provider" javaType="com.itqianchen.agentdesign.domain.enums.model.ModelProvider"/>
             <arg column="display_name" javaType="java.lang.String"/>
             <arg column="base_url" javaType="java.lang.String"/>
             <arg column="api_key" javaType="java.lang.String"/>

@@ -1,9 +1,11 @@
 package com.itqianchen.agentdesign.service.chat;
 
-import com.itqianchen.agentdesign.domain.chat.ChatMemoryProperties;
-import com.itqianchen.agentdesign.domain.chat.ChatMessage;
-import com.itqianchen.agentdesign.domain.chat.ChatSession;
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
+
+import com.itqianchen.agentdesign.domain.enums.chat.ChatMessageRole;
+import com.itqianchen.agentdesign.domain.properties.chat.ChatMemoryProperties;
+import com.itqianchen.agentdesign.domain.entity.chat.ChatMessage;
+import com.itqianchen.agentdesign.domain.entity.chat.ChatSession;
+import com.itqianchen.agentdesign.domain.entity.model.ModelConfig;
 import com.itqianchen.agentdesign.repository.chat.ChatSessionRepository;
 import com.itqianchen.agentdesign.service.model.ModelConfigService;
 import java.util.ArrayList;
@@ -235,7 +237,7 @@ public class ConversationMemorySnapshotService {
     }
 
     private String modelContent(ChatMessage message) {
-        if (message.role() != com.itqianchen.agentdesign.domain.chat.ChatMessageRole.USER) {
+        if (message.role() != com.itqianchen.agentdesign.domain.enums.chat.ChatMessageRole.USER) {
             return message.content();
         }
         return ChatReferencePromptFormatter.formatUserContent(

@@ -1,10 +1,12 @@
 package com.itqianchen.agentdesign.chat;
 
+
+import com.itqianchen.agentdesign.domain.enums.chat.ChatMessageRole;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.itqianchen.agentdesign.domain.agent.AgentType;
-import com.itqianchen.agentdesign.domain.chat.ChatMessageRole;
-import com.itqianchen.agentdesign.domain.search.SearchMode;
+import com.itqianchen.agentdesign.domain.enums.agent.AgentType;
+import com.itqianchen.agentdesign.domain.enums.chat.ChatMessageRole;
+import com.itqianchen.agentdesign.domain.enums.search.SearchMode;
 import com.itqianchen.agentdesign.service.agent.QueryContextualizerTriggerDecider;
 import com.itqianchen.agentdesign.service.chat.ConversationMemoryEntry;
 import com.itqianchen.agentdesign.service.chat.ConversationMemorySnapshot;

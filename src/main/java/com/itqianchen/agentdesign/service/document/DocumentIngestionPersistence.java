@@ -1,7 +1,7 @@
 package com.itqianchen.agentdesign.service.document;
 
-import com.itqianchen.agentdesign.domain.document.KnowledgeChunk;
-import com.itqianchen.agentdesign.domain.document.KnowledgeDocument;
+import com.itqianchen.agentdesign.domain.entity.document.KnowledgeChunk;
+import com.itqianchen.agentdesign.domain.entity.document.KnowledgeDocument;
 import com.itqianchen.agentdesign.repository.document.DocumentRepository;
 import java.util.List;
 import org.springframework.stereotype.Service;

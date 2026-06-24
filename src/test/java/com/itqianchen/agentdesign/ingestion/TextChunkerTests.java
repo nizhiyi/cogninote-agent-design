@@ -2,11 +2,11 @@ package com.itqianchen.agentdesign.ingestion;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.itqianchen.agentdesign.domain.document.FileType;
-import com.itqianchen.agentdesign.domain.ingestion.DocumentChunk;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedDocument;
-import com.itqianchen.agentdesign.domain.ingestion.ParsedSection;
-import com.itqianchen.agentdesign.domain.ingestion.TextChunker;
+import com.itqianchen.agentdesign.domain.enums.document.FileType;
+import com.itqianchen.agentdesign.domain.vo.ingestion.DocumentChunk;
+import com.itqianchen.agentdesign.domain.vo.ingestion.ParsedDocument;
+import com.itqianchen.agentdesign.domain.vo.ingestion.ParsedSection;
+import com.itqianchen.agentdesign.domain.support.ingestion.TextChunker;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 

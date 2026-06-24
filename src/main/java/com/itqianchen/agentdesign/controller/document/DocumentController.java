@@ -2,10 +2,10 @@ package com.itqianchen.agentdesign.controller.document;
 
 import com.itqianchen.agentdesign.common.api.ApiResponse;
 import com.itqianchen.agentdesign.common.api.ResourceNotFoundException;
-import com.itqianchen.agentdesign.dto.document.DocumentChunkResponse;
-import com.itqianchen.agentdesign.dto.document.DocumentSummaryResponse;
-import com.itqianchen.agentdesign.dto.document.IngestDocumentsRequest;
-import com.itqianchen.agentdesign.dto.document.IngestDocumentsResponse;
+import com.itqianchen.agentdesign.domain.dto.document.DocumentChunkResponse;
+import com.itqianchen.agentdesign.domain.dto.document.DocumentSummaryResponse;
+import com.itqianchen.agentdesign.domain.dto.document.IngestDocumentsRequest;
+import com.itqianchen.agentdesign.domain.dto.document.IngestDocumentsResponse;
 import com.itqianchen.agentdesign.service.document.DocumentIngestionService;
 import com.itqianchen.agentdesign.service.document.DocumentManagementService;
 import com.itqianchen.agentdesign.service.document.DocumentQueryService;

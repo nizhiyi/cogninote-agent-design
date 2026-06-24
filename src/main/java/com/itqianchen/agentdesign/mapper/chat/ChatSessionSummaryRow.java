@@ -1,6 +1,6 @@
 package com.itqianchen.agentdesign.mapper.chat;
 
-import com.itqianchen.agentdesign.domain.search.SearchMode;
+import com.itqianchen.agentdesign.domain.enums.search.SearchMode;
 
 /**
  * Chat Session Summary Row 表示 聊天会话 查询返回的数据库行投影。

@@ -5,7 +5,7 @@ import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import com.alibaba.cloud.ai.dashscope.embedding.text.DashScopeEmbeddingModel;
 import com.alibaba.cloud.ai.dashscope.embedding.text.DashScopeEmbeddingOptions;
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
+import com.itqianchen.agentdesign.domain.entity.model.ModelConfig;
 import io.micrometer.observation.ObservationRegistry;
 import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;

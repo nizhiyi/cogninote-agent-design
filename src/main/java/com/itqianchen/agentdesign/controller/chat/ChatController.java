@@ -1,8 +1,8 @@
 package com.itqianchen.agentdesign.controller.chat;
 
 import com.itqianchen.agentdesign.common.api.ApiResponse;
-import com.itqianchen.agentdesign.domain.agent.AgentChatStream;
-import com.itqianchen.agentdesign.dto.chat.ChatStreamRequest;
+import com.itqianchen.agentdesign.domain.vo.agent.AgentChatStream;
+import com.itqianchen.agentdesign.domain.dto.chat.ChatStreamRequest;
 import com.itqianchen.agentdesign.service.agent.AgentExecutionService;
 import com.itqianchen.agentdesign.service.chat.ChatSseEventMapper;
 import com.itqianchen.agentdesign.service.chat.ChatStreamCancellationRegistry;

@@ -1,8 +1,8 @@
 package com.itqianchen.agentdesign.service.index;
 
-import com.itqianchen.agentdesign.domain.search.KnowledgeStore;
-import com.itqianchen.agentdesign.dto.index.IndexStatusResponse;
-import com.itqianchen.agentdesign.dto.index.RebuildIndexResponse;
+import com.itqianchen.agentdesign.domain.interfaces.search.KnowledgeStore;
+import com.itqianchen.agentdesign.domain.dto.index.IndexStatusResponse;
+import com.itqianchen.agentdesign.domain.dto.index.RebuildIndexResponse;
 import com.itqianchen.agentdesign.service.knowledge.KnowledgeFolderRunService;
 import org.springframework.stereotype.Service;
 

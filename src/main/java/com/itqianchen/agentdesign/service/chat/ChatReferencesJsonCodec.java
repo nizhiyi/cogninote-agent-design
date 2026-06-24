@@ -3,7 +3,7 @@ package com.itqianchen.agentdesign.service.chat;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.itqianchen.agentdesign.dto.chat.ChatReferenceResponse;
+import com.itqianchen.agentdesign.domain.dto.chat.ChatReferenceResponse;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

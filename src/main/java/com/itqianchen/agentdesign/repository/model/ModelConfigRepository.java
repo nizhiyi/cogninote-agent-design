@@ -1,8 +1,11 @@
 package com.itqianchen.agentdesign.repository.model;
 
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
-import com.itqianchen.agentdesign.domain.model.ModelConfigRole;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
+
+import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
+import com.itqianchen.agentdesign.domain.exception.model.ModelConfigurationException;
+import com.itqianchen.agentdesign.domain.entity.model.ModelConfig;
+import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
+import com.itqianchen.agentdesign.domain.exception.model.ModelConfigurationException;
 import com.itqianchen.agentdesign.mapper.model.ModelConfigMapper;
 import java.util.List;
 import java.util.Optional;

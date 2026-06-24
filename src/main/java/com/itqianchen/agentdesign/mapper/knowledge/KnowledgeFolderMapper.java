@@ -1,6 +1,6 @@
 package com.itqianchen.agentdesign.mapper.knowledge;
 
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolder;
+import com.itqianchen.agentdesign.domain.entity.knowledge.KnowledgeFolder;
 import java.util.List;
 import org.apache.ibatis.annotations.Param;
 

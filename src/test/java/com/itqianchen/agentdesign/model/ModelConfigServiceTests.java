@@ -1,14 +1,18 @@
 package com.itqianchen.agentdesign.model;
 
+
+import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
+import com.itqianchen.agentdesign.domain.exception.model.ModelConfigurationException;
+import com.itqianchen.agentdesign.domain.support.model.ModelConfigDefaults;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
-import com.itqianchen.agentdesign.domain.model.ModelConfigDefaults;
-import com.itqianchen.agentdesign.domain.model.ModelConfigRole;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
+import com.itqianchen.agentdesign.domain.entity.model.ModelConfig;
+import com.itqianchen.agentdesign.domain.support.model.ModelConfigDefaults;
+import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
+import com.itqianchen.agentdesign.domain.exception.model.ModelConfigurationException;
+import com.itqianchen.agentdesign.domain.enums.model.ModelProvider;
+import com.itqianchen.agentdesign.domain.dto.model.ModelConfigRequest;
 import com.itqianchen.agentdesign.service.model.ModelConfigService;
 import com.itqianchen.agentdesign.support.TestDatabaseCleaner;
 import org.junit.jupiter.api.BeforeEach;

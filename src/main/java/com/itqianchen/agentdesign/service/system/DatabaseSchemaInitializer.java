@@ -1,7 +1,10 @@
 package com.itqianchen.agentdesign.service.system;
 
-import com.itqianchen.agentdesign.domain.model.ModelConfigDefaults;
-import com.itqianchen.agentdesign.domain.model.ModelConfigRole;
+
+import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
+import com.itqianchen.agentdesign.domain.support.model.ModelConfigDefaults;
+import com.itqianchen.agentdesign.domain.support.model.ModelConfigDefaults;
+import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
 import com.itqianchen.agentdesign.mapper.schema.DatabaseSchemaMapper;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationListener;

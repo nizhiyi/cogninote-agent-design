@@ -4,14 +4,14 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.itqianchen.agentdesign.mapper.chat.ChatSessionMapper">
 
-    <resultMap id="ChatSessionMap" type="com.itqianchen.agentdesign.domain.chat.ChatSession">
+    <resultMap id="ChatSessionMap" type="com.itqianchen.agentdesign.domain.entity.chat.ChatSession">
         <constructor>
             <arg column="id" javaType="java.lang.String"/>
             <arg column="title" javaType="java.lang.String"/>
             <arg column="summary" javaType="java.lang.String"/>
             <arg column="summary_message_sequence" javaType="_int"/>
             <arg column="use_knowledge_base" javaType="_boolean"/>
-            <arg column="retrieval_mode" javaType="com.itqianchen.agentdesign.domain.search.SearchMode"/>
+            <arg column="retrieval_mode" javaType="com.itqianchen.agentdesign.domain.enums.search.SearchMode"/>
             <arg column="top_k" javaType="_int"/>
             <arg column="deleted" javaType="_boolean"/>
             <arg column="created_at" javaType="_long"/>
@@ -26,7 +26,7 @@
             <arg column="summary" javaType="java.lang.String"/>
             <arg column="summary_message_sequence" javaType="_int"/>
             <arg column="use_knowledge_base" javaType="_boolean"/>
-            <arg column="retrieval_mode" javaType="com.itqianchen.agentdesign.domain.search.SearchMode"/>
+            <arg column="retrieval_mode" javaType="com.itqianchen.agentdesign.domain.enums.search.SearchMode"/>
             <arg column="top_k" javaType="_int"/>
             <arg column="deleted" javaType="_boolean"/>
             <arg column="created_at" javaType="_long"/>
@@ -35,17 +35,17 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="ChatMessageMap" type="com.itqianchen.agentdesign.domain.chat.ChatMessage">
+    <resultMap id="ChatMessageMap" type="com.itqianchen.agentdesign.domain.entity.chat.ChatMessage">
         <constructor>
             <arg column="id" javaType="java.lang.String"/>
             <arg column="conversation_id" javaType="java.lang.String"/>
             <arg column="message_sequence" javaType="_int"/>
-            <arg column="role" javaType="com.itqianchen.agentdesign.domain.chat.ChatMessageRole"/>
+            <arg column="role" javaType="com.itqianchen.agentdesign.domain.enums.chat.ChatMessageRole"/>
             <arg column="content" javaType="java.lang.String"/>
-            <arg column="status" javaType="com.itqianchen.agentdesign.domain.chat.ChatMessageStatus"/>
+            <arg column="status" javaType="com.itqianchen.agentdesign.domain.enums.chat.ChatMessageStatus"/>
             <arg column="request_id" javaType="java.lang.String"/>
-            <arg column="agent_type" javaType="com.itqianchen.agentdesign.domain.agent.AgentType"/>
-            <arg column="retrieval_mode" javaType="com.itqianchen.agentdesign.domain.search.SearchMode"/>
+            <arg column="agent_type" javaType="com.itqianchen.agentdesign.domain.enums.agent.AgentType"/>
+            <arg column="retrieval_mode" javaType="com.itqianchen.agentdesign.domain.enums.search.SearchMode"/>
             <arg column="sources_json" javaType="java.lang.String"/>
             <arg column="references_json" javaType="java.lang.String"/>
             <arg column="token_estimate" javaType="_int"/>

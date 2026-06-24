@@ -1,11 +1,11 @@
 package com.itqianchen.agentdesign.service.chat;
 
-import com.itqianchen.agentdesign.domain.agent.AgentChatStream;
-import com.itqianchen.agentdesign.domain.agent.AgentEvent;
-import com.itqianchen.agentdesign.dto.chat.ChatDeltaEvent;
-import com.itqianchen.agentdesign.dto.chat.ChatDoneEvent;
-import com.itqianchen.agentdesign.dto.chat.ChatErrorEvent;
-import com.itqianchen.agentdesign.dto.chat.ChatMetaEvent;
+import com.itqianchen.agentdesign.domain.vo.agent.AgentChatStream;
+import com.itqianchen.agentdesign.domain.interfaces.agent.AgentEvent;
+import com.itqianchen.agentdesign.domain.dto.chat.ChatDeltaEvent;
+import com.itqianchen.agentdesign.domain.dto.chat.ChatDoneEvent;
+import com.itqianchen.agentdesign.domain.dto.chat.ChatErrorEvent;
+import com.itqianchen.agentdesign.domain.dto.chat.ChatMetaEvent;
 import com.itqianchen.agentdesign.service.chat.ChatStreamCancellationRegistry.StreamCancellation;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;

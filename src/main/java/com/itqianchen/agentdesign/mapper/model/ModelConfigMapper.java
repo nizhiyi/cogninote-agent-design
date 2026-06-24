@@ -1,6 +1,6 @@
 package com.itqianchen.agentdesign.mapper.model;
 
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
+import com.itqianchen.agentdesign.domain.entity.model.ModelConfig;
 import java.util.List;
 import org.apache.ibatis.annotations.Param;
 

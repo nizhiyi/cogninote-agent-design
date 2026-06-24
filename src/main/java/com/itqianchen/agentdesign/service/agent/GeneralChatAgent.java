@@ -1,9 +1,9 @@
 package com.itqianchen.agentdesign.service.agent;
 
-import com.itqianchen.agentdesign.domain.agent.AgentRequest;
-import com.itqianchen.agentdesign.domain.agent.AgentType;
-import com.itqianchen.agentdesign.domain.ai.AiRuntimeFactory;
-import com.itqianchen.agentdesign.domain.search.SearchMode;
+import com.itqianchen.agentdesign.domain.vo.agent.AgentRequest;
+import com.itqianchen.agentdesign.domain.enums.agent.AgentType;
+import com.itqianchen.agentdesign.domain.interfaces.ai.AiRuntimeFactory;
+import com.itqianchen.agentdesign.domain.enums.search.SearchMode;
 import com.itqianchen.agentdesign.service.chat.ChatSessionService;
 import com.itqianchen.agentdesign.service.chat.CogninoteMemoryAdvisor;
 import com.itqianchen.agentdesign.service.model.ModelConfigService;

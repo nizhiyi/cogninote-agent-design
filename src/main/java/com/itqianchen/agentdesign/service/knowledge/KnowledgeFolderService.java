@@ -1,19 +1,21 @@
 package com.itqianchen.agentdesign.service.knowledge;
 
+
+import com.itqianchen.agentdesign.domain.vo.knowledge.KnowledgeFolderSummary;
 import com.itqianchen.agentdesign.common.api.ResourceNotFoundException;
-import com.itqianchen.agentdesign.domain.document.DocumentStatus;
-import com.itqianchen.agentdesign.domain.document.KnowledgeDocument;
-import com.itqianchen.agentdesign.domain.ingestion.DocumentIdentity;
-import com.itqianchen.agentdesign.domain.ingestion.DocumentParseException;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolder;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderSummary;
-import com.itqianchen.agentdesign.domain.search.KnowledgeStore;
-import com.itqianchen.agentdesign.dto.document.DocumentSummaryResponse;
-import com.itqianchen.agentdesign.dto.document.IngestDocumentsResponse;
-import com.itqianchen.agentdesign.dto.index.RebuildIndexResponse;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderResponse;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFolderRebuildResponse;
-import com.itqianchen.agentdesign.dto.knowledge.KnowledgeFoldersResponse;
+import com.itqianchen.agentdesign.domain.enums.document.DocumentStatus;
+import com.itqianchen.agentdesign.domain.entity.document.KnowledgeDocument;
+import com.itqianchen.agentdesign.domain.vo.ingestion.DocumentIdentity;
+import com.itqianchen.agentdesign.domain.exception.ingestion.DocumentParseException;
+import com.itqianchen.agentdesign.domain.entity.knowledge.KnowledgeFolder;
+import com.itqianchen.agentdesign.domain.vo.knowledge.KnowledgeFolderSummary;
+import com.itqianchen.agentdesign.domain.interfaces.search.KnowledgeStore;
+import com.itqianchen.agentdesign.domain.dto.document.DocumentSummaryResponse;
+import com.itqianchen.agentdesign.domain.dto.document.IngestDocumentsResponse;
+import com.itqianchen.agentdesign.domain.dto.index.RebuildIndexResponse;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeFolderResponse;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeFolderRebuildResponse;
+import com.itqianchen.agentdesign.domain.dto.knowledge.KnowledgeFoldersResponse;
 import com.itqianchen.agentdesign.repository.document.DocumentRepository;
 import com.itqianchen.agentdesign.repository.graph.KnowledgeGraphRepository;
 import com.itqianchen.agentdesign.repository.knowledge.KnowledgeFolderRepository;

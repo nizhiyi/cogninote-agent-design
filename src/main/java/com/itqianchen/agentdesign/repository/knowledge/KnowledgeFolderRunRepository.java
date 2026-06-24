@@ -1,9 +1,13 @@
 package com.itqianchen.agentdesign.repository.knowledge;
 
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRun;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunOperation;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunScopeType;
-import com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolderRunStatus;
+
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunOperation;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunScopeType;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunStatus;
+import com.itqianchen.agentdesign.domain.entity.knowledge.KnowledgeFolderRun;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunOperation;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunScopeType;
+import com.itqianchen.agentdesign.domain.enums.knowledge.KnowledgeFolderRunStatus;
 import com.itqianchen.agentdesign.mapper.knowledge.KnowledgeFolderRunMapper;
 import java.util.List;
 import java.util.Optional;

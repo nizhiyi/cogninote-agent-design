@@ -1,6 +1,6 @@
 package com.itqianchen.agentdesign.mapper.document;
 
-import com.itqianchen.agentdesign.domain.document.FileType;
+import com.itqianchen.agentdesign.domain.enums.document.FileType;
 
 /**
  * Indexed Document Row 表示 文档管理 查询返回的数据库行投影。

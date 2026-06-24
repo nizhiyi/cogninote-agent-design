@@ -1,8 +1,8 @@
 package com.itqianchen.agentdesign.service.agent;
 
-import com.itqianchen.agentdesign.domain.agent.AgentChatStream;
-import com.itqianchen.agentdesign.domain.agent.AgentRequest;
-import com.itqianchen.agentdesign.dto.chat.ChatStreamRequest;
+import com.itqianchen.agentdesign.domain.vo.agent.AgentChatStream;
+import com.itqianchen.agentdesign.domain.vo.agent.AgentRequest;
+import com.itqianchen.agentdesign.domain.dto.chat.ChatStreamRequest;
 import org.springframework.stereotype.Service;
 
 /**

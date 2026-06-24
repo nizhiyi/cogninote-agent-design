@@ -1,13 +1,13 @@
 package com.itqianchen.agentdesign.service.agent;
 
-import com.itqianchen.agentdesign.domain.search.EmbeddingUnavailableException;
-import com.itqianchen.agentdesign.domain.search.KnowledgeStore;
-import com.itqianchen.agentdesign.domain.search.SearchMode;
-import com.itqianchen.agentdesign.domain.search.StoredChunk;
-import com.itqianchen.agentdesign.dto.chat.RagSourceResponse;
-import com.itqianchen.agentdesign.dto.search.SearchHitResponse;
-import com.itqianchen.agentdesign.dto.search.SearchRequest;
-import com.itqianchen.agentdesign.dto.search.SearchResponse;
+import com.itqianchen.agentdesign.domain.exception.search.EmbeddingUnavailableException;
+import com.itqianchen.agentdesign.domain.interfaces.search.KnowledgeStore;
+import com.itqianchen.agentdesign.domain.enums.search.SearchMode;
+import com.itqianchen.agentdesign.domain.vo.search.StoredChunk;
+import com.itqianchen.agentdesign.domain.dto.chat.RagSourceResponse;
+import com.itqianchen.agentdesign.domain.dto.search.SearchHitResponse;
+import com.itqianchen.agentdesign.domain.dto.search.SearchRequest;
+import com.itqianchen.agentdesign.domain.dto.search.SearchResponse;
 import com.itqianchen.agentdesign.repository.document.DocumentRepository;
 import java.util.ArrayList;
 import java.util.List;

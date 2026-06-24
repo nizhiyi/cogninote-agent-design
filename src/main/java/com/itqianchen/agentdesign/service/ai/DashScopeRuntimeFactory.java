@@ -1,8 +1,8 @@
 package com.itqianchen.agentdesign.service.ai;
 
-import com.itqianchen.agentdesign.domain.ai.AiChatRuntime;
-import com.itqianchen.agentdesign.domain.ai.AiEmbeddingRuntime;
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
+import com.itqianchen.agentdesign.domain.interfaces.ai.AiChatRuntime;
+import com.itqianchen.agentdesign.domain.interfaces.ai.AiEmbeddingRuntime;
+import com.itqianchen.agentdesign.domain.entity.model.ModelConfig;
 import com.itqianchen.agentdesign.service.model.DashScopeModelFactory;
 import org.springframework.stereotype.Component;
 

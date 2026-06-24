@@ -4,7 +4,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.itqianchen.agentdesign.mapper.knowledge.KnowledgeFolderMapper">
 
-    <resultMap id="KnowledgeFolderMap" type="com.itqianchen.agentdesign.domain.knowledge.KnowledgeFolder">
+    <resultMap id="KnowledgeFolderMap" type="com.itqianchen.agentdesign.domain.entity.knowledge.KnowledgeFolder">
         <constructor>
             <arg column="id" javaType="java.lang.String"/>
             <arg column="folder_path" javaType="java.lang.String"/>

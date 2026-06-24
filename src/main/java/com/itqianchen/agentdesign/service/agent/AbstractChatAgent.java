@@ -1,13 +1,13 @@
 package com.itqianchen.agentdesign.service.agent;
 
-import com.itqianchen.agentdesign.domain.agent.AgentChatStream;
-import com.itqianchen.agentdesign.domain.agent.AgentRequest;
-import com.itqianchen.agentdesign.domain.agent.AgentType;
-import com.itqianchen.agentdesign.domain.ai.AiRuntimeFactory;
-import com.itqianchen.agentdesign.domain.chat.ChatMessage;
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
-import com.itqianchen.agentdesign.domain.search.SearchMode;
-import com.itqianchen.agentdesign.dto.chat.ChatContextUsageResponse;
+import com.itqianchen.agentdesign.domain.vo.agent.AgentChatStream;
+import com.itqianchen.agentdesign.domain.vo.agent.AgentRequest;
+import com.itqianchen.agentdesign.domain.enums.agent.AgentType;
+import com.itqianchen.agentdesign.domain.interfaces.ai.AiRuntimeFactory;
+import com.itqianchen.agentdesign.domain.entity.chat.ChatMessage;
+import com.itqianchen.agentdesign.domain.entity.model.ModelConfig;
+import com.itqianchen.agentdesign.domain.enums.search.SearchMode;
+import com.itqianchen.agentdesign.domain.dto.chat.ChatContextUsageResponse;
 import com.itqianchen.agentdesign.service.chat.ChatSessionService;
 import com.itqianchen.agentdesign.service.chat.CogninoteMemoryAdvisor;
 import com.itqianchen.agentdesign.service.model.ModelConfigService;

@@ -4,12 +4,12 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.itqianchen.agentdesign.mapper.graph.KnowledgeGraphMapper">
 
-    <resultMap id="KnowledgeGraphRunMap" type="com.itqianchen.agentdesign.domain.graph.KnowledgeGraphRun">
+    <resultMap id="KnowledgeGraphRunMap" type="com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphRun">
         <constructor>
             <arg column="id" javaType="java.lang.String"/>
-            <arg column="scope_type" javaType="com.itqianchen.agentdesign.domain.graph.KnowledgeGraphScopeType"/>
+            <arg column="scope_type" javaType="com.itqianchen.agentdesign.domain.enums.graph.KnowledgeGraphScopeType"/>
             <arg column="scope_id" javaType="java.lang.String"/>
-            <arg column="status" javaType="com.itqianchen.agentdesign.domain.graph.KnowledgeGraphRunStatus"/>
+            <arg column="status" javaType="com.itqianchen.agentdesign.domain.enums.graph.KnowledgeGraphRunStatus"/>
             <arg column="model_config_id" javaType="java.lang.String"/>
             <arg column="prompt_version" javaType="java.lang.String"/>
             <arg column="total_chunk_count" javaType="_int"/>
@@ -26,24 +26,24 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="ChunkExtractionMap" type="com.itqianchen.agentdesign.domain.graph.KnowledgeGraphChunkExtraction">
+    <resultMap id="ChunkExtractionMap" type="com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphChunkExtraction">
         <constructor>
             <arg column="chunk_id" javaType="java.lang.String"/>
             <arg column="document_id" javaType="java.lang.String"/>
             <arg column="content_hash" javaType="java.lang.String"/>
             <arg column="prompt_version" javaType="java.lang.String"/>
             <arg column="model_config_id" javaType="java.lang.String"/>
-            <arg column="status" javaType="com.itqianchen.agentdesign.domain.graph.KnowledgeGraphExtractionStatus"/>
+            <arg column="status" javaType="com.itqianchen.agentdesign.domain.enums.graph.KnowledgeGraphExtractionStatus"/>
             <arg column="extraction_json" javaType="java.lang.String"/>
             <arg column="error_message" javaType="java.lang.String"/>
             <arg column="extracted_at" javaType="java.lang.Long"/>
         </constructor>
     </resultMap>
 
-    <resultMap id="GraphNodeMap" type="com.itqianchen.agentdesign.domain.graph.KnowledgeGraphNode">
+    <resultMap id="GraphNodeMap" type="com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphNode">
         <constructor>
             <arg column="id" javaType="java.lang.String"/>
-            <arg column="scope_type" javaType="com.itqianchen.agentdesign.domain.graph.KnowledgeGraphScopeType"/>
+            <arg column="scope_type" javaType="com.itqianchen.agentdesign.domain.enums.graph.KnowledgeGraphScopeType"/>
             <arg column="scope_id" javaType="java.lang.String"/>
             <arg column="canonical_name" javaType="java.lang.String"/>
             <arg column="display_name" javaType="java.lang.String"/>
@@ -56,10 +56,10 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="GraphEdgeMap" type="com.itqianchen.agentdesign.domain.graph.KnowledgeGraphEdge">
+    <resultMap id="GraphEdgeMap" type="com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphEdge">
         <constructor>
             <arg column="id" javaType="java.lang.String"/>
-            <arg column="scope_type" javaType="com.itqianchen.agentdesign.domain.graph.KnowledgeGraphScopeType"/>
+            <arg column="scope_type" javaType="com.itqianchen.agentdesign.domain.enums.graph.KnowledgeGraphScopeType"/>
             <arg column="scope_id" javaType="java.lang.String"/>
             <arg column="source_node_id" javaType="java.lang.String"/>
             <arg column="target_node_id" javaType="java.lang.String"/>
@@ -73,12 +73,12 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="GraphViewMap" type="com.itqianchen.agentdesign.domain.graph.KnowledgeGraphView">
+    <resultMap id="GraphViewMap" type="com.itqianchen.agentdesign.domain.entity.graph.KnowledgeGraphView">
         <constructor>
             <arg column="id" javaType="java.lang.String"/>
-            <arg column="scope_type" javaType="com.itqianchen.agentdesign.domain.graph.KnowledgeGraphScopeType"/>
+            <arg column="scope_type" javaType="com.itqianchen.agentdesign.domain.enums.graph.KnowledgeGraphScopeType"/>
             <arg column="scope_id" javaType="java.lang.String"/>
-            <arg column="view_type" javaType="com.itqianchen.agentdesign.domain.graph.KnowledgeGraphViewType"/>
+            <arg column="view_type" javaType="com.itqianchen.agentdesign.domain.enums.graph.KnowledgeGraphViewType"/>
             <arg column="payload_json" javaType="java.lang.String"/>
             <arg column="generated_from_run_id" javaType="java.lang.String"/>
             <arg column="created_at" javaType="_long"/>

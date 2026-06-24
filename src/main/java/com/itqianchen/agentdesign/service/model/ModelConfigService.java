@@ -1,15 +1,19 @@
 package com.itqianchen.agentdesign.service.model;
 
-import com.itqianchen.agentdesign.domain.model.ModelConfig;
-import com.itqianchen.agentdesign.domain.model.ModelConfigDefaults;
-import com.itqianchen.agentdesign.domain.model.ModelConfigRole;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
-import com.itqianchen.agentdesign.domain.model.ModelProvider;
-import com.itqianchen.agentdesign.dto.model.ActiveModelConfigsResponse;
-import com.itqianchen.agentdesign.dto.model.ModelConfigRequest;
-import com.itqianchen.agentdesign.dto.model.ModelConfigResponse;
-import com.itqianchen.agentdesign.dto.model.ModelConfigSettingsResponse;
-import com.itqianchen.agentdesign.dto.model.ModelConfigUpsertRequest;
+
+import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
+import com.itqianchen.agentdesign.domain.exception.model.ModelConfigurationException;
+import com.itqianchen.agentdesign.domain.support.model.ModelConfigDefaults;
+import com.itqianchen.agentdesign.domain.entity.model.ModelConfig;
+import com.itqianchen.agentdesign.domain.support.model.ModelConfigDefaults;
+import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
+import com.itqianchen.agentdesign.domain.exception.model.ModelConfigurationException;
+import com.itqianchen.agentdesign.domain.enums.model.ModelProvider;
+import com.itqianchen.agentdesign.domain.dto.model.ActiveModelConfigsResponse;
+import com.itqianchen.agentdesign.domain.dto.model.ModelConfigRequest;
+import com.itqianchen.agentdesign.domain.dto.model.ModelConfigResponse;
+import com.itqianchen.agentdesign.domain.dto.model.ModelConfigSettingsResponse;
+import com.itqianchen.agentdesign.domain.dto.model.ModelConfigUpsertRequest;
 import com.itqianchen.agentdesign.repository.model.ModelConfigRepository;
 import java.util.List;
 import java.util.Optional;

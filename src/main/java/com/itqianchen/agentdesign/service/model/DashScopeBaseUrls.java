@@ -1,7 +1,10 @@
 package com.itqianchen.agentdesign.service.model;
 
-import com.itqianchen.agentdesign.domain.model.ModelConfigDefaults;
-import com.itqianchen.agentdesign.domain.model.ModelConfigurationException;
+
+import com.itqianchen.agentdesign.domain.exception.model.ModelConfigurationException;
+import com.itqianchen.agentdesign.domain.support.model.ModelConfigDefaults;
+import com.itqianchen.agentdesign.domain.support.model.ModelConfigDefaults;
+import com.itqianchen.agentdesign.domain.exception.model.ModelConfigurationException;
 import java.net.URI;
 import java.net.URISyntaxException;
 

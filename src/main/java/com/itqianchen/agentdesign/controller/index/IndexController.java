@@ -1,8 +1,8 @@
 package com.itqianchen.agentdesign.controller.index;
 
 import com.itqianchen.agentdesign.common.api.ApiResponse;
-import com.itqianchen.agentdesign.dto.index.IndexStatusResponse;
-import com.itqianchen.agentdesign.dto.index.RebuildIndexResponse;
+import com.itqianchen.agentdesign.domain.dto.index.IndexStatusResponse;
+import com.itqianchen.agentdesign.domain.dto.index.RebuildIndexResponse;
 import com.itqianchen.agentdesign.service.index.IndexService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
