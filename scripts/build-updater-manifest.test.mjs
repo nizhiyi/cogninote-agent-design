@@ -20,11 +20,11 @@ try {
   writeFileSync(
     notesPath,
     [
-      '<!-- COGNINOTE_RELEASE_CHANGELOG:start -->',
+      '<!-- COGNINOTE_RELEASE_CHANGELOG:start',
       '## 更新内容',
       '',
       '- 修复自动更新说明。',
-      '<!-- COGNINOTE_RELEASE_CHANGELOG:end -->',
+      'COGNINOTE_RELEASE_CHANGELOG:end -->',
       '<!-- COGNINOTE_RELEASE_SECTION:windows:start -->',
       '## Windows x64',
       '',

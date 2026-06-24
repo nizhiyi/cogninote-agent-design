@@ -56,6 +56,13 @@ function normalizeReleaseNotes(content) {
 }
 
 function extractMarkedChangelog(content) {
+  const hiddenMatch = content.match(
+    /<!--\s*COGNINOTE_RELEASE_CHANGELOG:start\s*\r?\n([\s\S]*?)\r?\n\s*COGNINOTE_RELEASE_CHANGELOG:end\s*-->/m
+  )
+  if (hiddenMatch?.[1]?.trim()) {
+    return hiddenMatch[1].trim()
+  }
+
   const match = content.match(
     /<!--\s*COGNINOTE_RELEASE_CHANGELOG:start\s*-->\s*([\s\S]*?)\s*<!--\s*COGNINOTE_RELEASE_CHANGELOG:end\s*-->/m
   )

@@ -203,7 +203,6 @@ jobs:
           $notesPath = Join-Path $env:RUNNER_TEMP 'cogninote-desktop-release-notes.md'
           $existingNotesPath = Join-Path $env:RUNNER_TEMP 'cogninote-existing-release-notes.md'
           $changelogPath = Join-Path $env:RUNNER_TEMP 'cogninote-desktop-changelog.md'
-          $technicalChangesPath = Join-Path $env:RUNNER_TEMP 'cogninote-desktop-technical-changes.md'
           gh release view $tag *> $null
           $releaseExists = $LASTEXITCODE -eq 0
           if ($releaseExists) {
@@ -214,7 +213,6 @@ jobs:
 
           node scripts/generate-desktop-changelog.mjs `
             --output $changelogPath `
-            --technicalOutput $technicalChangesPath `
             --version $version `
             --releaseTag $tag
 
@@ -229,7 +227,6 @@ jobs:
             --existing $existingNotesPath `
             --output $notesPath `
             --changelogFile $changelogPath `
-            --technicalChangesFile $technicalChangesPath `
             --version $version `
             --releaseKind $releaseKind `
             --platform windows `

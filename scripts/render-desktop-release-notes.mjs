@@ -25,7 +25,6 @@ const sections = {
   ...extractMarkedSections(existing)
 }
 const changelog = readChangelog(args.changelogFile) || extractMarkedChangelog(existing)
-const technicalChanges = readOptionalFile(args.technicalChangesFile) || extractMarkedTechnicalChanges(existing)
 sections[args.platform] = renderTemplate(args.template, args)
 
 const parts = []
@@ -36,9 +35,6 @@ for (const platform of platformOrder) {
   if (sections[platform]?.trim()) {
     parts.push(wrapSection(platform, sections[platform].trim()))
   }
-}
-if (technicalChanges) {
-  parts.push(wrapTechnicalChanges(technicalChanges))
 }
 
 mkdirSync(dirname(args.output), { recursive: true })
@@ -88,23 +84,24 @@ function extractMarkedSections(body) {
 }
 
 function extractMarkedChangelog(body) {
-  const pattern = new RegExp(
+  const hiddenPattern = new RegExp(
+    `<!--\\s*COGNINOTE_RELEASE_CHANGELOG:start\\s*\\r?\\n([\\s\\S]*?)\\r?\\n\\s*COGNINOTE_RELEASE_CHANGELOG:end\\s*-->`,
+    'm'
+  )
+  const hiddenMatch = body.match(hiddenPattern)
+  if (hiddenMatch?.[1]?.trim()) {
+    return hiddenMatch[1].trim()
+  }
+
+  const visiblePattern = new RegExp(
     `${escapeRegExp(changelogMarker('start'))}\\s*([\\s\\S]*?)\\s*${escapeRegExp(changelogMarker('end'))}`,
     'm'
   )
-  return body.match(pattern)?.[1]?.trim() || ''
+  return body.match(visiblePattern)?.[1]?.trim() || ''
 }
 
 function readChangelog(changelogFile) {
   return readOptionalFile(changelogFile)
-}
-
-function extractMarkedTechnicalChanges(body) {
-  const pattern = new RegExp(
-    `${escapeRegExp(technicalChangesMarker('start'))}\\s*([\\s\\S]*?)\\s*${escapeRegExp(technicalChangesMarker('end'))}`,
-    'm'
-  )
-  return body.match(pattern)?.[1]?.trim() || ''
 }
 
 function readOptionalFile(changelogFile) {
@@ -146,11 +143,7 @@ function wrapSection(platform, content) {
 }
 
 function wrapChangelog(content) {
-  return `${changelogMarker('start')}\n${content}\n${changelogMarker('end')}`
-}
-
-function wrapTechnicalChanges(content) {
-  return `${technicalChangesMarker('start')}\n${content}\n${technicalChangesMarker('end')}`
+  return `<!-- COGNINOTE_RELEASE_CHANGELOG:start\n${content}\nCOGNINOTE_RELEASE_CHANGELOG:end -->`
 }
 
 function sectionMarker(platform, boundary) {
@@ -159,10 +152,6 @@ function sectionMarker(platform, boundary) {
 
 function changelogMarker(boundary) {
   return `<!-- COGNINOTE_RELEASE_CHANGELOG:${boundary} -->`
-}
-
-function technicalChangesMarker(boundary) {
-  return `<!-- COGNINOTE_RELEASE_TECHNICAL:${boundary} -->`
 }
 
 function escapeRegExp(value) {
