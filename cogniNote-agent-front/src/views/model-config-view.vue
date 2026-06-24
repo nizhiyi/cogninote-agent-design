@@ -121,8 +121,11 @@ async function handleReload() {
  * <p>Embedding 配置变化不会自动改写已有 Lucene 向量，必须提示用户手动重建。</p>
  */
 async function handleSave() {
+  const previousEmbeddingIndexSignature = isEditingActiveEmbeddingConfig()
+    ? embeddingIndexSignature(modelConfigStore.activeEmbeddingConfig)
+    : ''
   const snapshot = await modelConfigStore.saveModelConfig()
-  await promptRebuildIndexIfVectorConfigChanged(snapshot)
+  await promptRebuildIndexIfVectorConfigChanged(snapshot, { previousEmbeddingIndexSignature })
 }
 
 /**
@@ -131,20 +134,32 @@ async function handleSave() {
  * <p>只有 Embedding role 会影响已写入索引的向量维度或模型语义。</p>
  */
 async function handleActivate() {
+  const previousEmbeddingIndexSignature = embeddingIndexSignature(modelConfigStore.activeEmbeddingConfig)
   const snapshot = await modelConfigStore.activateConfig(modelConfigStore.selectedConfig)
-  await promptRebuildIndexIfVectorConfigChanged(snapshot)
+  await promptRebuildIndexIfVectorConfigChanged(snapshot, { previousEmbeddingIndexSignature })
 }
 
 async function handleRemove() {
   await modelConfigStore.removeConfig(modelConfigStore.selectedConfig)
 }
 
-async function promptRebuildIndexIfVectorConfigChanged(snapshot) {
-  if (!snapshot || snapshot.role !== modelConfigStore.ROLES.EMBEDDING) {
+function isEditingActiveEmbeddingConfig() {
+  return modelConfigStore.activeRole === modelConfigStore.ROLES.EMBEDDING
+    && Boolean(modelConfigStore.selectedConfig?.active)
+}
+
+async function promptRebuildIndexIfVectorConfigChanged(snapshot, { previousEmbeddingIndexSignature = '' } = {}) {
+  const nextEmbeddingIndexSignature = embeddingIndexSignature(snapshot?.active?.embedding)
+  if (
+    !snapshot
+    || snapshot.role !== modelConfigStore.ROLES.EMBEDDING
+    || !previousEmbeddingIndexSignature
+    || previousEmbeddingIndexSignature === nextEmbeddingIndexSignature
+  ) {
     return
   }
 
-  // 只提示不强制重建，避免用户保存 API Key 时意外触发耗时的全库索引任务。
+  // 只在影响向量内容的字段变化时提示；配置名称和 API Key 不会改变已有向量索引。
   try {
     await ElMessageBox.confirm(
       '向量模型或向量维度变化后，已有知识库向量索引不会自动更新。是否现在重建全部索引？',
@@ -166,6 +181,31 @@ async function promptRebuildIndexIfVectorConfigChanged(snapshot) {
       ElMessage.error(`重建索引失败：${err.message || err}`)
     }
   }
+}
+
+function embeddingIndexSignature(config) {
+  if (!config) {
+    return ''
+  }
+  return [
+    normalizeComparableText(config.provider),
+    normalizeComparableBaseUrl(config.baseUrl),
+    normalizeComparableText(config.modelName),
+    normalizeComparableNumber(config.embeddingDimensions)
+  ].join('|')
+}
+
+function normalizeComparableText(value) {
+  return String(value || '').trim()
+}
+
+function normalizeComparableBaseUrl(value) {
+  return normalizeComparableText(value).replace(/\/+$/, '')
+}
+
+function normalizeComparableNumber(value) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? String(parsed) : ''
 }
 
 function normalizeInitialRole(role) {
