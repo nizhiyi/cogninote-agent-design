@@ -2,6 +2,7 @@
 // 模型配置页只编排表单交互；配置保存、激活和默认值归 model-config store 管理。
 import { computed, nextTick, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { CircleHelp } from 'lucide-vue-next'
 import { useModelConfigStore } from '../stores/model-config'
 import { useSearchStore } from '../stores/search'
 
@@ -394,7 +395,36 @@ function normalizeInitialRole(role) {
             class="embedding-rate-limit-panel field--full"
           >
             <div class="field-heading">
-              <span>请求限速</span>
+              <div class="embedding-rate-limit-title">
+                <span>请求限速</span>
+                <el-popover
+                  placement="top-start"
+                  trigger="hover"
+                  popper-class="embedding-rate-limit-popover"
+                  :width="380"
+                  :show-after="120"
+                >
+                  <template #reference>
+                    <button
+                      class="embedding-rate-limit-help"
+                      type="button"
+                      aria-label="查看请求限速注意事项"
+                    >
+                      <CircleHelp aria-hidden="true" />
+                      <span>注意事项</span>
+                    </button>
+                  </template>
+                  <div class="embedding-rate-limit-notes">
+                    <strong>请求限速说明</strong>
+                    <ul>
+                      <li>RPM 控制每分钟最多发送多少次 Embedding 请求。</li>
+                      <li>TPM 控制 60 秒滚动窗口内的输入 Token 估算量；超过时会等待窗口释放。</li>
+                      <li>Batch 是单次请求最多包含的 chunk 数，当前不会按 TPM 自动拆小批次。</li>
+                      <li>如果供应商提示单请求过大或继续限流，请调小 Batch、RPM 或 TPM 后再补写索引。</li>
+                    </ul>
+                  </div>
+                </el-popover>
+              </div>
               <small>请按供应商控制台配额填写；限流不是程序 bug，系统会自动退避重试。</small>
             </div>
             <div class="embedding-rate-limit-presets" aria-label="向量模型请求限速档位">

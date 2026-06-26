@@ -266,7 +266,7 @@ GET /api/knowledge-health
 }
 ```
 
-`status` 支持 `HEALTHY`、`WARNING`、`ERROR`、`DISABLED`、`EMPTY`。`issues[].action` 是建议动作，例如 `SYNC_FOLDER`、`REBUILD_INDEX`、`DELETE_FOLDER`，前端仍需调用对应目录或索引接口执行。停用目录返回 `DISABLED`，作为用户主动排除检索范围的维护状态，不计入全库问题数量或 `WARNING/ERROR`。
+`status` 支持 `HEALTHY`、`WARNING`、`ERROR`、`DISABLED`、`EMPTY`。`issues[].action` 是建议动作，例如 `SYNC_FOLDER`、`REPAIR_INDEX`、`REBUILD_INDEX`、`DELETE_FOLDER`，前端仍需调用对应维护接口执行。停用目录返回 `DISABLED`，作为用户主动排除检索范围的维护状态，不计入全库问题数量或 `WARNING/ERROR`。
 
 第 32 阶段新增的 `summary.luceneDocumentCount` 和 `summary.luceneChunkCount` 来自 Lucene reader 实际统计；`summary.indexConsistent=false` 表示 SQLite 中应已索引的文档/chunk 与 Lucene reader 统计不一致；`summary.embeddingConfigured=false` 表示当前没有可用 Embedding，向量或混合检索需要配置向量模型。
 
@@ -279,7 +279,7 @@ GET /api/knowledge-health
 | `FOLDER_NOT_FOUND` | `ERROR` | 目录路径当前不可访问 | 删除目录记录或重新导入正确目录 |
 | `NO_DOCUMENTS` | `WARNING` | 启用目录没有文档记录 | 同步目录或检查递归扫描 |
 | `PARSE_FAILED` | `WARNING` | 存在解析失败文档 | 修复源文件后同步目录 |
-| `UNINDEXED_DOCUMENTS` | `ERROR` | 已解析文档尚未进入 Lucene | 重建目录索引或全库索引 |
+| `UNINDEXED_DOCUMENTS` | `ERROR` | 已解析文档尚未进入 Lucene，常见原因是 Embedding 供应商限流后仍未写入索引 | 补写索引 |
 | `STALE_LOCAL_FILES` | `WARNING` | 本地文件大小或修改时间已变化 | 同步目录 |
 | `MISSING_LOCAL_FILES` | `WARNING` | 已记录文件在本地不存在 | 同步目录清理应用内记录 |
 | `DISABLED_FOLDER` | `INFO` | 目录已停用；当前实现仅作为状态语义保留，不进入问题列表 | 在目录管理列表中启用目录 |
@@ -328,9 +328,9 @@ GET /api/knowledge-health/folders/{id}
 GET /api/knowledge-health/runs?scopeType=KNOWLEDGE_FOLDER&scopeId=folder-xxx&limit=20
 ```
 
-`scopeType` 可省略；支持 `ALL`、`KNOWLEDGE_FOLDER`、`UNASSIGNED`。返回导入、同步、重建索引、启停和删除的最近记录。
+`scopeType` 可省略；支持 `ALL`、`KNOWLEDGE_FOLDER`、`UNASSIGNED`。返回导入、同步、补写索引、重建索引、启停和删除的最近记录。
 
-运行记录 `operation` 支持 `IMPORT`、`SYNC`、`REBUILD_INDEX`、`ENABLE`、`DISABLE`、`DELETE`；`status` 支持 `QUEUED`、`RUNNING`、`CANCELLING`、`CANCELLED`、`COMPLETED`、`COMPLETED_WITH_WARNINGS`、`FAILED`。`phase`、`currentItem`、`queuedAt`、`startedAt`、`completedAt`、`durationMs` 和 `queuePosition` 用于前端展示当前队列和历史详情。
+运行记录 `operation` 支持 `IMPORT`、`SYNC`、`REPAIR_INDEX`、`REBUILD_INDEX`、`ENABLE`、`DISABLE`、`DELETE`；`status` 支持 `QUEUED`、`RUNNING`、`CANCELLING`、`CANCELLED`、`COMPLETED`、`COMPLETED_WITH_WARNINGS`、`FAILED`。`phase`、`currentItem`、`queuedAt`、`startedAt`、`completedAt`、`durationMs` 和 `queuePosition` 用于前端展示当前队列和历史详情。
 
 分页查询维护记录：
 
@@ -359,9 +359,11 @@ GET /api/knowledge-health/runs/page?scopeType=KNOWLEDGE_FOLDER&scopeId=folder-xx
 
 ```text
 POST /api/knowledge-maintenance/runs/rebuild-index
+POST /api/knowledge-maintenance/runs/repair-index
 POST /api/knowledge-maintenance/runs/import-folder
 POST /api/knowledge-maintenance/runs/folders/{id}/sync
 POST /api/knowledge-maintenance/runs/folders/{id}/rebuild
+POST /api/knowledge-maintenance/runs/folders/{id}/repair-index
 POST /api/knowledge-maintenance/runs/folders/{id}/enabled
 POST /api/knowledge-maintenance/runs/folders/{id}/delete
 ```
@@ -384,6 +386,8 @@ POST /api/knowledge-maintenance/runs/folders/{id}/delete
 ```
 
 入队成功返回 `KnowledgeFolderRunResponse`。如果同一 scope、同一 operation 已有 `QUEUED/RUNNING/CANCELLING` 任务，后端返回已有任务，避免重复入队。
+
+`repair-index` 只处理 `status=PARSED AND indexed_at IS NULL` 的文档，SQLite chunks 是事实来源；它不扫描文件系统、不重新解析 PDF，也不重建已经索引成功的文档。该接口主要用于 Embedding 供应商限流后补写少量缺失 Lucene 条目。全库补写使用 `POST /api/knowledge-maintenance/runs/repair-index`，目录补写使用 `POST /api/knowledge-maintenance/runs/folders/{id}/repair-index`。
 
 ### 查询队列
 
@@ -579,6 +583,9 @@ GET /api/model-configs/active
     "apiKey": "sk-...",
     "modelName": "text-embedding-v4",
     "embeddingDimensions": 1024,
+    "embeddingRequestsPerMinute": 300,
+    "embeddingTokensPerMinute": 300000,
+    "embeddingBatchSize": 16,
     "active": true
   }
 }
@@ -610,6 +617,9 @@ GET /api/model-configs/settings?role=EMBEDDING
       "displayName": "DashScope Embedding",
       "modelName": "text-embedding-v4",
       "embeddingDimensions": 1024,
+      "embeddingRequestsPerMinute": 300,
+      "embeddingTokensPerMinute": 300000,
+      "embeddingBatchSize": 16,
       "active": true
     }
   },
@@ -666,9 +676,22 @@ Embedding 请求体示例：
   "baseUrl": "http://127.0.0.1:11434/v1",
   "apiKey": "sk-...",
   "modelName": "text-embedding-v4",
-  "embeddingDimensions": 1024
+  "embeddingDimensions": 1024,
+  "embeddingRequestsPerMinute": 300,
+  "embeddingTokensPerMinute": 300000,
+  "embeddingBatchSize": 16
 }
 ```
+
+Embedding 限速字段说明：
+
+| 字段 | 含义 | 默认值 | 校验范围 |
+| --- | --- | ---: | --- |
+| `embeddingRequestsPerMinute` | 每分钟 Embedding 请求数，后端换算为最小请求间隔 | `300` | `1` 到 `10000` |
+| `embeddingTokensPerMinute` | 每分钟输入 token 估算上限，按 60 秒滚动窗口控制 | `300000` | `1000` 到 `10000000` |
+| `embeddingBatchSize` | 每批向量化的 chunk 数 | `16` | `1` 到 `128` |
+
+供应商返回 429、`rate limit`、`TPM limit` 或 `RPM limit` 时，维护任务会提示“供应商限流，已等待后重试；这不是文档解析失败。”并最多自动重试 5 次。连续限流后仍失败的文档保持 `indexed_at=NULL`，后续可通过补写索引接口继续处理。
 
 ### 更新配置
 

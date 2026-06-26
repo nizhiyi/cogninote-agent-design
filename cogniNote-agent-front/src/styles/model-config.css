@@ -301,6 +301,40 @@
   align-items: flex-start;
 }
 
+.embedding-rate-limit-title {
+  display: inline-flex;
+  min-width: 0;
+  gap: 8px;
+  align-items: center;
+}
+
+.embedding-rate-limit-help {
+  display: inline-flex;
+  min-width: 0;
+  gap: 4px;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  color: #8fb8ff;
+  background: transparent;
+  cursor: help;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.embedding-rate-limit-help svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+
+.embedding-rate-limit-help:hover,
+.embedding-rate-limit-help:focus-visible {
+  color: #bfdbfe;
+}
+
 .embedding-rate-limit-panel .field-heading small {
   max-width: 520px;
   color: #8fa1b5;
@@ -363,6 +397,34 @@
 
 .embedding-rate-limit-custom .el-input-number {
   width: 100%;
+}
+
+.embedding-rate-limit-popover {
+  max-width: min(380px, calc(100vw - 32px));
+}
+
+.embedding-rate-limit-notes {
+  display: grid;
+  gap: 8px;
+  color: #d7e2f0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.embedding-rate-limit-notes strong {
+  color: #f8fafc;
+  font-size: 13px;
+}
+
+.embedding-rate-limit-notes ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.embedding-rate-limit-notes li::marker {
+  color: #60a5fa;
 }
 
 .model-active-summary {

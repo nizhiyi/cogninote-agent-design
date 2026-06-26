@@ -14,6 +14,8 @@ CogniNote 第八阶段开始使用多模型配置中心。对话模型和 Embedd
 
 第 25 阶段后，知识图谱抽取也复用 active `CHAT` 配置。图谱重建会按 chunk 调用该模型抽取实体、关系和证据；抽取 Prompt 统一维护在 `src/main/resources/cogninote-prompts.yaml`，不新增单独的 `GRAPH_EXTRACTION` 模型角色。因此，active Chat 模型的 JSON 遵循能力会影响图谱质量和缓存命中后的复用价值。
 
+当前 Embedding 配置还包含模型级请求限速：`embeddingRequestsPerMinute`、`embeddingTokensPerMinute` 和 `embeddingBatchSize`。这些字段使用供应商控制台最常见的 RPM/TPM 口径，后端运行时再换算为请求间隔和 60 秒滚动 TPM 窗口。它们的目的不是精确计费，而是减少供应商 429、TPM limit 或 RPM limit。
+
 ## Provider 类型
 
 ### DashScope
@@ -58,7 +60,7 @@ OpenAI-compatible 的 Embedding 继续使用 Spring AI OpenAI runtime 的标准 
 | 类型 | 用途 | 主要字段 |
 | --- | --- | --- |
 | `CHAT` | RAG 流式回答、连接测试、聊天上下文预算 | 模型 ID、Temperature、默认 Top K、上下文窗口 |
-| `EMBEDDING` | 文档向量化、向量检索、混合检索 | 模型 ID、Embedding 维度 |
+| `EMBEDDING` | 文档向量化、向量检索、混合检索 | 模型 ID、Embedding 维度、RPM、TPM、Batch |
 
 每个类型可以保存多条配置，但同一时间只有一条 active 配置。激活 Chat 配置不会覆盖 Embedding 配置，反之亦然。
 
@@ -75,17 +77,30 @@ OpenAI-compatible 的 Embedding 继续使用 Spring AI OpenAI runtime 的标准 
 | Embedding | Provider | `DASHSCOPE` |
 | Embedding | 模型 | `text-embedding-v4` |
 | Embedding | 维度 | `1024` |
+| Embedding | 请求限速 | `300 RPM / 300000 TPM / batch 16` |
 | Embedding | 上下文窗口 | `null`（不适用） |
+
+Embedding 请求限速预设：
+
+| 档位 | RPM | TPM | Batch | 适用场景 |
+| --- | ---: | ---: | ---: | --- |
+| 保守 | `60` | `100000` | `8` | 免费、试用或不确定配额的账号 |
+| 标准 | `300` | `300000` | `16` | 默认档位，适合多数 OpenAI-compatible、百炼、GLM 等通用供应商配置 |
+| 快速 | `1000` | `800000` | `32` | 明确知道账号配额较高，且需要更快索引 |
+| 自定义 | 用户填写 | 用户填写 | 用户填写 | 按供应商控制台额度填写，例如硅基流动高配可填 `3000 RPM / 1000000 TPM / batch 32-64` |
+
+后端校验范围：RPM `1` 到 `10000`，TPM `1000` 到 `10000000`，Batch `1` 到 `128`。Batch 越大越省 RPM，但单次输入 token 更多，仍受 TPM 和供应商单请求限制约束；如果供应商明确限制单次 batch 或输入长度，应按供应商控制台和文档下调。
 
 ## 配置流程
 
 1. 打开“设置”页，切换到“模型”区域。
 2. 在“对话模型”或“Embedding 模型”之间切换。
 3. 点击“新建配置”，填写 Provider、Base URL、API Key 和模型 ID。
-4. 点开“模型 ID”下拉框获取候选模型；如果服务商模型列表为空或不完整，可直接手动输入模型 ID。
-5. 点击“测试连接”验证当前配置草稿。
-6. 保存配置。
-7. 在配置列表中点击“设为启用”让该配置成为当前类型的 active 配置。
+4. 配置 Embedding 模型时，在“请求限速”里选择保守、标准、快速或自定义，并按供应商控制台配额填写 RPM、TPM 和 Batch。
+5. 点开“模型 ID”下拉框获取候选模型；如果服务商模型列表为空或不完整，可直接手动输入模型 ID。
+6. 点击“测试连接”验证当前配置草稿。
+7. 保存配置。
+8. 在配置列表中点击“设为启用”让该配置成为当前类型的 active 配置。
 
 ## 模型 ID 选择与模型列表
 
@@ -115,7 +130,7 @@ OpenAI-compatible 的 Embedding 继续使用 Spring AI OpenAI runtime 的标准 
 
 该策略是全局知识库设置，不跟随单个 Chat 配置保存。它只影响知识库检索 query，不会修改聊天记录中的用户原文，也不会影响纯模型对话。保存策略时前端调用 `PUT /api/chat/settings` 写入 SQLite，刷新页面后通过 `GET /api/chat/settings` 回显。
 
-启用向量配置，或保存已启用的向量配置时，如果 Provider、Base URL、模型 ID 或向量维度发生变化，需要在知识库中手动重建索引。系统不会自动重建旧向量，避免用户不知情地产生大量外部模型调用。只修改配置名称、API Key，或保存时这些索引相关字段没有变化，不会弹出重建索引提示。第 20 阶段调整了中文 Analyzer、代码块索引文本和混合检索融合方式，升级后也需要重建 Lucene 索引；如果旧 chunks 已经丢失代码缩进，需要重新导入原始文件才能恢复代码格式。
+启用向量配置，或保存已启用的向量配置时，如果 Provider、Base URL、模型 ID 或向量维度发生变化，需要在知识库中手动重建索引。系统不会自动重建旧向量，避免用户不知情地产生大量外部模型调用。只修改配置名称、API Key、RPM、TPM 或 Batch，或保存时这些索引相关字段没有变化，不会弹出重建索引提示。第 20 阶段调整了中文 Analyzer、代码块索引文本和混合检索融合方式，升级后也需要重建 Lucene 索引；如果旧 chunks 已经丢失代码缩进，需要重新导入原始文件才能恢复代码格式。
 
 ## 前端回显规则
 
@@ -141,7 +156,7 @@ OpenAI-compatible 的 Embedding 继续使用 Spring AI OpenAI runtime 的标准 
 
 保存配置时，如果 API Key 留空，后端会复用该配置已保存的 key。这样用户只改模型名、Base URL、temperature、Top K 或维度时，不需要重新输入密钥。
 
-保存 Chat 配置时，如果上下文窗口留空，后端会回退默认 `128000`。保存 Embedding 配置时，后端会忽略上下文窗口并保存为 `null`。
+保存 Chat 配置时，如果上下文窗口留空，后端会回退默认 `128000`。保存 Embedding 配置时，后端会忽略上下文窗口并保存为 `null`；RPM、TPM 和 Batch 留空时分别回退 `300`、`300000` 和 `16`。
 
 追问补全策略的环境变量兜底为 `COGNINOTE_QUERY_CONTEXTUALIZER_MODE`，合法值为 `AUTO`、`ALWAYS`、`OFF`。旧变量 `COGNINOTE_QUERY_CONTEXTUALIZER_ENABLED=false` 仍兼容为 `OFF`，但只在没有 SQLite 用户设置且没有 mode 配置时生效。
 
@@ -175,3 +190,13 @@ $env:COGNINOTE_EMBEDDING_MODEL="text-embedding-v4"
 ### Embedding 不可用
 
 Embedding 不可用会影响向量索引、向量检索和混合检索。RAG 对话在 `HYBRID` 或 `VECTOR` 失败时会尝试降级到 `KEYWORD`，并在 SSE `meta.retrievalMode` 中返回实际检索模式。
+
+### Embedding 供应商限流
+
+维护任务中出现 `供应商限流，已等待后重试；这不是文档解析失败。` 表示 PDF 或文档解析已经成功，但 Embedding 服务返回了 429、rate limit、TPM limit 或 RPM limit。后端会最多重试 5 次，使用指数退避和 jitter；如果仍失败，文档保持 `indexed_at=NULL`，健康页会继续显示“补写索引”。
+
+处理方式：
+
+- 先在“设置 -> 模型 -> 向量模型 -> 请求限速”按供应商控制台配额调低 RPM、TPM 或 Batch。
+- 再在知识库健康抽屉或目录管理中点击“补写索引”。补写只处理已解析但未索引的文档，不重新解析 PDF，也不重建已索引文档。
+- 高配账号可以选择“自定义”，例如把硅基流动这类高额度账号设置为 `3000 RPM / 1000000 TPM`，Batch 按供应商单请求限制和实际稳定性在 `32` 到 `64` 之间调整。

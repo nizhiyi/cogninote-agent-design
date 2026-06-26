@@ -1,6 +1,6 @@
 # 第 31 阶段计划：知识库健康诊断与维护闭环
 
-> 当前实现已在第 33 阶段把 `knowledge_folder_runs` 升级为维护任务队列与历史记录的统一事实源。本文保留第 31 阶段的原始设计背景；查看当前队列、SSE 和取消规则请以 [第 33 阶段维护队列计划](phase-33-knowledge-maintenance-queue-plan.md) 为准。
+> 当前实现已在第 33 阶段把 `knowledge_folder_runs` 升级为维护任务队列与历史记录的统一事实源，并在后续补齐 `REPAIR_INDEX` 补写索引动作。本文保留第 31 阶段的原始设计背景；查看当前队列、SSE、取消规则和补写索引接口请以 [第 33 阶段维护队列计划](phase-33-knowledge-maintenance-queue-plan.md) 与 [API 参考](api-reference.md) 为准。
 
 ## Summary
 
@@ -106,7 +106,7 @@
 | `FOLDER_NOT_FOUND` | `ERROR` | `folder_path` 当前不是可读目录。 | 重新选择目录或删除目录记录。 |
 | `NO_DOCUMENTS` | `WARNING` | 目录启用但没有文档。 | 检查目录或递归开关。 |
 | `PARSE_FAILED` | `WARNING` | 存在 `status=FAILED` 文档。 | 查看失败文件、修复源文件后同步。 |
-| `UNINDEXED_DOCUMENTS` | `ERROR` | 存在 `status=PARSED AND indexed_at IS NULL`。 | 重建索引或同步目录。 |
+| `UNINDEXED_DOCUMENTS` | `ERROR` | 存在 `status=PARSED AND indexed_at IS NULL`。 | 补写索引；如果 Lucene 结构整体损坏，再重建索引。 |
 | `STALE_LOCAL_FILES` | `WARNING` | 记录的 file size / mtime 与当前文件不同。 | 同步目录。 |
 | `MISSING_LOCAL_FILES` | `WARNING` | documents 中的 source_path 不存在。 | 同步目录清理应用内记录。 |
 | `DISABLED_FOLDER` | `INFO` | 目录 `enabled=false`。 | 仅展示状态；不进入问题数量或全库告警。 |
@@ -158,7 +158,7 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_folder_runs_operation
 | --- | --- |
 | `scope_type` | `ALL`、`KNOWLEDGE_FOLDER` 或 `UNASSIGNED`。 |
 | `scope_id` | 目录 ID；全库或未归属文档可为空。 |
-| `operation` | `IMPORT`、`SYNC`、`REBUILD_INDEX`、`ENABLE`、`DISABLE`、`DELETE`。 |
+| `operation` | 当前实现支持 `IMPORT`、`SYNC`、`REPAIR_INDEX`、`REBUILD_INDEX`、`ENABLE`、`DISABLE`、`DELETE`。第 31 阶段原始设计只有完成后记录，后续阶段已升级为队列操作。 |
 | `status` | `COMPLETED`、`COMPLETED_WITH_WARNINGS`、`FAILED`。 |
 | `failures_json` | 复用 `IngestFailureResponse` 形状，保留最近一次失败摘要。 |
 
@@ -236,7 +236,7 @@ GET /api/knowledge-health
       "code": "UNINDEXED_DOCUMENTS",
       "severity": "ERROR",
       "message": "有 3 个已解析文档尚未进入索引，搜索和 RAG 可能缺失内容。",
-      "action": "REBUILD_INDEX",
+      "action": "REPAIR_INDEX",
       "scopeType": "ALL",
       "scopeId": null,
       "count": 3
@@ -356,7 +356,7 @@ GET /api/knowledge-health/runs?scopeType=KNOWLEDGE_FOLDER&scopeId=folder-id&limi
 | 问题 | 主按钮 | 次按钮 |
 | --- | --- | --- |
 | `PARSE_FAILED` | 同步目录 | 复制失败文件路径 |
-| `UNINDEXED_DOCUMENTS` | 重建目录索引 | 重建全部索引 |
+| `UNINDEXED_DOCUMENTS` | 补写索引 | 重建全部索引 |
 | `FOLDER_NOT_FOUND` | 删除目录记录 | 复制目录路径 |
 | `STALE_LOCAL_FILES` | 同步目录 | 查看变化文件 |
 | `MISSING_LOCAL_FILES` | 同步目录 | 查看缺失文件 |
@@ -378,7 +378,7 @@ GET /api/knowledge-health/runs?scopeType=KNOWLEDGE_FOLDER&scopeId=folder-id&limi
 
 - 新增 `knowledge_folder_runs` 表和 Mapper。
 - 在 `KnowledgeFolderService.importFolder/syncFolder/rebuildFolder/setEnabled/deleteFolder` 写入运行记录。
-- 在 `IndexService.rebuild` 写入全库 `REBUILD_INDEX` 记录。
+- 在 `IndexService.rebuild` 写入全库 `REBUILD_INDEX` 记录；后续实现已新增 `REPAIR_INDEX`，用于只补 `PARSED AND indexed_at IS NULL` 文档。
 - 增加 Repository 测试覆盖运行记录写入和查询。
 
 ### Step 2：健康快照 API
@@ -416,7 +416,7 @@ GET /api/knowledge-health/runs?scopeType=KNOWLEDGE_FOLDER&scopeId=folder-id&limi
 - 空知识库返回 `EMPTY`。
 - 全部文档解析并索引成功时返回 `HEALTHY`。
 - 存在 `FAILED` 文档时返回 `WARNING` 和 `PARSE_FAILED` issue。
-- 存在 `PARSED AND indexed_at IS NULL` 时返回 `ERROR` 和 `UNINDEXED_DOCUMENTS` issue。
+- 存在 `PARSED AND indexed_at IS NULL` 时返回 `ERROR` 和 `UNINDEXED_DOCUMENTS` issue，建议动作是 `REPAIR_INDEX`。
 - 目录路径不存在时返回 `FOLDER_NOT_FOUND`。
 - 文档源文件不存在时返回 `MISSING_LOCAL_FILES`。
 - 文档 file size 或 mtime 与记录不一致时返回 `STALE_LOCAL_FILES`。

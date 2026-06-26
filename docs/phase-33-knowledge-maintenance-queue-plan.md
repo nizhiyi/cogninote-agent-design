@@ -7,7 +7,7 @@
 - 新增 `KnowledgeMaintenanceQueueService`，统一入队、串行调度、执行、失败收敛和应用启动清理。
 - `knowledge_folder_runs.status` 扩展为 `QUEUED`、`RUNNING`、`CANCELLING`、`CANCELLED`、`COMPLETED`、`COMPLETED_WITH_WARNINGS`、`FAILED`。
 - `knowledge_folder_runs` 新增 `phase`、`progress_current`、`progress_total`、`current_item`、`queued_at`、`updated_at`，并允许 `started_at`、`completed_at`、`duration_ms` 为空。
-- 导入目录、同步目录、重建目录索引、重建全部索引、启用、停用和删除目录全部接入维护队列。
+- 导入目录、同步目录、补写缺失索引、重建目录索引、重建全部索引、启用、停用和删除目录全部接入维护队列。
 - 新增 `/api/knowledge-maintenance/runs/**` 维护任务 API，并使用 SSE 推送任务和队列状态。
 - 前端新增 `knowledge-maintenance` Pinia store，作为维护任务唯一状态源。
 - 维护动作执行完成后统一刷新维护队列、目录列表、健康快照和索引状态，避免可信状态页与资料管理页数据分叉。
@@ -30,9 +30,11 @@
 
 ```text
 POST /api/knowledge-maintenance/runs/rebuild-index
+POST /api/knowledge-maintenance/runs/repair-index
 POST /api/knowledge-maintenance/runs/import-folder
 POST /api/knowledge-maintenance/runs/folders/{id}/sync
 POST /api/knowledge-maintenance/runs/folders/{id}/rebuild
+POST /api/knowledge-maintenance/runs/folders/{id}/repair-index
 POST /api/knowledge-maintenance/runs/folders/{id}/enabled
 POST /api/knowledge-maintenance/runs/folders/{id}/delete
 GET  /api/knowledge-maintenance/runs/queue
@@ -57,6 +59,8 @@ maintenance-queue-updated
 
 `GET /api/knowledge-health` 增加 `currentRuns`、`queuedRuns`、`latestRun`，并在 `summary` 中返回 `runningRunCount` 和 `queuedRunCount`。`GET /api/knowledge-health/runs/page` 为维护记录弹窗提供分页数据，旧 `/runs` 列表接口保留兼容。
 
+`REPAIR_INDEX` 与 `REBUILD_INDEX` 的边界不同：`REPAIR_INDEX` 只读取 SQLite 中 `PARSED` 且 `indexed_at IS NULL` 的文档和 chunks，补写缺失 Lucene 条目，不扫描文件系统、不重新解析 PDF、不重复处理已索引文档；`REBUILD_INDEX` 会重建对应范围的 Lucene 索引。Embedding 供应商限流导致少量文档未索引时，应优先使用 `REPAIR_INDEX`。
+
 ## 前端设计
 
 可信状态页展示“维护队列”：当前运行任务置顶，等待任务按队列顺序展示。等待任务可取消；运行任务不提供取消入口，只展示运行中状态、阶段、当前目录或路径，以及长任务提示。
@@ -68,9 +72,9 @@ maintenance-queue-updated
 - 健康快照和已打开的目录健康详情；
 - Lucene 索引状态。
 
-导入目录、重建全部索引、同步目录、重建目录索引、停用目录和删除目录都会先显示结构化二次确认弹窗。确认内容按摘要、影响、目录路径分段展示；删除确认明确说明只删除应用内目录、文档、chunks、索引、图谱派生数据和维护记录，不删除本地原始文件。
+导入目录、补写索引、重建全部索引、同步目录、重建目录索引、停用目录和删除目录都会先显示结构化二次确认弹窗。确认内容按摘要、影响、目录路径分段展示；删除确认明确说明只删除应用内目录、文档、chunks、索引、图谱派生数据和维护记录，不删除本地原始文件。
 
-导入目录、重建全部索引和重建目录索引完成后，会进入需要用户确认的完成提示队列。完成提示按任务逐条展示扫描、解析、跳过、失败、索引文档和索引 chunk 等结果；用户点击“知道了”或“查看维护记录”后才关闭当前提示。若 SSE 终态事件丢失，前端会通过 `GET /api/knowledge-maintenance/runs/{runId}` 兜底查询被跟踪任务的终态。
+导入目录、补写索引、重建全部索引和重建目录索引完成后，会进入需要用户确认的完成提示队列。完成提示按任务逐条展示扫描、解析、跳过、失败、索引文档和索引 chunk 等结果；用户点击“知道了”或“查看维护记录”后才关闭当前提示。若 SSE 终态事件丢失，前端会通过 `GET /api/knowledge-maintenance/runs/{runId}` 兜底查询被跟踪任务的终态。
 
 维护记录不再堆在页面下方，而是通过“查看维护记录”弹窗分页加载。这样可信状态首页保持可扫读，历史数据按需查询。
 
@@ -84,9 +88,9 @@ maintenance-queue-updated
 - 当前任务完成后，下一条等待任务自动开始。
 - `QUEUED` 任务可以取消并变为 `CANCELLED`；`RUNNING` 任务取消接口返回业务错误。
 - 任务失败后写入 `FAILED` 和 `errorMessage`，队列继续执行下一条。
+- `REPAIR_INDEX` 只补 `indexed_at IS NULL` 的已解析文档，已索引文档不重复处理。
 - 应用重启后遗留 `QUEUED` 被取消，遗留 `RUNNING/CANCELLING` 被标记失败。
 - SSE 能收到任务快照、开始、进度、终态和队列变化事件。
 - 删除目录后，该目录 scope 下没有维护记录残留，本地原始文件不受影响。
 - 前端任务完成后自动刷新可信状态、资料总览、目录列表和索引状态。
 - 维护记录弹窗能分页查询历史记录。
-

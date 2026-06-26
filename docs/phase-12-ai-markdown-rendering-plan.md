@@ -16,6 +16,7 @@
 - 渲染器使用流式友好配置：`max-live-nodes=0`、`batch-rendering=true`、`typewriter=true`、`fade=false`、`smooth-streaming=true`。
 - `chat-view.vue` 将 assistant 消息从旧 `markdown-renderer.vue` 切到新组件；user/error/stopped 状态保持原逻辑。
 - 新增 `ai-markdown.css`，只覆盖聊天消息里的 markstream 容器，保证表格、代码块和长文本不会撑破气泡。
+- 表格样式保持 table 自身宽度，不再给 table 设置 `display: block`；横向滚动由 Markdown 容器承载，避免窄表格被撑满整行，同时保留宽表格在消息气泡内滚动。
 - `markstream-vue` 通过 `defineAsyncComponent` 按需加载，避免设置页和空对话首屏被重型 Markdown 渲染器拖慢。
 - `SpringAiChatRuntime` 只过滤 `null` 和空字符串，不再过滤空格、换行等 `isBlank()` chunk；这些空白可能是 Markdown 标题、列表、缩进和代码块语法的一部分。
 - `chat-stream.js` 的 SSE parser 保留 `data:` 内容里的前导空白，只移除协议允许的一个分隔空格，避免 `### 标题`、`- 列表项` 等格式在流式拼接后变成非法 Markdown。

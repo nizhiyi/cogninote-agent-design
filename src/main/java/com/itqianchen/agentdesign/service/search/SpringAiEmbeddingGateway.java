@@ -323,7 +323,9 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
             int tokenCost = Math.min(estimateTokens(texts), settings.tokensPerMinute());
             while (true) {
                 long now = System.currentTimeMillis();
-                evictExpired(now);
+                if (evictExpired(now)) {
+                    notifyAll();
+                }
                 long rpmWaitMs = Math.max(0L, minRequestIntervalMs(settings.requestsPerMinute()) - (now - lastRequestAt));
                 long tpmWaitMs = tokenWindowSum + tokenCost <= settings.tokensPerMinute()
                         ? 0L
@@ -344,10 +346,13 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
             }
         }
 
-        private void evictExpired(long now) {
+        private boolean evictExpired(long now) {
+            boolean evicted = false;
             while (!tokenWindow.isEmpty() && now - tokenWindow.peekFirst().timestampMs() >= RATE_WINDOW_MS) {
                 tokenWindowSum -= tokenWindow.removeFirst().tokens();
+                evicted = true;
             }
+            return evicted;
         }
 
         private static long minRequestIntervalMs(int requestsPerMinute) {
