@@ -31,6 +31,7 @@
   font-size: 15px;
   line-height: 1.78;
   white-space: normal;
+  overflow-x: auto;
   overflow-wrap: anywhere;
 }
 
@@ -277,9 +278,8 @@
 }
 
 .ai-markdown-content table {
-  display: block;
+  width: max-content;
   max-width: 100%;
-  overflow-x: auto;
   border-collapse: collapse;
 }
 

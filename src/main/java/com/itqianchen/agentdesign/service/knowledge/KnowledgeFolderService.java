@@ -241,6 +241,32 @@ public class KnowledgeFolderService {
     }
 
     /**
+     * 只补写目录中已解析但尚未进入 Lucene 的文档。
+     *
+     * <p>该动作不扫描文件系统、不重新解析 PDF，专门用于供应商限流后从 SQLite chunks 恢复缺失索引。</p>
+     *
+     * @param id 知识库目录 ID
+     * @return 补写索引统计
+     */
+    public RebuildIndexResponse repairFolderIndex(String id) {
+        KnowledgeFolder folder = requireFolder(id);
+        if (!folder.enabled()) {
+            throw new DocumentParseException("Knowledge folder is disabled: " + folder.displayName());
+        }
+
+        RebuildIndexResponse response = knowledgeStore.rebuildByDocumentIds(
+                documentRepository.findUnindexedParsedDocumentsForIndexingByKnowledgeFolderId(folder.id())
+        );
+        markFolderIndexedIfAllParsedDocumentsIndexed(folder.id(), System.currentTimeMillis());
+        log.info("knowledge_folder_index_repaired folderId={} indexedDocuments={} failedDocuments={}",
+                folder.id(),
+                response.indexedDocumentCount(),
+                response.failedDocumentCount()
+        );
+        return response;
+    }
+
+    /**
      * 切换目录检索可见性。
      *
      * <p>启用时从 SQLite chunks 重建 Lucene，停用时只清索引并保留文档记录。</p>

@@ -72,6 +72,7 @@ const completionMetrics = computed(() => buildCompletionMetrics(completionRun.va
 const RUN_OPERATION_LABELS = {
   IMPORT: '导入目录',
   REBUILD_INDEX: '重建索引',
+  REPAIR_INDEX: '补写索引',
   SYNC: '同步目录',
   ENABLE: '启用目录',
   DISABLE: '停用目录',
@@ -102,8 +103,14 @@ function completionOperationLabel(run) {
   if (run.operation === 'REBUILD_INDEX' && run.scopeType === 'ALL') {
     return '重建全部索引'
   }
+  if (run.operation === 'REPAIR_INDEX' && run.scopeType === 'ALL') {
+    return '补写全部索引'
+  }
   if (run.operation === 'REBUILD_INDEX') {
     return '重建目录索引'
+  }
+  if (run.operation === 'REPAIR_INDEX') {
+    return '补写目录索引'
   }
   return RUN_OPERATION_LABELS[run.operation] || run.operation || '维护任务'
 }
@@ -160,7 +167,7 @@ function buildCompletionMetrics(run) {
       { label: '跳过', value: run.skippedCount || 0 },
       { label: '失败', value: (run.failedCount || 0) + (run.failedDocumentCount || 0), tone: hasRunFailure(run) ? 'error' : 'default' }
     )
-  } else if (run.operation === 'REBUILD_INDEX') {
+  } else if (run.operation === 'REBUILD_INDEX' || run.operation === 'REPAIR_INDEX') {
     if (run.scannedCount != null && run.scopeType !== 'ALL') {
       metrics.push({ label: '扫描', value: run.scannedCount || 0 })
     }

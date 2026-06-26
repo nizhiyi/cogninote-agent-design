@@ -389,6 +389,64 @@ function normalizeInitialRole(role) {
             <small class="field-hint">当前 Lucene 向量索引固定使用 1024 维。</small>
           </label>
 
+          <section
+            v-if="modelConfigStore.activeRole === modelConfigStore.ROLES.EMBEDDING"
+            class="embedding-rate-limit-panel field--full"
+          >
+            <div class="field-heading">
+              <span>请求限速</span>
+              <small>请按供应商控制台配额填写；限流不是程序 bug，系统会自动退避重试。</small>
+            </div>
+            <div class="embedding-rate-limit-presets" aria-label="向量模型请求限速档位">
+              <button
+                v-for="preset in modelConfigStore.embeddingRateLimitPresets"
+                :key="preset.value"
+                class="embedding-rate-limit-preset"
+                :class="{ active: modelConfigStore.form.embeddingRateLimitPreset === preset.value }"
+                type="button"
+                @click="modelConfigStore.setEmbeddingRateLimitPreset(preset.value)"
+              >
+                <strong>{{ preset.label }}</strong>
+                <span v-if="preset.value !== 'custom'">
+                  {{ preset.requestsPerMinute }} RPM · {{ preset.tokensPerMinute }} TPM · batch {{ preset.batchSize }}
+                </span>
+              </button>
+            </div>
+            <div
+              v-if="modelConfigStore.form.embeddingRateLimitPreset === 'custom'"
+              class="embedding-rate-limit-custom"
+            >
+              <label class="field">
+                <span>每分钟请求数</span>
+                <el-input-number
+                  v-model="modelConfigStore.form.embeddingRequestsPerMinute"
+                  :min="1"
+                  :max="10000"
+                  controls-position="right"
+                />
+              </label>
+              <label class="field">
+                <span>每分钟 Token 数</span>
+                <el-input-number
+                  v-model="modelConfigStore.form.embeddingTokensPerMinute"
+                  :min="1000"
+                  :max="10000000"
+                  :step="1000"
+                  controls-position="right"
+                />
+              </label>
+              <label class="field">
+                <span>每批 chunk 数</span>
+                <el-input-number
+                  v-model="modelConfigStore.form.embeddingBatchSize"
+                  :min="1"
+                  :max="128"
+                  controls-position="right"
+                />
+              </label>
+            </div>
+          </section>
+
           <label v-if="modelConfigStore.activeRole === modelConfigStore.ROLES.CHAT" class="field">
             <span>Temperature</span>
             <el-input-number v-model="modelConfigStore.form.temperature" :min="0" :max="2" :step="0.1" controls-position="right" />

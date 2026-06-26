@@ -9,12 +9,20 @@ export function enqueueRebuildIndex() {
   return requestJson('/api/knowledge-maintenance/runs/rebuild-index', jsonOptions('POST', {}))
 }
 
+export function enqueueRepairIndex() {
+  return requestJson('/api/knowledge-maintenance/runs/repair-index', jsonOptions('POST', {}))
+}
+
 export function enqueueSyncFolder(id) {
   return requestJson(`/api/knowledge-maintenance/runs/folders/${encodeURIComponent(id)}/sync`, jsonOptions('POST', {}))
 }
 
 export function enqueueRebuildFolder(id) {
   return requestJson(`/api/knowledge-maintenance/runs/folders/${encodeURIComponent(id)}/rebuild`, jsonOptions('POST', {}))
+}
+
+export function enqueueRepairFolderIndex(id) {
+  return requestJson(`/api/knowledge-maintenance/runs/folders/${encodeURIComponent(id)}/repair-index`, jsonOptions('POST', {}))
 }
 
 export function enqueueFolderEnabled(id, enabled) {

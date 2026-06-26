@@ -1,5 +1,6 @@
 package com.itqianchen.agentdesign.domain.properties.search;
 
+import com.itqianchen.agentdesign.domain.support.model.ModelConfigDefaults;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -10,7 +11,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "app.embedding")
 public record EmbeddingProperties(
         int dimensions,
-        int batchSize
+        int batchSize,
+        int requestsPerMinute,
+        int tokensPerMinute
 ) {
     /**
      * 返回安全范围内的 embedding 批量大小。
@@ -18,7 +21,44 @@ public record EmbeddingProperties(
      * @return 夹紧到 1 到 128 之间的批量大小
      */
     public int normalizedBatchSize() {
-        return Math.clamp(batchSize, 1, 128);
+        int value = batchSize <= 0 ? ModelConfigDefaults.EMBEDDING_BATCH_SIZE : batchSize;
+        return Math.clamp(
+                value,
+                ModelConfigDefaults.MIN_EMBEDDING_BATCH_SIZE,
+                ModelConfigDefaults.MAX_EMBEDDING_BATCH_SIZE
+        );
+    }
+
+    /**
+     * 返回安全范围内的每分钟请求数。
+     *
+     * @return 夹紧后的 RPM
+     */
+    public int normalizedRequestsPerMinute() {
+        int value = requestsPerMinute <= 0
+                ? ModelConfigDefaults.EMBEDDING_REQUESTS_PER_MINUTE
+                : requestsPerMinute;
+        return Math.clamp(
+                value,
+                ModelConfigDefaults.MIN_EMBEDDING_REQUESTS_PER_MINUTE,
+                ModelConfigDefaults.MAX_EMBEDDING_REQUESTS_PER_MINUTE
+        );
+    }
+
+    /**
+     * 返回安全范围内的每分钟输入 token 数。
+     *
+     * @return 夹紧后的 TPM
+     */
+    public int normalizedTokensPerMinute() {
+        int value = tokensPerMinute <= 0
+                ? ModelConfigDefaults.EMBEDDING_TOKENS_PER_MINUTE
+                : tokensPerMinute;
+        return Math.clamp(
+                value,
+                ModelConfigDefaults.MIN_EMBEDDING_TOKENS_PER_MINUTE,
+                ModelConfigDefaults.MAX_EMBEDDING_TOKENS_PER_MINUTE
+        );
     }
 }
 

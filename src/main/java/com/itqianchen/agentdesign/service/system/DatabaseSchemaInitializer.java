@@ -3,9 +3,9 @@ package com.itqianchen.agentdesign.service.system;
 
 import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
 import com.itqianchen.agentdesign.domain.support.model.ModelConfigDefaults;
-import com.itqianchen.agentdesign.domain.support.model.ModelConfigDefaults;
-import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
 import com.itqianchen.agentdesign.mapper.schema.DatabaseSchemaMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.core.Ordered;
@@ -18,6 +18,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class DatabaseSchemaInitializer implements ApplicationListener<ApplicationReadyEvent>, Ordered {
+
+    private static final Logger log = LoggerFactory.getLogger(DatabaseSchemaInitializer.class);
 
     private final DatabaseSchemaMapper databaseSchemaMapper;
 
@@ -59,6 +61,7 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
         databaseSchemaMapper.createDocumentsTable();
         databaseSchemaMapper.createChunksTable();
         databaseSchemaMapper.createModelConfigsTable();
+        migrateModelConfigEmbeddingRateLimitColumns();
         databaseSchemaMapper.createChatSessionsTable();
         databaseSchemaMapper.createChatMessagesTable();
         databaseSchemaMapper.createAppSettingsTable();
@@ -110,6 +113,9 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
                 "",
                 ModelConfigDefaults.CHAT_MODEL,
                 null,
+                null,
+                null,
+                null,
                 ModelConfigDefaults.TEMPERATURE,
                 ModelConfigDefaults.TOP_K,
                 ModelConfigDefaults.CONTEXT_WINDOW_TOKENS,
@@ -125,6 +131,9 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
                 "",
                 ModelConfigDefaults.EMBEDDING_MODEL,
                 ModelConfigDefaults.EMBEDDING_DIMENSIONS,
+                ModelConfigDefaults.EMBEDDING_REQUESTS_PER_MINUTE,
+                ModelConfigDefaults.EMBEDDING_TOKENS_PER_MINUTE,
+                ModelConfigDefaults.EMBEDDING_BATCH_SIZE,
                 null,
                 null,
                 null,
@@ -144,6 +153,9 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
      * @param apiKey API Key
      * @param modelName 模型名称
      * @param embeddingDimensions 向量维度
+     * @param embeddingRequestsPerMinute 向量请求 RPM
+     * @param embeddingTokensPerMinute 向量输入 TPM
+     * @param embeddingBatchSize 向量批量大小
      * @param temperature 温度
      * @param defaultTopK 默认 topK
      * @param contextWindowTokens 上下文窗口 token
@@ -159,6 +171,9 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
             String apiKey,
             String modelName,
             Integer embeddingDimensions,
+            Integer embeddingRequestsPerMinute,
+            Integer embeddingTokensPerMinute,
+            Integer embeddingBatchSize,
             Double temperature,
             Integer defaultTopK,
             Integer contextWindowTokens,
@@ -174,11 +189,42 @@ public class DatabaseSchemaInitializer implements ApplicationListener<Applicatio
                 apiKey,
                 modelName,
                 embeddingDimensions,
+                embeddingRequestsPerMinute,
+                embeddingTokensPerMinute,
+                embeddingBatchSize,
                 temperature,
                 defaultTopK,
                 contextWindowTokens,
                 createdAt,
                 updatedAt
         );
+    }
+
+    /**
+     * 为已有本地库补齐 Embedding 限速字段。
+     *
+     * <p>SQLite 发行版本对 ADD COLUMN IF NOT EXISTS 支持不完全一致，因此用幂等 DDL +
+     * duplicate column 容错，保证旧用户启动时不会因为字段已存在而失败。</p>
+     */
+    private void migrateModelConfigEmbeddingRateLimitColumns() {
+        addOptionalColumn("model_configs.embedding_requests_per_minute",
+                databaseSchemaMapper::addModelConfigEmbeddingRequestsPerMinuteColumn);
+        addOptionalColumn("model_configs.embedding_tokens_per_minute",
+                databaseSchemaMapper::addModelConfigEmbeddingTokensPerMinuteColumn);
+        addOptionalColumn("model_configs.embedding_batch_size",
+                databaseSchemaMapper::addModelConfigEmbeddingBatchSizeColumn);
+    }
+
+    private void addOptionalColumn(String column, Runnable migration) {
+        try {
+            migration.run();
+        } catch (RuntimeException ex) {
+            String message = ex.getMessage() == null ? "" : ex.getMessage().toLowerCase();
+            if (message.contains("duplicate column")) {
+                log.debug("database_optional_column_exists column={}", column);
+                return;
+            }
+            throw ex;
+        }
     }
 }

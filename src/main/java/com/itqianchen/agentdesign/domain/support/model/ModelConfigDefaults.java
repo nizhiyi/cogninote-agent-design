@@ -24,6 +24,15 @@ public final class ModelConfigDefaults {
     public static final String CHAT_MODEL = "qwen-plus";
     public static final String EMBEDDING_MODEL = "text-embedding-v4";
     public static final int EMBEDDING_DIMENSIONS = 1024;
+    public static final int EMBEDDING_REQUESTS_PER_MINUTE = 300;
+    public static final int EMBEDDING_TOKENS_PER_MINUTE = 300_000;
+    public static final int EMBEDDING_BATCH_SIZE = 16;
+    public static final int MIN_EMBEDDING_REQUESTS_PER_MINUTE = 1;
+    public static final int MAX_EMBEDDING_REQUESTS_PER_MINUTE = 10_000;
+    public static final int MIN_EMBEDDING_TOKENS_PER_MINUTE = 1_000;
+    public static final int MAX_EMBEDDING_TOKENS_PER_MINUTE = 10_000_000;
+    public static final int MIN_EMBEDDING_BATCH_SIZE = 1;
+    public static final int MAX_EMBEDDING_BATCH_SIZE = 128;
     public static final double TEMPERATURE = 0.7;
     public static final int TOP_K = 8;
     public static final int CONTEXT_WINDOW_TOKENS = 128_000;

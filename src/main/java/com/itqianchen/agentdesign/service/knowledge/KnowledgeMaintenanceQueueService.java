@@ -50,6 +50,7 @@ public class KnowledgeMaintenanceQueueService implements ApplicationListener<App
     private final IndexService indexService;
     private final KnowledgeFolderRunService runService;
     private final KnowledgeMaintenanceRunPublisher publisher;
+    private final KnowledgeMaintenanceProgressReporter progressReporter;
     private final DocumentIdentity documentIdentity;
     private final TaskExecutor taskExecutor;
     private final Map<String, MaintenanceTaskRequest> taskRequests = new ConcurrentHashMap<>();
@@ -61,6 +62,7 @@ public class KnowledgeMaintenanceQueueService implements ApplicationListener<App
             IndexService indexService,
             KnowledgeFolderRunService runService,
             KnowledgeMaintenanceRunPublisher publisher,
+            KnowledgeMaintenanceProgressReporter progressReporter,
             DocumentIdentity documentIdentity,
             TaskExecutor taskExecutor
     ) {
@@ -69,6 +71,7 @@ public class KnowledgeMaintenanceQueueService implements ApplicationListener<App
         this.indexService = indexService;
         this.runService = runService;
         this.publisher = publisher;
+        this.progressReporter = progressReporter;
         this.documentIdentity = documentIdentity;
         this.taskExecutor = taskExecutor;
     }
@@ -114,12 +117,27 @@ public class KnowledgeMaintenanceQueueService implements ApplicationListener<App
         ));
     }
 
+    public KnowledgeFolderRunResponse enqueueRepairAllIndex() {
+        return enqueue(new MaintenanceTaskRequest(
+                KnowledgeFolderRunScopeType.ALL,
+                null,
+                KnowledgeFolderRunOperation.REPAIR_INDEX,
+                null,
+                true,
+                null
+        ));
+    }
+
     public KnowledgeFolderRunResponse enqueueFolderSync(String folderId) {
         return enqueue(folderTask(folderId, KnowledgeFolderRunOperation.SYNC));
     }
 
     public KnowledgeFolderRunResponse enqueueFolderRebuild(String folderId) {
         return enqueue(folderTask(folderId, KnowledgeFolderRunOperation.REBUILD_INDEX));
+    }
+
+    public KnowledgeFolderRunResponse enqueueFolderRepairIndex(String folderId) {
+        return enqueue(folderTask(folderId, KnowledgeFolderRunOperation.REPAIR_INDEX));
     }
 
     public KnowledgeFolderRunResponse enqueueFolderEnabled(String folderId, boolean enabled) {
@@ -307,7 +325,7 @@ public class KnowledgeMaintenanceQueueService implements ApplicationListener<App
     private void runTask(String runId, MaintenanceTaskRequest request) {
         try {
             ensureNotCancelledBeforeSideEffects(runId);
-            KnowledgeMaintenanceCompletion completion = execute(request, runId);
+            KnowledgeMaintenanceCompletion completion = progressReporter.withRun(runId, () -> execute(request, runId));
             completeRun(runId, completion, request);
         } catch (CancelledMaintenanceRunException ex) {
             runRepository.markCancelled(runId, ex.getMessage());
@@ -340,6 +358,9 @@ public class KnowledgeMaintenanceQueueService implements ApplicationListener<App
         return switch (request.operation()) {
             case IMPORT -> importFolder(request);
             case SYNC -> syncFolder(request);
+            case REPAIR_INDEX -> request.scopeType() == KnowledgeFolderRunScopeType.ALL
+                    ? repairAllIndex()
+                    : repairFolderIndex(request);
             case REBUILD_INDEX -> request.scopeType() == KnowledgeFolderRunScopeType.ALL
                     ? rebuildAllIndex()
                     : rebuildFolder(request);
@@ -383,8 +404,24 @@ public class KnowledgeMaintenanceQueueService implements ApplicationListener<App
         );
     }
 
+    private KnowledgeMaintenanceCompletion repairFolderIndex(MaintenanceTaskRequest request) {
+        RebuildIndexResponse response = runService.withoutRecording(
+                () -> folderService.repairFolderIndex(request.scopeId())
+        );
+        return indexCompletion(response);
+    }
+
     private KnowledgeMaintenanceCompletion rebuildAllIndex() {
         RebuildIndexResponse response = runService.withoutRecording(indexService::rebuild);
+        return indexCompletion(response);
+    }
+
+    private KnowledgeMaintenanceCompletion repairAllIndex() {
+        RebuildIndexResponse response = runService.withoutRecording(indexService::repair);
+        return indexCompletion(response);
+    }
+
+    private static KnowledgeMaintenanceCompletion indexCompletion(RebuildIndexResponse response) {
         return new KnowledgeMaintenanceCompletion(
                 statusFor(0, response.failedDocumentCount()),
                 0,
@@ -481,6 +518,7 @@ public class KnowledgeMaintenanceQueueService implements ApplicationListener<App
         return switch (operation) {
             case IMPORT -> "IMPORTING";
             case SYNC -> "SYNCING";
+            case REPAIR_INDEX -> "INDEXING";
             case REBUILD_INDEX -> "INDEXING";
             case ENABLE -> "ENABLING";
             case DISABLE -> "DISABLING";

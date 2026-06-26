@@ -22,6 +22,13 @@ const DEFAULT_CONTEXT_WINDOW_TOKENS = 128000
 const MIN_CONTEXT_WINDOW_TOKENS = 1024
 const MAX_CONTEXT_WINDOW_TOKENS = 2000000
 const MODEL_OPTIONS_CACHE_TTL_MS = 3 * 60 * 1000
+const DEFAULT_EMBEDDING_RATE_LIMIT_PRESET = 'standard'
+const EMBEDDING_RATE_LIMIT_PRESETS = [
+  { value: 'conservative', label: '保守', requestsPerMinute: 60, tokensPerMinute: 100000, batchSize: 8 },
+  { value: 'standard', label: '标准', requestsPerMinute: 300, tokensPerMinute: 300000, batchSize: 16 },
+  { value: 'fast', label: '快速', requestsPerMinute: 1000, tokensPerMinute: 800000, batchSize: 32 },
+  { value: 'custom', label: '自定义', requestsPerMinute: 300, tokensPerMinute: 300000, batchSize: 16 }
+]
 
 /**
  * 模型设置页的双角色编辑状态。
@@ -431,6 +438,15 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
       apiKey: current.apiKey,
       modelName: current.modelName.trim(),
       embeddingDimensions: role === ROLES.EMBEDDING ? FIXED_EMBEDDING_DIMENSIONS : undefined,
+      embeddingRequestsPerMinute: role === ROLES.EMBEDDING
+        ? normalizeEmbeddingRequestsPerMinute(current.embeddingRequestsPerMinute)
+        : undefined,
+      embeddingTokensPerMinute: role === ROLES.EMBEDDING
+        ? normalizeEmbeddingTokensPerMinute(current.embeddingTokensPerMinute)
+        : undefined,
+      embeddingBatchSize: role === ROLES.EMBEDDING
+        ? normalizeEmbeddingBatchSize(current.embeddingBatchSize)
+        : undefined,
       temperature: role === ROLES.CHAT ? Number(current.temperature) : undefined,
       defaultTopK: role === ROLES.CHAT ? Number(current.defaultTopK) : undefined,
       contextWindowTokens: role === ROLES.CHAT
@@ -457,6 +473,23 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     replaceEditorForm(role, {
       ...roleState.value[role].form,
       contextWindowTokens: normalizeContextWindowTokens(value)
+    })
+  }
+
+  function setEmbeddingRateLimitPreset(presetValue, role = activeRole.value) {
+    if (role !== ROLES.EMBEDDING) {
+      return
+    }
+    const preset = EMBEDDING_RATE_LIMIT_PRESETS.find(item => item.value === presetValue)
+    if (!preset) {
+      return
+    }
+    replaceEditorForm(role, {
+      ...roleState.value[role].form,
+      embeddingRateLimitPreset: preset.value,
+      embeddingRequestsPerMinute: preset.requestsPerMinute,
+      embeddingTokensPerMinute: preset.tokensPerMinute,
+      embeddingBatchSize: preset.batchSize
     })
   }
 
@@ -541,6 +574,7 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     editingIdByRole,
     visibleApiKeyByRole,
     contextWindowPresets,
+    embeddingRateLimitPresets: EMBEDDING_RATE_LIMIT_PRESETS,
     providerOptions,
     providerLabel,
     isOpenAiCompatible,
@@ -564,6 +598,7 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     markFormTouched,
     toggleApiKeyVisible,
     setContextWindowTokens,
+    setEmbeddingRateLimitPreset,
     formatContextWindowTokens,
     copyApiKey,
     fetchModels,
@@ -600,6 +635,10 @@ function defaultForm(role) {
     apiKey: '',
     modelName: '',
     embeddingDimensions: role === ROLES.EMBEDDING ? FIXED_EMBEDDING_DIMENSIONS : null,
+    embeddingRateLimitPreset: role === ROLES.EMBEDDING ? DEFAULT_EMBEDDING_RATE_LIMIT_PRESET : null,
+    embeddingRequestsPerMinute: role === ROLES.EMBEDDING ? 300 : null,
+    embeddingTokensPerMinute: role === ROLES.EMBEDDING ? 300000 : null,
+    embeddingBatchSize: role === ROLES.EMBEDDING ? 16 : null,
     temperature: role === ROLES.CHAT ? 0.7 : null,
     defaultTopK: role === ROLES.CHAT ? 8 : null,
     contextWindowTokens: role === ROLES.CHAT ? DEFAULT_CONTEXT_WINDOW_TOKENS : null
@@ -619,6 +658,18 @@ function formFromConfig(config) {
     modelName: config.modelName || '',
     embeddingDimensions: role === ROLES.EMBEDDING
       ? FIXED_EMBEDDING_DIMENSIONS
+      : null,
+    embeddingRateLimitPreset: role === ROLES.EMBEDDING
+      ? inferEmbeddingRateLimitPreset(config)
+      : null,
+    embeddingRequestsPerMinute: role === ROLES.EMBEDDING
+      ? normalizeEmbeddingRequestsPerMinute(config.embeddingRequestsPerMinute ?? defaults.embeddingRequestsPerMinute)
+      : null,
+    embeddingTokensPerMinute: role === ROLES.EMBEDDING
+      ? normalizeEmbeddingTokensPerMinute(config.embeddingTokensPerMinute ?? defaults.embeddingTokensPerMinute)
+      : null,
+    embeddingBatchSize: role === ROLES.EMBEDDING
+      ? normalizeEmbeddingBatchSize(config.embeddingBatchSize ?? defaults.embeddingBatchSize)
       : null,
     temperature: role === ROLES.CHAT
       ? (config.temperature ?? defaults.temperature)
@@ -645,6 +696,16 @@ function normalizeConfigForRole(config, role = normalizeRoleValue(config?.role))
     role,
     provider: normalizeProviderValue(config.provider, config.baseUrl),
     embeddingDimensions: role === ROLES.EMBEDDING ? FIXED_EMBEDDING_DIMENSIONS : null,
+    embeddingRateLimitPreset: role === ROLES.EMBEDDING ? inferEmbeddingRateLimitPreset(config) : null,
+    embeddingRequestsPerMinute: role === ROLES.EMBEDDING
+      ? normalizeEmbeddingRequestsPerMinute(config.embeddingRequestsPerMinute)
+      : null,
+    embeddingTokensPerMinute: role === ROLES.EMBEDDING
+      ? normalizeEmbeddingTokensPerMinute(config.embeddingTokensPerMinute)
+      : null,
+    embeddingBatchSize: role === ROLES.EMBEDDING
+      ? normalizeEmbeddingBatchSize(config.embeddingBatchSize)
+      : null,
     contextWindowTokens: role === ROLES.CHAT
       ? normalizeContextWindowTokens(config.contextWindowTokens)
       : null
@@ -662,12 +723,64 @@ function normalizeFormForRole(nextForm, role = normalizeRoleValue(nextForm?.role
     apiKey: nextForm?.apiKey || '',
     modelName: nextForm?.modelName || '',
     embeddingDimensions: role === ROLES.EMBEDDING ? FIXED_EMBEDDING_DIMENSIONS : null,
+    embeddingRateLimitPreset: role === ROLES.EMBEDDING
+      ? normalizeEmbeddingRateLimitPreset(nextForm?.embeddingRateLimitPreset, nextForm)
+      : null,
+    embeddingRequestsPerMinute: role === ROLES.EMBEDDING
+      ? normalizeEmbeddingRequestsPerMinute(nextForm?.embeddingRequestsPerMinute ?? defaults.embeddingRequestsPerMinute)
+      : null,
+    embeddingTokensPerMinute: role === ROLES.EMBEDDING
+      ? normalizeEmbeddingTokensPerMinute(nextForm?.embeddingTokensPerMinute ?? defaults.embeddingTokensPerMinute)
+      : null,
+    embeddingBatchSize: role === ROLES.EMBEDDING
+      ? normalizeEmbeddingBatchSize(nextForm?.embeddingBatchSize ?? defaults.embeddingBatchSize)
+      : null,
     temperature: role === ROLES.CHAT ? (nextForm?.temperature ?? defaults.temperature) : null,
     defaultTopK: role === ROLES.CHAT ? (nextForm?.defaultTopK ?? defaults.defaultTopK) : null,
     contextWindowTokens: role === ROLES.CHAT
       ? normalizeContextWindowTokens(nextForm?.contextWindowTokens ?? defaults.contextWindowTokens)
       : null
   }
+}
+
+function inferEmbeddingRateLimitPreset(config) {
+  return normalizeEmbeddingRateLimitPreset(config?.embeddingRateLimitPreset, config)
+}
+
+function normalizeEmbeddingRateLimitPreset(presetValue, source = {}) {
+  const normalized = String(presetValue || '').trim()
+  if (EMBEDDING_RATE_LIMIT_PRESETS.some(preset => preset.value === normalized)) {
+    return normalized
+  }
+  const rpm = normalizeEmbeddingRequestsPerMinute(source?.embeddingRequestsPerMinute)
+  const tpm = normalizeEmbeddingTokensPerMinute(source?.embeddingTokensPerMinute)
+  const batch = normalizeEmbeddingBatchSize(source?.embeddingBatchSize)
+  return EMBEDDING_RATE_LIMIT_PRESETS.find(preset =>
+    preset.value !== 'custom'
+    && preset.requestsPerMinute === rpm
+    && preset.tokensPerMinute === tpm
+    && preset.batchSize === batch
+  )?.value || 'custom'
+}
+
+function normalizeEmbeddingRequestsPerMinute(value) {
+  return normalizeIntegerInRange(value, 300, 1, 10000)
+}
+
+function normalizeEmbeddingTokensPerMinute(value) {
+  return normalizeIntegerInRange(value, 300000, 1000, 10000000)
+}
+
+function normalizeEmbeddingBatchSize(value) {
+  return normalizeIntegerInRange(value, 16, 1, 128)
+}
+
+function normalizeIntegerInRange(value, fallback, min, max) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) {
+    return fallback
+  }
+  return Math.min(max, Math.max(min, Math.trunc(parsed)))
 }
 
 function normalizeContextWindowTokens(value) {

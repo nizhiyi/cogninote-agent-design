@@ -15,6 +15,9 @@ public enum KnowledgeFolderRunOperation {
     /** 重建目录或全库检索索引。 */
     REBUILD_INDEX,
 
+    /** 只补写已解析但尚未进入检索索引的文档。 */
+    REPAIR_INDEX,
+
     /** 启用知识库目录。 */
     ENABLE,
 

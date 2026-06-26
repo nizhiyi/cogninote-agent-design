@@ -32,6 +32,7 @@ const RUN_OPERATION_LABELS = {
   IMPORT: '导入',
   SYNC: '同步',
   REBUILD_INDEX: '重建',
+  REPAIR_INDEX: '补写',
   ENABLE: '启用',
   DISABLE: '停用',
   DELETE: '删除'

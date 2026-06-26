@@ -109,6 +109,17 @@ export const useKnowledgeFoldersStore = defineStore('knowledgeFolders', () => {
     }
   }
 
+  async function repairFolderIndex(id) {
+    rebuildResult.value = null
+    error.value = ''
+
+    try {
+      rebuildResult.value = await maintenanceStore.repairFolderIndex(id)
+    } catch (err) {
+      error.value = `补写目录索引失败：${err.message}`
+    }
+  }
+
   async function syncFolder(id) {
     ingestResult.value = null
     rebuildResult.value = null
@@ -174,6 +185,7 @@ export const useKnowledgeFoldersStore = defineStore('knowledgeFolders', () => {
     chooseFolder,
     importFolder,
     rebuildFolder,
+    repairFolderIndex,
     syncFolder,
     toggleFolderEnabled,
     deleteFolder,

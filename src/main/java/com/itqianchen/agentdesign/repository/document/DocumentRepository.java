@@ -102,6 +102,15 @@ public class DocumentRepository {
     }
 
     /**
+     * 查询全部已解析但未索引文档的索引快照。
+     *
+     * @return 可用于补写索引的文档聚合列表
+     */
+    public List<IndexedDocument> findUnindexedParsedDocumentsForIndexing() {
+        return mapIndexedDocuments(documentMapper.findUnindexedParsedDocumentsForIndexing(DocumentStatus.PARSED.name()));
+    }
+
+    /**
      * 查询指定知识库目录下已解析文档的索引快照。
      *
      * @param knowledgeFolderId 知识库目录 ID
@@ -109,6 +118,19 @@ public class DocumentRepository {
      */
     public List<IndexedDocument> findParsedDocumentsForIndexingByKnowledgeFolderId(String knowledgeFolderId) {
         return mapIndexedDocuments(documentMapper.findParsedDocumentsForIndexingByKnowledgeFolderId(
+                DocumentStatus.PARSED.name(),
+                knowledgeFolderId
+        ));
+    }
+
+    /**
+     * 查询指定目录下已解析但未索引文档的索引快照。
+     *
+     * @param knowledgeFolderId 知识库目录 ID
+     * @return 可用于目录补写索引的文档聚合列表
+     */
+    public List<IndexedDocument> findUnindexedParsedDocumentsForIndexingByKnowledgeFolderId(String knowledgeFolderId) {
+        return mapIndexedDocuments(documentMapper.findUnindexedParsedDocumentsForIndexingByKnowledgeFolderId(
                 DocumentStatus.PARSED.name(),
                 knowledgeFolderId
         ));

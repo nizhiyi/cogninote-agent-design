@@ -157,11 +157,32 @@
         ORDER BY d.updated_at DESC, c.chunk_index ASC
     </select>
 
+    <select id="findUnindexedParsedDocumentsForIndexing" resultMap="IndexedDocumentRowMap">
+        SELECT <include refid="IndexedDocumentColumns"/>
+        FROM documents d
+        JOIN chunks c ON c.document_id = d.id
+        LEFT JOIN knowledge_folders f ON f.id = d.knowledge_folder_id
+        WHERE d.status = #{status}
+          AND d.indexed_at IS NULL
+          AND (d.knowledge_folder_id IS NULL OR f.enabled = 1)
+        ORDER BY d.updated_at DESC, c.chunk_index ASC
+    </select>
+
     <select id="findParsedDocumentsForIndexingByKnowledgeFolderId" resultMap="IndexedDocumentRowMap">
         SELECT <include refid="IndexedDocumentColumns"/>
         FROM documents d
         JOIN chunks c ON c.document_id = d.id
         WHERE d.status = #{status}
+          AND d.knowledge_folder_id = #{knowledgeFolderId}
+        ORDER BY d.updated_at DESC, c.chunk_index ASC
+    </select>
+
+    <select id="findUnindexedParsedDocumentsForIndexingByKnowledgeFolderId" resultMap="IndexedDocumentRowMap">
+        SELECT <include refid="IndexedDocumentColumns"/>
+        FROM documents d
+        JOIN chunks c ON c.document_id = d.id
+        WHERE d.status = #{status}
+          AND d.indexed_at IS NULL
           AND d.knowledge_folder_id = #{knowledgeFolderId}
         ORDER BY d.updated_at DESC, c.chunk_index ASC
     </select>

@@ -417,6 +417,15 @@ public class ModelConfigService {
                 apiKey,
                 modelName,
                 role == ModelConfigRole.EMBEDDING ? ModelConfigDefaults.EMBEDDING_DIMENSIONS : null,
+                role == ModelConfigRole.EMBEDDING
+                        ? normalizeEmbeddingRequestsPerMinute(request.embeddingRequestsPerMinute(), existing)
+                        : null,
+                role == ModelConfigRole.EMBEDDING
+                        ? normalizeEmbeddingTokensPerMinute(request.embeddingTokensPerMinute(), existing)
+                        : null,
+                role == ModelConfigRole.EMBEDDING
+                        ? normalizeEmbeddingBatchSize(request.embeddingBatchSize(), existing)
+                        : null,
                 role == ModelConfigRole.CHAT ? normalizeTemperature(request.temperature(), existing) : null,
                 role == ModelConfigRole.CHAT ? normalizeTopK(request.defaultTopK(), request.topK(), existing) : null,
                 role == ModelConfigRole.CHAT ? normalizeContextWindowTokens(request.contextWindowTokens(), existing) : null,
@@ -445,6 +454,9 @@ public class ModelConfigService {
                         request.chatModel(),
                         request.chatModel(),
                         request.embeddingModel(),
+                        null,
+                        null,
+                        null,
                         null,
                         request.temperature(),
                         request.topK(),
@@ -479,6 +491,9 @@ public class ModelConfigService {
                         request.chatModel(),
                         request.embeddingModel(),
                         request.embeddingDimensions(),
+                        request.embeddingRequestsPerMinute(),
+                        request.embeddingTokensPerMinute(),
+                        request.embeddingBatchSize(),
                         null,
                         null,
                         null,
@@ -516,6 +531,9 @@ public class ModelConfigService {
                         ? ModelConfigDefaults.CHAT_MODEL
                         : ModelConfigDefaults.EMBEDDING_MODEL,
                 role == ModelConfigRole.EMBEDDING ? ModelConfigDefaults.EMBEDDING_DIMENSIONS : null,
+                role == ModelConfigRole.EMBEDDING ? ModelConfigDefaults.EMBEDDING_REQUESTS_PER_MINUTE : null,
+                role == ModelConfigRole.EMBEDDING ? ModelConfigDefaults.EMBEDDING_TOKENS_PER_MINUTE : null,
+                role == ModelConfigRole.EMBEDDING ? ModelConfigDefaults.EMBEDDING_BATCH_SIZE : null,
                 role == ModelConfigRole.CHAT ? ModelConfigDefaults.TEMPERATURE : null,
                 role == ModelConfigRole.CHAT ? ModelConfigDefaults.TOP_K : null,
                 role == ModelConfigRole.CHAT ? ModelConfigDefaults.CONTEXT_WINDOW_TOKENS : null,
@@ -550,6 +568,9 @@ public class ModelConfigService {
                 config.apiKey(),
                 config.modelName(),
                 config.embeddingDimensions(),
+                config.embeddingRequestsPerMinute(),
+                config.embeddingTokensPerMinute(),
+                config.embeddingBatchSize(),
                 config.temperature(),
                 config.defaultTopK(),
                 config.contextWindowTokens(),
@@ -691,6 +712,54 @@ public class ModelConfigService {
             return topK;
         }
         return existing.resolvedDefaultTopK();
+    }
+
+    /**
+     * 归一化 Embedding 请求 RPM。
+     *
+     * @param requested 请求值
+     * @param existing 现有配置
+     * @return 夹紧后的每分钟请求数
+     */
+    private static Integer normalizeEmbeddingRequestsPerMinute(Integer requested, ModelConfig existing) {
+        int value = requested == null ? existing.resolvedEmbeddingRequestsPerMinute() : requested;
+        return Math.clamp(
+                value,
+                ModelConfigDefaults.MIN_EMBEDDING_REQUESTS_PER_MINUTE,
+                ModelConfigDefaults.MAX_EMBEDDING_REQUESTS_PER_MINUTE
+        );
+    }
+
+    /**
+     * 归一化 Embedding 输入 TPM。
+     *
+     * @param requested 请求值
+     * @param existing 现有配置
+     * @return 夹紧后的每分钟输入 token 数
+     */
+    private static Integer normalizeEmbeddingTokensPerMinute(Integer requested, ModelConfig existing) {
+        int value = requested == null ? existing.resolvedEmbeddingTokensPerMinute() : requested;
+        return Math.clamp(
+                value,
+                ModelConfigDefaults.MIN_EMBEDDING_TOKENS_PER_MINUTE,
+                ModelConfigDefaults.MAX_EMBEDDING_TOKENS_PER_MINUTE
+        );
+    }
+
+    /**
+     * 归一化 Embedding 批量大小。
+     *
+     * @param requested 请求值
+     * @param existing 现有配置
+     * @return 夹紧后的每批 chunk 数
+     */
+    private static Integer normalizeEmbeddingBatchSize(Integer requested, ModelConfig existing) {
+        int value = requested == null ? existing.resolvedEmbeddingBatchSize() : requested;
+        return Math.clamp(
+                value,
+                ModelConfigDefaults.MIN_EMBEDDING_BATCH_SIZE,
+                ModelConfigDefaults.MAX_EMBEDDING_BATCH_SIZE
+        );
     }
 
     /**

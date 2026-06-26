@@ -5,7 +5,6 @@ import { AlertTriangle, BrainCircuit, ChevronRight, Copy, Database, FolderSync, 
 import KnowledgeHealthIssueDetailDialog from './knowledge-health-issue-detail-dialog.vue'
 import {
   confirmRebuildAllIndex,
-  confirmRebuildFolderIndex,
   confirmSyncFolder
 } from '../composables/use-knowledge-maintenance-confirm'
 import { useKnowledgeHealthIssueIgnore } from '../composables/use-knowledge-health-issue-ignore'
@@ -46,7 +45,7 @@ const problemSections = computed(() => [
   {
     key: 'unindexed',
     title: '可能搜不到：未进入索引',
-    action: 'REBUILD_INDEX',
+    action: 'REPAIR_INDEX',
     items: folderHealth.value?.unindexedDocuments || []
   },
   {
@@ -72,7 +71,7 @@ const issueCount = computed(() => folderHealth.value?.issues?.reduce((total, iss
 const canRepairFolder = computed(() => Boolean(currentFolder.value?.enabled && healthStore.selectedFolderId))
 const globalIssues = computed(() => (healthStore.health?.issues || []).filter((issue) => issue.scopeType === 'ALL' && !issue.scopeId))
 const hasFolderSyncIssues = computed(() => problemSections.value.some((section) => section.action === 'SYNC_FOLDER'))
-const hasFolderIndexIssues = computed(() => problemSections.value.some((section) => section.action === 'REBUILD_INDEX'))
+const hasFolderIndexIssues = computed(() => problemSections.value.some((section) => section.action === 'REPAIR_INDEX'))
 const systemProblemSections = computed(() =>
   buildIssueCategories(globalIssues.value, ignoredIssueKeys.value).map((section) => ({
     ...section,
@@ -112,14 +111,11 @@ async function rebuildGlobalIndex() {
   await searchStore.rebuildIndex()
 }
 
-async function rebuildSelectedFolder() {
+async function repairSelectedFolderIndex() {
   if (!healthStore.selectedFolderId) {
     return
   }
-  if (!await confirmRebuildFolderIndex(currentFolder.value)) {
-    return
-  }
-  await knowledgeStore.rebuildFolder(healthStore.selectedFolderId)
+  await knowledgeStore.repairFolderIndex(healthStore.selectedFolderId)
 }
 
 async function copyPath(path) {
@@ -181,10 +177,10 @@ function openIssueSection(section) {
         v-if="hasFolderIndexIssues"
         :disabled="!canRepairFolder || Boolean(selectedFolderRun)"
         :loading="selectedFolderRun?.status === 'RUNNING' || selectedFolderRun?.status === 'CANCELLING'"
-        @click="rebuildSelectedFolder"
+        @click="repairSelectedFolderIndex"
       >
         <RotateCcw aria-hidden="true" />
-        <span>{{ selectedFolderRun ? '维护中' : '重建目录索引' }}</span>
+        <span>{{ selectedFolderRun ? '维护中' : '补写索引' }}</span>
       </el-button>
       <el-button
         v-if="hasIndexIssue"

@@ -18,6 +18,9 @@ public record ModelConfig(
         String apiKey,
         String modelName,
         Integer embeddingDimensions,
+        Integer embeddingRequestsPerMinute,
+        Integer embeddingTokensPerMinute,
+        Integer embeddingBatchSize,
         Double temperature,
         Integer defaultTopK,
         Integer contextWindowTokens,
@@ -43,6 +46,51 @@ public record ModelConfig(
         return embeddingDimensions == null
                 ? ModelConfigDefaults.EMBEDDING_DIMENSIONS
                 : embeddingDimensions;
+    }
+
+    /**
+     * 返回 Embedding 请求 RPM 限额。
+     *
+     * <p>这里使用供应商控制台通用的 RPM 口径保存配置，运行时再换算为请求间隔。</p>
+     */
+    public int resolvedEmbeddingRequestsPerMinute() {
+        return embeddingRequestsPerMinute == null
+                ? ModelConfigDefaults.EMBEDDING_REQUESTS_PER_MINUTE
+                : Math.clamp(
+                        embeddingRequestsPerMinute,
+                        ModelConfigDefaults.MIN_EMBEDDING_REQUESTS_PER_MINUTE,
+                        ModelConfigDefaults.MAX_EMBEDDING_REQUESTS_PER_MINUTE
+                );
+    }
+
+    /**
+     * 返回 Embedding 输入 TPM 限额。
+     *
+     * <p>TPM 按输入文本估算，目的是减少触发供应商限流，而不是精确计费。</p>
+     */
+    public int resolvedEmbeddingTokensPerMinute() {
+        return embeddingTokensPerMinute == null
+                ? ModelConfigDefaults.EMBEDDING_TOKENS_PER_MINUTE
+                : Math.clamp(
+                        embeddingTokensPerMinute,
+                        ModelConfigDefaults.MIN_EMBEDDING_TOKENS_PER_MINUTE,
+                        ModelConfigDefaults.MAX_EMBEDDING_TOKENS_PER_MINUTE
+                );
+    }
+
+    /**
+     * 返回 Embedding 每批 chunk 数。
+     *
+     * <p>较大的 batch 可以节省 RPM，但仍受 TPM 约束；这里仅夹紧到本地安全范围。</p>
+     */
+    public int resolvedEmbeddingBatchSize() {
+        return embeddingBatchSize == null
+                ? ModelConfigDefaults.EMBEDDING_BATCH_SIZE
+                : Math.clamp(
+                        embeddingBatchSize,
+                        ModelConfigDefaults.MIN_EMBEDDING_BATCH_SIZE,
+                        ModelConfigDefaults.MAX_EMBEDDING_BATCH_SIZE
+                );
     }
 
     /**

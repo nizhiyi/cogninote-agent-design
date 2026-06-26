@@ -1,17 +1,21 @@
 package com.itqianchen.agentdesign.service.search;
 
-
-import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
 import com.itqianchen.agentdesign.domain.entity.model.ModelConfig;
 import com.itqianchen.agentdesign.domain.enums.model.ModelConfigRole;
+import com.itqianchen.agentdesign.domain.exception.search.EmbeddingUnavailableException;
 import com.itqianchen.agentdesign.domain.interfaces.ai.AiRuntimeFactory;
 import com.itqianchen.agentdesign.domain.interfaces.search.EmbeddingGateway;
 import com.itqianchen.agentdesign.domain.properties.search.EmbeddingProperties;
-import com.itqianchen.agentdesign.domain.exception.search.EmbeddingUnavailableException;
 import com.itqianchen.agentdesign.repository.model.ModelConfigRepository;
+import com.itqianchen.agentdesign.service.knowledge.KnowledgeMaintenanceProgressReporter;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Supplier;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -26,10 +30,17 @@ import org.springframework.util.StringUtils;
 @Component
 public class SpringAiEmbeddingGateway implements EmbeddingGateway {
 
+    private static final int MAX_RATE_LIMIT_RETRIES = 5;
+    private static final long INITIAL_BACKOFF_MS = 1_000L;
+    private static final long MAX_BACKOFF_MS = 30_000L;
+    private static final long RATE_WINDOW_MS = 60_000L;
+
     private final Optional<EmbeddingModel> embeddingModel;
     private final ModelConfigRepository modelConfigRepository;
     private final AiRuntimeFactory aiRuntimeFactory;
     private final EmbeddingProperties embeddingProperties;
+    private final KnowledgeMaintenanceProgressReporter progressReporter;
+    private final EmbeddingRateLimiter rateLimiter = new EmbeddingRateLimiter();
     private final String embeddingProvider;
     private final String dashscopeApiKey;
 
@@ -40,6 +51,7 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
      * @param modelConfigRepository 模型配置仓储
      * @param aiRuntimeFactory AI 运行时工厂
      * @param embeddingProperties Embedding 配置
+     * @param progressReporter 维护任务进度上报器
      * @param embeddingProvider 自动配置 Provider 名称
      * @param dashscopeApiKey DashScope 自动配置 API Key
      */
@@ -48,6 +60,7 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
             ModelConfigRepository modelConfigRepository,
             AiRuntimeFactory aiRuntimeFactory,
             EmbeddingProperties embeddingProperties,
+            KnowledgeMaintenanceProgressReporter progressReporter,
             @Value("${spring.ai.model.embedding:none}") String embeddingProvider,
             @Value("${spring.ai.dashscope.api-key:}") String dashscopeApiKey
     ) {
@@ -55,6 +68,7 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
         this.modelConfigRepository = modelConfigRepository;
         this.aiRuntimeFactory = aiRuntimeFactory;
         this.embeddingProperties = embeddingProperties;
+        this.progressReporter = progressReporter;
         this.embeddingProvider = embeddingProvider;
         this.dashscopeApiKey = dashscopeApiKey;
     }
@@ -125,17 +139,32 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
      * @return 向量列表
      */
     private List<float[]> embedTexts(List<String> texts, EmbeddingPurpose purpose) {
-        if (!isAvailable()) {
+        Optional<ModelConfig> configuredModel = modelConfigRepository.findActive(ModelConfigRole.EMBEDDING)
+                .filter(ModelConfig::hasApiKey);
+        if (configuredModel.isEmpty() && !isAvailable()) {
             throw new EmbeddingUnavailableException("Embedding model is not configured");
         }
 
-        int expectedDimensions = dimensions();
+        int expectedDimensions = configuredModel
+                .map(ModelConfig::resolvedEmbeddingDimensions)
+                .orElseGet(embeddingProperties::dimensions);
+        int batchSize = configuredModel
+                .map(ModelConfig::resolvedEmbeddingBatchSize)
+                .orElseGet(embeddingProperties::normalizedBatchSize);
+        EmbeddingRateLimitSettings rateLimitSettings = configuredModel
+                .map(config -> new EmbeddingRateLimitSettings(
+                        config.resolvedEmbeddingRequestsPerMinute(),
+                        config.resolvedEmbeddingTokensPerMinute()
+                ))
+                .orElseGet(() -> new EmbeddingRateLimitSettings(
+                        embeddingProperties.normalizedRequestsPerMinute(),
+                        embeddingProperties.normalizedTokensPerMinute()
+                ));
 
         List<float[]> vectors = new ArrayList<>();
-        int batchSize = embeddingProperties.normalizedBatchSize();
         for (int start = 0; start < texts.size(); start += batchSize) {
             int end = Math.min(start + batchSize, texts.size());
-            vectors.addAll(embedSlice(texts.subList(start, end), purpose));
+            vectors.addAll(embedSlice(texts.subList(start, end), purpose, configuredModel, rateLimitSettings));
         }
 
         for (float[] vector : vectors) {
@@ -169,11 +198,15 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
      * @param purpose query 或 document 场景
      * @return 当前批次向量
      */
-    private List<float[]> embedSlice(List<String> texts, EmbeddingPurpose purpose) {
-        return modelConfigRepository.findActive(ModelConfigRole.EMBEDDING)
-                .filter(ModelConfig::hasApiKey)
+    private List<float[]> embedSlice(
+            List<String> texts,
+            EmbeddingPurpose purpose,
+            Optional<ModelConfig> configuredModel,
+            EmbeddingRateLimitSettings rateLimitSettings
+    ) {
+        return withProviderRateLimitRetry(texts, rateLimitSettings, () -> configuredModel
                 .map(config -> embedConfigured(config, texts, purpose))
-                .orElseGet(() -> embedAutoConfigured(texts, purpose));
+                .orElseGet(() -> embedAutoConfigured(texts, purpose)));
     }
 
     /**
@@ -204,6 +237,132 @@ public class SpringAiEmbeddingGateway implements EmbeddingGateway {
             return List.of(model.embed(texts.getFirst()));
         }
         return model.embed(texts);
+    }
+
+    private List<float[]> withProviderRateLimitRetry(
+            List<String> texts,
+            EmbeddingRateLimitSettings settings,
+            Supplier<List<float[]>> operation
+    ) {
+        for (int attempt = 1; attempt <= MAX_RATE_LIMIT_RETRIES + 1; attempt++) {
+            rateLimiter.awaitPermit(texts, settings);
+            try {
+                return operation.get();
+            } catch (RuntimeException ex) {
+                if (!isProviderRateLimit(ex) || attempt > MAX_RATE_LIMIT_RETRIES) {
+                    if (isProviderRateLimit(ex)) {
+                        throw new EmbeddingUnavailableException(
+                                "供应商 Embedding 限流，已自动退避重试但仍失败；这不是文档解析失败，稍后可使用补写索引继续。",
+                                ex
+                        );
+                    }
+                    throw ex;
+                }
+                long backoffMs = backoffMs(attempt);
+                String message = "供应商限流，已等待后重试；这不是文档解析失败。第 "
+                        + attempt
+                        + "/"
+                        + MAX_RATE_LIMIT_RETRIES
+                        + " 次重试，等待约 "
+                        + Math.max(1, backoffMs / 1000)
+                        + " 秒。";
+                progressReporter.reportEmbeddingRateLimit(message);
+                sleep(backoffMs, ex);
+            }
+        }
+        throw new EmbeddingUnavailableException("Embedding provider rate limit retry exhausted");
+    }
+
+    private static boolean isProviderRateLimit(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null) {
+                String lower = message.toLowerCase(Locale.ROOT);
+                if (lower.contains("429")
+                        || lower.contains("rate limit")
+                        || lower.contains("rate limiting")
+                        || lower.contains("too many requests")
+                        || lower.contains("tpm limit")
+                        || lower.contains("rpm limit")) {
+                    return true;
+                }
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private static long backoffMs(int attempt) {
+        long exponential = Math.min(MAX_BACKOFF_MS, INITIAL_BACKOFF_MS << Math.min(attempt - 1, 5));
+        long jitter = ThreadLocalRandom.current().nextLong(250L, 1_001L);
+        return Math.min(MAX_BACKOFF_MS, exponential + jitter);
+    }
+
+    private static void sleep(long millis, RuntimeException originalError) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new EmbeddingUnavailableException("Embedding rate limit retry was interrupted", originalError);
+        }
+    }
+
+    private record EmbeddingRateLimitSettings(
+            int requestsPerMinute,
+            int tokensPerMinute
+    ) {
+    }
+
+    private static final class EmbeddingRateLimiter {
+        private final Deque<TokenWindowEntry> tokenWindow = new ArrayDeque<>();
+        private long lastRequestAt;
+        private long tokenWindowSum;
+
+        private synchronized void awaitPermit(List<String> texts, EmbeddingRateLimitSettings settings) {
+            int tokenCost = Math.min(estimateTokens(texts), settings.tokensPerMinute());
+            while (true) {
+                long now = System.currentTimeMillis();
+                evictExpired(now);
+                long rpmWaitMs = Math.max(0L, minRequestIntervalMs(settings.requestsPerMinute()) - (now - lastRequestAt));
+                long tpmWaitMs = tokenWindowSum + tokenCost <= settings.tokensPerMinute()
+                        ? 0L
+                        : Math.max(1L, RATE_WINDOW_MS - (now - tokenWindow.peekFirst().timestampMs()));
+                long waitMs = Math.max(rpmWaitMs, tpmWaitMs);
+                if (waitMs <= 0L) {
+                    lastRequestAt = now;
+                    tokenWindow.addLast(new TokenWindowEntry(now, tokenCost));
+                    tokenWindowSum += tokenCost;
+                    return;
+                }
+                try {
+                    wait(waitMs);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    throw new EmbeddingUnavailableException("Embedding rate limiter was interrupted", ex);
+                }
+            }
+        }
+
+        private void evictExpired(long now) {
+            while (!tokenWindow.isEmpty() && now - tokenWindow.peekFirst().timestampMs() >= RATE_WINDOW_MS) {
+                tokenWindowSum -= tokenWindow.removeFirst().tokens();
+            }
+        }
+
+        private static long minRequestIntervalMs(int requestsPerMinute) {
+            return Math.max(1L, RATE_WINDOW_MS / Math.max(1, requestsPerMinute));
+        }
+
+        private static int estimateTokens(List<String> texts) {
+            int chars = texts.stream()
+                    .mapToInt(text -> text == null ? 0 : text.length())
+                    .sum();
+            return Math.max(1, (int) Math.ceil(chars / 3.0));
+        }
+    }
+
+    private record TokenWindowEntry(long timestampMs, int tokens) {
     }
 
     private enum EmbeddingPurpose {

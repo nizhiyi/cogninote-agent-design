@@ -624,7 +624,7 @@ public class KnowledgeHealthService {
                     KnowledgeHealthIssueCode.UNINDEXED_DOCUMENTS,
                     "ERROR",
                     "有 " + summary.unindexedCount() + " 个已解析文档尚未进入索引。",
-                    "REBUILD_INDEX",
+                    "REPAIR_INDEX",
                     folderId,
                     summary.unindexedCount()
             ));
@@ -889,7 +889,7 @@ public class KnowledgeHealthService {
                     KnowledgeHealthIssueCode.INDEX_INCONSISTENT,
                     "ERROR",
                     message,
-                    "REBUILD_INDEX",
+                    "REPAIR_INDEX",
                     null,
                     1
             ));
@@ -1370,7 +1370,10 @@ public class KnowledgeHealthService {
         return documents.stream()
                 .filter(document -> document.status() == DocumentStatus.PARSED)
                 .filter(document -> document.indexedAt() == null)
-                .map(document -> KnowledgeProblemDocumentResponse.from(document, "已解析但未进入索引，建议重建目录索引。"))
+                .map(document -> KnowledgeProblemDocumentResponse.from(
+                        document,
+                        "已解析但未进入索引，可能是供应商限流导致；请使用补写索引。"
+                ))
                 .toList();
     }
 

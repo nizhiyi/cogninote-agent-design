@@ -19,6 +19,9 @@ public record ModelConfigResponse(
         String apiKey,
         String modelName,
         Integer embeddingDimensions,
+        Integer embeddingRequestsPerMinute,
+        Integer embeddingTokensPerMinute,
+        Integer embeddingBatchSize,
         Double temperature,
         Integer defaultTopK,
         Integer contextWindowTokens,
@@ -42,6 +45,15 @@ public record ModelConfigResponse(
                 config.apiKey(),
                 config.modelName(),
                 config.embeddingDimensions(),
+                config.role() == ModelConfigRole.EMBEDDING
+                        ? config.resolvedEmbeddingRequestsPerMinute()
+                        : null,
+                config.role() == ModelConfigRole.EMBEDDING
+                        ? config.resolvedEmbeddingTokensPerMinute()
+                        : null,
+                config.role() == ModelConfigRole.EMBEDDING
+                        ? config.resolvedEmbeddingBatchSize()
+                        : null,
                 config.temperature(),
                 config.defaultTopK(),
                 config.role() == ModelConfigRole.CHAT

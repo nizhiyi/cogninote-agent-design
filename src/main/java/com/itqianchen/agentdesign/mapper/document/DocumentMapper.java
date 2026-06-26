@@ -71,6 +71,14 @@ public interface DocumentMapper {
     List<IndexedDocumentRow> findAllParsedDocumentsForIndexing(@Param("status") String status);
 
     /**
+     * 查询所有已解析但未进入索引的文档快照。
+     *
+     * @param status 允许进入索引的文档状态
+     * @return 文档与 chunk 的扁平行
+     */
+    List<IndexedDocumentRow> findUnindexedParsedDocumentsForIndexing(@Param("status") String status);
+
+    /**
      * 只读取指定目录下可索引的文档快照。
      *
      * <p>目录启用和目录重建依赖该查询，不能包含已失败或未解析完成的文档。</p>
@@ -80,6 +88,18 @@ public interface DocumentMapper {
      * @return 文档与 chunk 的扁平行
      */
     List<IndexedDocumentRow> findParsedDocumentsForIndexingByKnowledgeFolderId(
+            @Param("status") String status,
+            @Param("knowledgeFolderId") String knowledgeFolderId
+    );
+
+    /**
+     * 只读取指定目录下已解析但未进入索引的文档快照。
+     *
+     * @param status 允许进入索引的文档状态
+     * @param knowledgeFolderId 知识库目录 ID
+     * @return 文档与 chunk 的扁平行
+     */
+    List<IndexedDocumentRow> findUnindexedParsedDocumentsForIndexingByKnowledgeFolderId(
             @Param("status") String status,
             @Param("knowledgeFolderId") String knowledgeFolderId
     );

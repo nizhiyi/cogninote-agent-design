@@ -7,6 +7,8 @@ import {
   enqueueImportFolder,
   enqueueRebuildFolder,
   enqueueRebuildIndex,
+  enqueueRepairFolderIndex,
+  enqueueRepairIndex,
   enqueueSyncFolder,
   getMaintenanceQueue,
   getMaintenanceRun,
@@ -71,12 +73,20 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
     return enqueue(enqueueRebuildIndex, { notifyOnComplete: true })
   }
 
+  async function repairAllIndex() {
+    return enqueue(enqueueRepairIndex, { notifyOnComplete: true })
+  }
+
   async function syncFolder(id) {
     return enqueue(() => enqueueSyncFolder(id))
   }
 
   async function rebuildFolder(id) {
     return enqueue(() => enqueueRebuildFolder(id), { notifyOnComplete: true })
+  }
+
+  async function repairFolderIndex(id) {
+    return enqueue(() => enqueueRepairFolderIndex(id), { notifyOnComplete: true })
   }
 
   async function setFolderEnabled(id, enabled) {
@@ -381,8 +391,10 @@ export const useKnowledgeMaintenanceStore = defineStore('knowledgeMaintenance', 
     acknowledgeCompletionNotice,
     importFolder,
     rebuildAllIndex,
+    repairAllIndex,
     syncFolder,
     rebuildFolder,
+    repairFolderIndex,
     setFolderEnabled,
     deleteFolder,
     cancelRun,

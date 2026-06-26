@@ -19,6 +19,9 @@ public record ModelConfigUpsertRequest(
         @Min(0) @Max(2) Double temperature,
         @Min(1) @Max(50) Integer defaultTopK,
         @Min(1) @Max(8192) Integer embeddingDimensions,
+        @Min(1) @Max(10000) Integer embeddingRequestsPerMinute,
+        @Min(1000) @Max(10000000) Integer embeddingTokensPerMinute,
+        @Min(1) @Max(128) Integer embeddingBatchSize,
         @Min(1024) @Max(2000000) Integer contextWindowTokens
 ) {
     /**
@@ -40,6 +43,9 @@ public record ModelConfigUpsertRequest(
                 "CHAT".equals(normalizedRole) ? modelName : null,
                 "EMBEDDING".equals(normalizedRole) ? modelName : null,
                 embeddingDimensions,
+                embeddingRequestsPerMinute,
+                embeddingTokensPerMinute,
+                embeddingBatchSize,
                 temperature,
                 defaultTopK,
                 defaultTopK,

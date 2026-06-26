@@ -32,6 +32,8 @@ class KnowledgeMaintenanceQueueServiceTests {
     private final IndexService indexService = mock(IndexService.class);
     private final KnowledgeFolderRunService runService = mock(KnowledgeFolderRunService.class);
     private final KnowledgeMaintenanceRunPublisher publisher = mock(KnowledgeMaintenanceRunPublisher.class);
+    private final KnowledgeMaintenanceProgressReporter progressReporter =
+            new KnowledgeMaintenanceProgressReporter(runRepository, publisher);
     private final DocumentIdentity documentIdentity = mock(DocumentIdentity.class);
     private final KnowledgeMaintenanceQueueService service = new KnowledgeMaintenanceQueueService(
             runRepository,
@@ -39,6 +41,7 @@ class KnowledgeMaintenanceQueueServiceTests {
             indexService,
             runService,
             publisher,
+            progressReporter,
             documentIdentity,
             Runnable::run
     );

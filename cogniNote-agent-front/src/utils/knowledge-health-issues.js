@@ -6,6 +6,7 @@ const ISSUE_SEVERITY_LABELS = {
 
 const ISSUE_ACTION_LABELS = {
   REBUILD_INDEX: '重建索引',
+  REPAIR_INDEX: '补写索引',
   CONFIGURE_EMBEDDING: '配置向量模型',
   REBUILD_GRAPH: '重建对应图谱',
   VIEW_CONFLICTS: '查看资料风险',

@@ -60,6 +60,9 @@
             api_key TEXT,
             model_name TEXT NOT NULL,
             embedding_dimensions INTEGER,
+            embedding_requests_per_minute INTEGER,
+            embedding_tokens_per_minute INTEGER,
+            embedding_batch_size INTEGER,
             temperature REAL,
             default_top_k INTEGER,
             context_window_tokens INTEGER,
@@ -293,6 +296,18 @@
         ON knowledge_graph_edges(scope_type, scope_id, source_node_id, target_node_id, relation_type, display_label)
     </update>
 
+    <update id="addModelConfigEmbeddingRequestsPerMinuteColumn">
+        ALTER TABLE model_configs ADD COLUMN embedding_requests_per_minute INTEGER
+    </update>
+
+    <update id="addModelConfigEmbeddingTokensPerMinuteColumn">
+        ALTER TABLE model_configs ADD COLUMN embedding_tokens_per_minute INTEGER
+    </update>
+
+    <update id="addModelConfigEmbeddingBatchSizeColumn">
+        ALTER TABLE model_configs ADD COLUMN embedding_batch_size INTEGER
+    </update>
+
     <update id="createKnowledgeGraphEvidenceNodeIndex">
         CREATE INDEX IF NOT EXISTS idx_kg_evidence_node ON knowledge_graph_evidence(node_id)
     </update>
@@ -337,12 +352,14 @@
     <insert id="insertInitialModelConfig">
         INSERT INTO model_configs (
             id, role, provider, display_name, base_url, api_key, model_name,
-            embedding_dimensions, temperature, default_top_k, context_window_tokens,
+            embedding_dimensions, embedding_requests_per_minute, embedding_tokens_per_minute, embedding_batch_size,
+            temperature, default_top_k, context_window_tokens,
             is_active, created_at, updated_at
         )
         VALUES (
             #{id}, #{role}, #{provider}, #{displayName}, #{baseUrl}, #{apiKey}, #{modelName},
-            #{embeddingDimensions}, #{temperature}, #{defaultTopK}, #{contextWindowTokens},
+            #{embeddingDimensions}, #{embeddingRequestsPerMinute}, #{embeddingTokensPerMinute}, #{embeddingBatchSize},
+            #{temperature}, #{defaultTopK}, #{contextWindowTokens},
             1, #{createdAt}, #{updatedAt}
         )
     </insert>

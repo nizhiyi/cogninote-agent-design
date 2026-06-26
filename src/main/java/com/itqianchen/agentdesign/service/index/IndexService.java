@@ -3,6 +3,7 @@ package com.itqianchen.agentdesign.service.index;
 import com.itqianchen.agentdesign.domain.interfaces.search.KnowledgeStore;
 import com.itqianchen.agentdesign.domain.dto.index.IndexStatusResponse;
 import com.itqianchen.agentdesign.domain.dto.index.RebuildIndexResponse;
+import com.itqianchen.agentdesign.repository.document.DocumentRepository;
 import com.itqianchen.agentdesign.service.knowledge.KnowledgeFolderRunService;
 import org.springframework.stereotype.Service;
 
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Service;
 public class IndexService {
 
     private final KnowledgeStore knowledgeStore;
+    private final DocumentRepository documentRepository;
     private final KnowledgeFolderRunService runService;
 
     /**
@@ -22,8 +24,13 @@ public class IndexService {
      *
      * @param knowledgeStore 检索索引实现
      */
-    public IndexService(KnowledgeStore knowledgeStore, KnowledgeFolderRunService runService) {
+    public IndexService(
+            KnowledgeStore knowledgeStore,
+            DocumentRepository documentRepository,
+            KnowledgeFolderRunService runService
+    ) {
         this.knowledgeStore = knowledgeStore;
+        this.documentRepository = documentRepository;
         this.runService = runService;
     }
 
@@ -48,5 +55,16 @@ public class IndexService {
         RebuildIndexResponse response = knowledgeStore.rebuildAll();
         runService.recordAllIndexRebuild(response, startedAt);
         return response;
+    }
+
+    /**
+     * 只补写已解析但尚未进入 Lucene 的文档。
+     *
+     * <p>补索引不重新解析原始文件，SQLite chunks 是事实来源；这用于供应商限流后恢复少量缺失索引。</p>
+     *
+     * @return 补写统计
+     */
+    public RebuildIndexResponse repair() {
+        return knowledgeStore.rebuildByDocumentIds(documentRepository.findUnindexedParsedDocumentsForIndexing());
     }
 }

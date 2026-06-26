@@ -36,6 +36,11 @@ public class KnowledgeMaintenanceController {
         return ApiResponse.ok(queueService.enqueueRebuildAllIndex());
     }
 
+    @PostMapping("/repair-index")
+    public ApiResponse<KnowledgeFolderRunResponse> repairIndex() {
+        return ApiResponse.ok(queueService.enqueueRepairAllIndex());
+    }
+
     @PostMapping("/import-folder")
     public ApiResponse<KnowledgeFolderRunResponse> importFolder(
             @Valid @RequestBody KnowledgeFolderImportRequest request
@@ -51,6 +56,11 @@ public class KnowledgeMaintenanceController {
     @PostMapping("/folders/{id}/rebuild")
     public ApiResponse<KnowledgeFolderRunResponse> rebuildFolder(@PathVariable String id) {
         return ApiResponse.ok(queueService.enqueueFolderRebuild(id));
+    }
+
+    @PostMapping("/folders/{id}/repair-index")
+    public ApiResponse<KnowledgeFolderRunResponse> repairFolderIndex(@PathVariable String id) {
+        return ApiResponse.ok(queueService.enqueueFolderRepairIndex(id));
     }
 
     @PostMapping("/folders/{id}/enabled")

@@ -30,6 +30,21 @@ public interface DatabaseSchemaMapper {
     void createModelConfigsTable();
 
     /**
+     * 为旧库补充 Embedding RPM 限速字段。
+     */
+    void addModelConfigEmbeddingRequestsPerMinuteColumn();
+
+    /**
+     * 为旧库补充 Embedding TPM 限速字段。
+     */
+    void addModelConfigEmbeddingTokensPerMinuteColumn();
+
+    /**
+     * 为旧库补充 Embedding 批量大小字段。
+     */
+    void addModelConfigEmbeddingBatchSizeColumn();
+
+    /**
      * 创建聊天会话表。
      */
     void createChatSessionsTable();
@@ -205,6 +220,9 @@ public interface DatabaseSchemaMapper {
      * @param apiKey API Key
      * @param modelName 模型名称
      * @param embeddingDimensions 向量维度
+     * @param embeddingRequestsPerMinute 向量请求 RPM
+     * @param embeddingTokensPerMinute 向量输入 TPM
+     * @param embeddingBatchSize 向量批量大小
      * @param temperature 采样温度
      * @param defaultTopK 默认检索数量
      * @param contextWindowTokens 上下文窗口 token 数
@@ -220,6 +238,9 @@ public interface DatabaseSchemaMapper {
             @Param("apiKey") String apiKey,
             @Param("modelName") String modelName,
             @Param("embeddingDimensions") Integer embeddingDimensions,
+            @Param("embeddingRequestsPerMinute") Integer embeddingRequestsPerMinute,
+            @Param("embeddingTokensPerMinute") Integer embeddingTokensPerMinute,
+            @Param("embeddingBatchSize") Integer embeddingBatchSize,
             @Param("temperature") Double temperature,
             @Param("defaultTopK") Integer defaultTopK,
             @Param("contextWindowTokens") Integer contextWindowTokens,
