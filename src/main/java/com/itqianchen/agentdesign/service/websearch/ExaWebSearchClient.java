@@ -4,6 +4,8 @@ import com.itqianchen.agentdesign.domain.enums.websearch.WebSearchProvider;
 import java.net.URI;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -21,6 +23,10 @@ public class ExaWebSearchClient implements WebSearchClient {
 
     private static final Logger log = LoggerFactory.getLogger(ExaWebSearchClient.class);
     private static final URI SEARCH_URI = URI.create("https://api.exa.ai/search");
+    private static final int MIN_TIMEOUT_MS = 1_000;
+    private static final int MAX_TIMEOUT_MS = 30_000;
+
+    private final ConcurrentMap<Integer, RestClient> restClientsByTimeoutMs = new ConcurrentHashMap<>();
 
     @Override
     public WebSearchToolResult search(WebSearchRequest request, WebSearchSettingsSnapshot settings) {
@@ -49,7 +55,12 @@ public class ExaWebSearchClient implements WebSearchClient {
         }
     }
 
-    private static RestClient restClient(int timeoutMs) {
+    private RestClient restClient(int timeoutMs) {
+        int normalizedTimeoutMs = Math.clamp(timeoutMs, MIN_TIMEOUT_MS, MAX_TIMEOUT_MS);
+        return restClientsByTimeoutMs.computeIfAbsent(normalizedTimeoutMs, ExaWebSearchClient::buildRestClient);
+    }
+
+    private static RestClient buildRestClient(int timeoutMs) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         Duration timeout = Duration.ofMillis(timeoutMs);
         requestFactory.setConnectTimeout(timeout);

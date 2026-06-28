@@ -1,10 +1,21 @@
-# 第 35 阶段计划：联网搜索 Tool Calling 与网页来源引用
+# 第 35 阶段：联网搜索 Tool Calling 与网页来源引用
 
 ## Summary
 
 第 35 阶段为聊天 Agent 增加用户显式启用的联网搜索能力。实现方式直接采用 Spring AI Tool Calling：当用户本轮开启联网并且全局搜索配置可用时，后端才把 `WebSearchTools` 挂载到本轮 `ChatClient` 调用；未开启联网时不注册工具，模型没有任何联网函数可调用。
 
 本阶段不做“后端先搜索再塞上下文”的过渡版。联网搜索是 Agent 的可选工具能力，而不是知识库检索的另一种固定上下文来源。模型可以在本轮生成过程中根据问题决定是否调用 `searchWeb`，工具返回结果同时进入模型上下文，并以结构化网页来源回传前端和落库。
+
+## Implementation Status
+
+当前实现已落地为单 provider MVP：`EXA`。后端新增 `WebSearchToolPolicy`、`WebSearchTools`、`ExaWebSearchClient`、`ToolExecutionCollector` 和 `/api/web-search/*` 设置接口；前端新增“策略 -> 联网搜索”设置页、聊天设置弹层联网开关、`tool` SSE 合并逻辑和网页来源展示。
+
+实现后补充的边界：
+
+- API Key 输入框只在编辑态短暂保存草稿，保存响应不回显明文；`enabled=true` 没有 Key 时会被后端归一化为 `false`。
+- 设置页提供“配置说明”和“调用策略”弹窗，链接到 Exa API Keys、Search API、Coding Agents Guide 和 Pricing 官方文档。
+- `ExaWebSearchClient` 按归一化超时值缓存 `RestClient`，避免每次搜索重建 HTTP client；Exa 请求只开启 `contents.highlights`，不拉全文和 summary。
+- `WebSearchSettingsService.snapshot()` 保留读写事务语义，因为首次读取会初始化默认关闭配置并写入 `app_settings`。
 
 ## Core Judgment
 
@@ -154,13 +165,12 @@ Flux<String> stream(
 @Tool(
     name = "searchWeb",
     description = """
-            Search the public web for recent, external, or verifiable information.
-            Use it only when the answer needs current facts, public web evidence,
-            or information not available in the local knowledge base.
+            搜索公开网页，获取最新、外部或可核验的信息。
+            仅当回答需要实时事实、公开网页证据，或当前上下文与已提供资料不足以可靠回答时使用。
             """
 )
 public WebSearchToolResult searchWeb(
-        @ToolParam(description = "A concise search query. Do not include API keys, tokens, passwords, or private user data.")
+        @ToolParam(description = "简洁明确的搜索关键词。不要包含 API Key、Token、密码或用户隐私数据。")
         String query,
         ToolContext toolContext
 ) {
@@ -197,17 +207,26 @@ Exa 客户端封装建议：
 public final class ExaWebSearchClient implements WebSearchClient {
     private static final URI SEARCH_URI = URI.create("https://api.exa.ai/search");
 
-    private final RestClient restClient;
+    private final ConcurrentMap<Integer, RestClient> restClientsByTimeoutMs = new ConcurrentHashMap<>();
 
     @Override
     public WebSearchToolResult search(WebSearchRequest request, WebSearchSettingsSnapshot settings) {
-        ExaSearchResponse response = restClient.post()
+        ExaSearchResponse response = restClient(settings.timeoutMs()).post()
                 .uri(SEARCH_URI)
                 .header("x-api-key", settings.apiKey())
                 .body(ExaSearchRequest.from(request))
                 .retrieve()
                 .body(ExaSearchResponse.class);
         return ExaSearchMapper.toToolResult(response, settings.provider());
+    }
+
+    private RestClient restClient(int timeoutMs) {
+        int normalizedTimeoutMs = Math.clamp(timeoutMs, 1000, 30000);
+        return restClientsByTimeoutMs.computeIfAbsent(normalizedTimeoutMs, ExaWebSearchClient::buildRestClient);
+    }
+
+    private static RestClient buildRestClient(int timeoutMs) {
+        ...
     }
 }
 ```
@@ -429,9 +448,12 @@ settings-view.vue
 交互规则：
 
 - `enabled` 是全局能力开关；关闭时聊天弹层不能打开本轮联网。
+- `enabled` 必须和 Key 状态一致：没有已保存 Key 且当前输入框也没有待保存 Key 时，启用开关保持禁用并给出提示；后端保存时也会把无 Key 的 `enabled=true` 归一化为 `false`。
 - API Key 输入框永远不回显明文；已配置时显示“已配置”，留空保存沿用旧 Key。
+- API Key 输入框必须允许粘贴。前端 store 不能在每次 normalize 远端设置时清空用户正在编辑的 `apiKey` 草稿，只有保存成功或重新加载远端设置时才清空。
 - `Test connection` 使用固定测试 query，例如 `latest AI search API news`，只验证 provider 可用，不写入聊天记录。
 - 表单错误展示在对应字段下方；保存和测试按钮必须有 loading/disabled 状态。
+- 页面提供“配置说明”和“调用策略”两个说明入口，用弹窗解释 Exa Key 获取、免费额度/计费风险、调用上限、超时和 `auto/fast` 的差异，并链接 Exa 官方文档。
 - 页面用现有 `settings-panel/settings-card` 风格，保持安静、工具型布局，不做营销式 hero 或说明长文。
 - 使用 Element Plus 表单控件和 lucide 图标；图标按钮要有 `aria-label/title`。
 
@@ -441,6 +463,7 @@ settings-view.vue
 - 形态：与“使用知识库”一致的 switch 行，文案为“联网搜索”。
 - 摘要区：新增一枚短状态 `联网开` / `联网关`；未配置时显示 `联网未配置`。
 - 禁用规则：全局联网未启用或 API Key 未配置时，switch 禁用，并显示一个到 `/settings?item=web-search` 的设置入口。
+- 布局规则：弹层第一行只放知识库和联网两个 switch，检索模式和 Top K 放到下一行；窄宽度下控件必须换行，不能撑出弹层。
 - 提交载荷：`streamChatAnswer` payload 增加 `useWebSearch: chatStore.useWebSearch`。
 - SSE：收到 `tool` 事件时，把网页 sources 合并到当前 assistant message 的 `sources`，不要等 `done` 才显示。
 
@@ -540,6 +563,12 @@ npm --prefix cogniNote-agent-front run build
 ```powershell
 mvn test
 ```
+
+当前验证记录：
+
+- `npm --prefix cogniNote-agent-front run build` 已通过；仍会出现项目既有的 Vite/Rolldown annotation、chunk size 和动态导入提示。
+- Playwright 已覆盖联网搜索设置页空 Key 状态、粘贴 Key 后启用、配置说明弹窗、调用策略弹窗、夜间模式可读性和聊天设置弹层响应式布局。
+- `mvn -Dtest=WebSearchSettingsServiceTests test` 在当前环境被 Maven Enforcer 阻止，原因是运行 JDK 不满足项目要求的 JDK 25；修复环境后再跑后端测试。
 
 ## Rollout
 

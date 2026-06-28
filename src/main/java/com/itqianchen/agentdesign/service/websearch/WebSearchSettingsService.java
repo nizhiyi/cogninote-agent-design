@@ -70,6 +70,7 @@ public class WebSearchSettingsService {
      * 返回运行时设置快照。
      *
      * <p>工具挂载策略读取该方法；当用户未开启本轮联网时不应调用，避免无意义读取密钥。</p>
+     * <p>设置不存在时会初始化一份默认关闭配置并写入 app_settings，因此这里保留读写事务语义。</p>
      */
     @Transactional
     public WebSearchSettingsSnapshot snapshot() {

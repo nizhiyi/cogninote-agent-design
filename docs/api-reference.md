@@ -967,6 +967,84 @@ PUT /api/chat/settings
 
 该设置只影响知识库检索 query，不会修改 `chat_messages.content` 中的用户原文，也不会影响 `useKnowledgeBase=false` 的纯模型对话。
 
+## 联网搜索设置
+
+第 35 阶段新增联网搜索设置 API。设置保存在 SQLite `app_settings` 中，MVP 只支持 `EXA` provider；API Key 只允许通过保存接口写入，所有响应都只返回 `apiKeyConfigured`，永不回显明文。
+
+全局设置只表达“联网能力是否可用”。聊天时还需要本轮请求传入 `useWebSearch=true`，后端才会把 `WebSearchTools.searchWeb` 挂载给模型。
+
+### 查询联网搜索设置
+
+```text
+GET /api/web-search/settings
+```
+
+响应 `data`：
+
+```json
+{
+  "enabled": false,
+  "provider": "EXA",
+  "apiKeyConfigured": false,
+  "maxResults": 5,
+  "maxCallsPerTurn": 2,
+  "timeoutMs": 10000,
+  "searchMode": "auto"
+}
+```
+
+字段说明：
+
+| 字段 | 说明 |
+| --- | --- |
+| `enabled` | 全局联网搜索是否实际启用。没有已保存或本次提交的 API Key 时，后端会归一化为 `false`。 |
+| `provider` | 当前固定为 `EXA`，保留字段用于后续 provider 扩展。 |
+| `apiKeyConfigured` | 服务端是否已有 Exa API Key。 |
+| `maxResults` | 单次搜索返回结果数，范围 `1` 到 `10`。 |
+| `maxCallsPerTurn` | 单轮聊天最多允许模型调用搜索工具的次数，范围 `1` 到 `3`。 |
+| `timeoutMs` | Exa 请求超时，范围 `1000` 到 `30000` 毫秒。 |
+| `searchMode` | Exa 搜索模式，`auto` 或 `fast`。 |
+
+### 保存联网搜索设置
+
+```text
+PUT /api/web-search/settings
+```
+
+请求体：
+
+```json
+{
+  "enabled": true,
+  "provider": "EXA",
+  "apiKey": "exa-...",
+  "maxResults": 5,
+  "maxCallsPerTurn": 2,
+  "timeoutMs": 10000,
+  "searchMode": "auto"
+}
+```
+
+`apiKey` 传空或省略表示沿用服务端已保存的旧 Key；传入新 Key 时覆盖旧 Key。响应字段与查询接口一致，不返回明文 `apiKey`。如果 `enabled=true` 但既没有旧 Key 也没有本次提交的新 Key，后端会保存为未启用状态。
+
+### 测试联网搜索
+
+```text
+POST /api/web-search/test
+```
+
+该接口使用固定测试 query 调用当前 provider，只验证配置和网络可用性，不写入聊天记录，也不返回完整网页内容。
+
+响应 `data`：
+
+```json
+{
+  "success": true,
+  "message": "OK",
+  "resultCount": 5
+}
+```
+
 ## 知识图谱
 
 知识图谱是知识库资料的派生物。后端基于已解析 chunks 调用 active Chat 模型抽取实体、中文关系谓词、关系描述和证据，写入 SQLite 图谱缓存，再生成思维导图和关系图视图。导入文档或重建 Lucene 索引不会自动重建图谱，必须由用户显式触发。
@@ -1341,6 +1419,7 @@ POST /api/chat/stream
   "conversationId": "conversation-xxx，可省略",
   "question": "这个项目如何打包？",
   "useKnowledgeBase": true,
+  "useWebSearch": false,
   "topK": 8,
   "mode": "HYBRID",
   "references": [
@@ -1353,7 +1432,7 @@ POST /api/chat/stream
 }
 ```
 
-`requestId`、`conversationId`、`topK`、`mode`、`useKnowledgeBase` 和 `references` 可省略。默认使用后端生成的 `requestId/conversationId`、active Chat 配置中的 `defaultTopK`、`HYBRID`、`useKnowledgeBase=true` 和空引用列表。前端需要支持停止生成时，应在请求体中传入稳定 `requestId`，然后调用取消接口。
+`requestId`、`conversationId`、`topK`、`mode`、`useKnowledgeBase`、`useWebSearch` 和 `references` 可省略。默认使用后端生成的 `requestId/conversationId`、active Chat 配置中的 `defaultTopK`、`HYBRID`、`useKnowledgeBase=true`、`useWebSearch=false` 和空引用列表。前端需要支持停止生成时，应在请求体中传入稳定 `requestId`，然后调用取消接口。
 
 `references` 用于携带用户本轮引用的助手回复片段。v1 只支持引用助手消息文本；服务端会再次清洗，最多保留 5 个片段，单个片段最多 1200 字符，总片段最多 4000 字符，并按 `messageId + snippet` 去重。数据库中的 `chat_messages.content` 仍保存用户原始 `question`，引用片段写入 `chat_messages.references_json`，只在模型输入、会话记忆和 token 估算时拼接进上下文。
 
@@ -1366,6 +1445,9 @@ data: {"requestId":"...","conversationId":"...","retrievalMode":"HYBRID","source
 event: delta
 data: {"text":"..."}
 
+event: tool
+data: {"requestId":"...","toolName":"searchWeb","query":"Spring AI Tool Calling","status":"COMPLETED","durationMs":820,"message":"OK","sources":[{"index":1,"chunkId":"web:...","sourceType":"WEB","title":"Spring AI Reference","fileName":"Spring AI Reference","url":"https://docs.spring.io/spring-ai/reference/...","sourcePath":"https://docs.spring.io/spring-ai/reference/...","provider":"EXA","preview":"...","score":0.89,"publishedAt":"2026-06-01"}]}
+
 event: done
 data: {"usage":null,"contextUsage":{"contextWindowTokens":128000,"usedTokens":1240,"availableTokens":126760,"usageRatio":0.0097,"compressed":false,"summaryTokens":0,"recentMessageTokens":1240,"recentMessageCount":4,"totalMessageCount":4,"summaryMessageSequence":0,"estimationMethod":"jtokkit:o200k_base"}}
 
@@ -1376,10 +1458,12 @@ data: {"message":"..."}
 事件顺序通常为：
 
 ```text
-meta -> delta -> done
+meta -> delta/tool -> done
 ```
 
-异常时输出 `error`，事件顺序为 `meta -> delta -> error`。客户端只有收到 `done` 或 `error` 终止事件时，才能认为本轮 SSE 流有明确结论；如果连接关闭但没有终止事件，应按回答未完成处理。如果 `HYBRID` 或 `VECTOR` 因 Embedding 不可用失败，RAG 服务会自动降级到 `KEYWORD`，并在 `meta.retrievalMode` 中返回实际检索模式。`useKnowledgeBase=false` 时路由到 `GENERAL_CHAT` 普通对话 Agent，不挂 RAG Advisor，`retrievalMode` 为 `null`、`sources` 为空，只注入模式隔离后的会话记忆。`useKnowledgeBase=true` 或省略时路由到 `KNOWLEDGE_BASE` 知识库 Agent；知识库模式会按 `queryContextualizerMode` 决定是否内部调用追问补全 Agent，必要时把历史主题补进检索 query，但请求体、SSE `meta` 和用户消息内容都不变。
+有联网工具调用时，`tool` 事件可能穿插在 `delta` 前后；客户端应按 `requestId` 合并到当前 assistant 消息的 sources，不要等 `done` 才展示网页来源。异常时输出 `error`，事件顺序为 `meta -> delta/tool -> error`。客户端只有收到 `done` 或 `error` 终止事件时，才能认为本轮 SSE 流有明确结论；如果连接关闭但没有终止事件，应按回答未完成处理。如果 `HYBRID` 或 `VECTOR` 因 Embedding 不可用失败，RAG 服务会自动降级到 `KEYWORD`，并在 `meta.retrievalMode` 中返回实际检索模式。`useKnowledgeBase=false` 时路由到 `GENERAL_CHAT` 普通对话 Agent，不挂 RAG Advisor，`retrievalMode` 为 `null`、`sources` 为空，只注入模式隔离后的会话记忆。`useKnowledgeBase=true` 或省略时路由到 `KNOWLEDGE_BASE` 知识库 Agent；知识库模式会按 `queryContextualizerMode` 决定是否内部调用追问补全 Agent，必要时把历史主题补进检索 query，但请求体、SSE `meta` 和用户消息内容都不变。
+
+`useWebSearch=false` 或省略时，后端不会读取联网搜索设置、不会挂载工具、不会调用 Exa，也不会产生 `tool` 事件。`useWebSearch=true` 时，后端还会检查全局联网设置是否启用、provider 是否为 `EXA`、API Key 是否已配置；只有全部满足才会把 `WebSearchTools.searchWeb` 加入本轮 ChatClient 工具列表。纯模型对话和知识库对话都可以开启联网：前者是会话记忆 + WebSearchTools，后者是会话记忆 + RAG Advisor + WebSearchTools。
 
 重要约束：
 
@@ -1389,6 +1473,7 @@ meta -> delta -> done
 - 知识库模式下，后端可能按 `AUTO/ALWAYS/OFF` 策略使用 active Chat 模型对省略式追问生成内部 `retrievalQuery`。`AUTO` 本地打分器会综合短句、指代、省略补全、动作型请求、英文领域切换和完整问题反向信号；如果本地判断已触发但补全模型误判不改写，短动作型追问会用最近明确主题的用户问题构造本地兜底 query。这个 query 只用于检索，不写入 `chat_messages.content`，也不会通过 SSE 暴露；补全失败、非法 JSON 或 query 过长时会回退原问题检索。
 - RAG 不再手动把 `{context}` 拼进 user prompt。知识库片段通过 Spring AI `RetrievalAugmentationAdvisor` 和 `CogninoteDocumentRetriever` 注入。
 - Spring AI `Document.metadata` 不允许出现 `null`。后端转换 RAG sources 时会省略缺失的 `heading/pageNumber` 等可选字段，前端仍以 SSE `meta.sources` 作为引用来源展示事实来源。
+- `sources[].sourceType` 可能是 `LOCAL` 或 `WEB`。旧消息缺少 `sourceType` 时按 `LOCAL` 兼容；网页来源会同时填充 `title/url/provider/preview`，并把 `fileName/sourcePath` 填为标题和 URL，保证旧展示路径也能显示基本信息。
 - `delta.text` 是模型原始流式文本增量，可能只包含一个空格、换行或缩进。客户端和服务端都不能对它做 `trim()`、`trimStart()` 或 `isBlank()` 过滤，否则 Markdown 标题、列表、代码块和表格可能被破坏。
 - 前端手写 SSE parser 时，`data:` 后最多只移除一个协议分隔空格；内容本身的前导空白必须保留。
 - `POST /api/chat/stream` 已经写出 `text/event-stream` 后，错误不能再按 JSON `ApiResponse` 写回。能进入业务流的错误应发送 SSE `error` 事件；连接关闭或容器异常只能关闭响应。
