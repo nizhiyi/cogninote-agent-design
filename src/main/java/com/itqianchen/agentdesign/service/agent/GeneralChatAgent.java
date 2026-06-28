@@ -7,6 +7,7 @@ import com.itqianchen.agentdesign.domain.enums.search.SearchMode;
 import com.itqianchen.agentdesign.service.chat.ChatSessionService;
 import com.itqianchen.agentdesign.service.chat.CogninoteMemoryAdvisor;
 import com.itqianchen.agentdesign.service.model.ModelConfigService;
+import com.itqianchen.agentdesign.service.websearch.WebSearchToolPolicy;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
@@ -27,15 +28,17 @@ public class GeneralChatAgent extends AbstractChatAgent {
      * @param promptAssembler 提示词装配器
      * @param chatSessionService 会话服务
      * @param memoryAdvisor 会话记忆 Advisor
+     * @param webSearchToolPolicy 联网搜索工具挂载策略
      */
     public GeneralChatAgent(
             ModelConfigService modelConfigService,
             AiRuntimeFactory aiRuntimeFactory,
             PromptAssembler promptAssembler,
             ChatSessionService chatSessionService,
-            CogninoteMemoryAdvisor memoryAdvisor
+            CogninoteMemoryAdvisor memoryAdvisor,
+            WebSearchToolPolicy webSearchToolPolicy
     ) {
-        super(modelConfigService, aiRuntimeFactory, promptAssembler, chatSessionService);
+        super(modelConfigService, aiRuntimeFactory, promptAssembler, chatSessionService, webSearchToolPolicy);
         this.memoryAdvisor = memoryAdvisor;
     }
 

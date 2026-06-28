@@ -16,6 +16,7 @@ public record AgentRequest(
         SearchMode mode,
         String conversationId,
         boolean useKnowledgeBase,
+        boolean useWebSearch,
         List<ChatReferenceRequest> references
 ) {
 
@@ -30,7 +31,37 @@ public record AgentRequest(
             String conversationId,
             boolean useKnowledgeBase
     ) {
-        this(requestId, question, topK, mode, conversationId, useKnowledgeBase, List.of());
+        this(requestId, question, topK, mode, conversationId, useKnowledgeBase, false, List.of());
+    }
+
+    /**
+     * 兼容旧测试和内部调用，未显式传引用时按空引用处理。
+     */
+    public AgentRequest(
+            String requestId,
+            String question,
+            Integer topK,
+            SearchMode mode,
+            String conversationId,
+            boolean useKnowledgeBase,
+            List<ChatReferenceRequest> references
+    ) {
+        this(requestId, question, topK, mode, conversationId, useKnowledgeBase, false, references);
+    }
+
+    /**
+     * 兼容旧测试和内部调用，未显式传引用时按空引用处理。
+     */
+    public AgentRequest(
+            String requestId,
+            String question,
+            Integer topK,
+            SearchMode mode,
+            String conversationId,
+            boolean useKnowledgeBase,
+            boolean useWebSearch
+    ) {
+        this(requestId, question, topK, mode, conversationId, useKnowledgeBase, useWebSearch, List.of());
     }
 
     /**
@@ -46,6 +77,7 @@ public record AgentRequest(
                 request.mode(),
                 request.conversationId(),
                 request.useKnowledgeBase() == null || request.useKnowledgeBase(),
+                Boolean.TRUE.equals(request.useWebSearch()),
                 request.references() == null ? List.of() : request.references()
         );
     }

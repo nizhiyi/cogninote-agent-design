@@ -27,6 +27,9 @@
   --el-fill-color: color-mix(in srgb, var(--color-surface-muted) 68%, transparent);
   --el-fill-color-light: color-mix(in srgb, var(--color-surface-muted) 48%, transparent);
   --el-fill-color-lighter: color-mix(in srgb, var(--color-surface-muted) 32%, transparent);
+  --el-fill-color-extra-light: color-mix(in srgb, var(--color-surface-muted) 24%, transparent);
+  --el-fill-color-dark: color-mix(in srgb, var(--color-surface-muted) 78%, transparent);
+  --el-fill-color-darker: color-mix(in srgb, var(--color-surface-muted) 88%, transparent);
   --el-fill-color-blank: var(--color-surface);
   --el-disabled-bg-color: color-mix(in srgb, var(--color-surface-muted) 58%, transparent);
   --el-disabled-text-color: var(--color-text-faint);

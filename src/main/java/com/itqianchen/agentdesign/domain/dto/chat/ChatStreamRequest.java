@@ -17,6 +17,7 @@ public record ChatStreamRequest(
         @Size(max = 80) String requestId,
         @Size(max = 80) String conversationId,
         Boolean useKnowledgeBase,
+        Boolean useWebSearch,
         @Size(max = 5) List<@Valid ChatReferenceRequest> references
 ) {
 }

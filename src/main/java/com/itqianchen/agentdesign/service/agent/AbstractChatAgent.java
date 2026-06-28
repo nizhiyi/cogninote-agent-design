@@ -8,9 +8,13 @@ import com.itqianchen.agentdesign.domain.entity.chat.ChatMessage;
 import com.itqianchen.agentdesign.domain.entity.model.ModelConfig;
 import com.itqianchen.agentdesign.domain.enums.search.SearchMode;
 import com.itqianchen.agentdesign.domain.dto.chat.ChatContextUsageResponse;
+import com.itqianchen.agentdesign.domain.dto.chat.RagSourceResponse;
 import com.itqianchen.agentdesign.service.chat.ChatSessionService;
 import com.itqianchen.agentdesign.service.chat.CogninoteMemoryAdvisor;
 import com.itqianchen.agentdesign.service.model.ModelConfigService;
+import com.itqianchen.agentdesign.service.websearch.ToolExecutionCollector;
+import com.itqianchen.agentdesign.service.websearch.WebSearchToolInvocation;
+import com.itqianchen.agentdesign.service.websearch.WebSearchToolPolicy;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -35,6 +39,7 @@ public abstract class AbstractChatAgent implements ChatAgent {
     private final AiRuntimeFactory aiRuntimeFactory;
     private final PromptAssembler promptAssembler;
     private final ChatSessionService chatSessionService;
+    private final WebSearchToolPolicy webSearchToolPolicy;
 
     /**
      * 注入流式执行骨架所需依赖。
@@ -43,17 +48,20 @@ public abstract class AbstractChatAgent implements ChatAgent {
      * @param aiRuntimeFactory AI 运行时工厂
      * @param promptAssembler 提示词装配器
      * @param chatSessionService 会话服务
+     * @param webSearchToolPolicy 联网搜索工具挂载策略
      */
     protected AbstractChatAgent(
             ModelConfigService modelConfigService,
             AiRuntimeFactory aiRuntimeFactory,
             PromptAssembler promptAssembler,
-            ChatSessionService chatSessionService
+            ChatSessionService chatSessionService,
+            WebSearchToolPolicy webSearchToolPolicy
     ) {
         this.modelConfigService = modelConfigService;
         this.aiRuntimeFactory = aiRuntimeFactory;
         this.promptAssembler = promptAssembler;
         this.chatSessionService = chatSessionService;
+        this.webSearchToolPolicy = webSearchToolPolicy;
     }
 
     /**
@@ -99,6 +107,11 @@ public abstract class AbstractChatAgent implements ChatAgent {
                 chatConfig
         ));
         KnowledgeContext knowledgeContext = invocation.knowledgeContext();
+        WebSearchToolInvocation webSearchInvocation = webSearchToolPolicy.prepare(
+                request.useWebSearch(),
+                requestId,
+                knowledgeContext.sources().size()
+        );
         ChatContextUsageResponse initialContextUsage = chatSessionService.contextUsage(conversationId);
         Map<String, Object> advisorParams = Map.of(
                 ChatMemory.CONVERSATION_ID, conversationId,
@@ -110,12 +123,15 @@ public abstract class AbstractChatAgent implements ChatAgent {
         // 模型流是冷流，defer 确保订阅发生后才真正发起外部调用和开始累计答案。
         Flux<String> answer = Flux.defer(() -> aiRuntimeFactory.chatRuntime(chatConfig)
                 .stream(
-                        promptAssembler.systemPrompt(type()),
+                        promptAssembler.systemPrompt(type(), webSearchInvocation.enabled()),
                         promptAssembler.userPrompt(type(), modelQuestion),
                         invocation.advisors(),
-                        advisorParams
+                        advisorParams,
+                        webSearchInvocation.tools(),
+                        webSearchInvocation.toolContext()
                 )
                 .doOnNext(assistantAnswer::append)
+                .doFinally(signal -> completeToolEvents(webSearchInvocation))
                 .doOnComplete(() -> logAgentCompleted(
                         requestId,
                         conversationId,
@@ -142,14 +158,16 @@ public abstract class AbstractChatAgent implements ChatAgent {
                         conversationId,
                         assistantAnswer.toString(),
                         requestId,
-                        knowledgeContext
+                        knowledgeContext,
+                        webSearchInvocation.collector()
                 ))
                 .doOnError(error -> saveAssistantError(
                         saved,
                         conversationId,
                         assistantAnswer.toString(),
                         requestId,
-                        knowledgeContext
+                        knowledgeContext,
+                        webSearchInvocation.collector()
                 )));
 
         return new AgentChatStream(
@@ -159,13 +177,15 @@ public abstract class AbstractChatAgent implements ChatAgent {
                 knowledgeContext.sources(),
                 initialContextUsage,
                 () -> chatSessionService.contextUsage(conversationId),
+                webSearchInvocation.toolEvents(),
                 answer,
                 () -> saveAssistantStopped(
                         saved,
                         conversationId,
                         assistantAnswer.toString(),
                         requestId,
-                        knowledgeContext
+                        knowledgeContext,
+                        webSearchInvocation.collector()
                 )
         );
     }
@@ -243,7 +263,8 @@ public abstract class AbstractChatAgent implements ChatAgent {
             String conversationId,
             String content,
             String requestId,
-            KnowledgeContext knowledgeContext
+            KnowledgeContext knowledgeContext,
+            ToolExecutionCollector toolExecutionCollector
     ) {
         if (content.isBlank() || !saved.compareAndSet(false, true)) {
             return;
@@ -254,7 +275,7 @@ public abstract class AbstractChatAgent implements ChatAgent {
                 requestId,
                 type(),
                 knowledgeContext.retrievalMode(),
-                knowledgeContext.sources()
+                allSources(knowledgeContext, toolExecutionCollector)
         );
     }
 
@@ -272,7 +293,8 @@ public abstract class AbstractChatAgent implements ChatAgent {
             String conversationId,
             String content,
             String requestId,
-            KnowledgeContext knowledgeContext
+            KnowledgeContext knowledgeContext,
+            ToolExecutionCollector toolExecutionCollector
     ) {
         if (content.isBlank() || !saved.compareAndSet(false, true)) {
             return;
@@ -283,7 +305,7 @@ public abstract class AbstractChatAgent implements ChatAgent {
                 requestId,
                 type(),
                 knowledgeContext.retrievalMode(),
-                knowledgeContext.sources()
+                allSources(knowledgeContext, toolExecutionCollector)
         );
     }
 
@@ -301,7 +323,8 @@ public abstract class AbstractChatAgent implements ChatAgent {
             String conversationId,
             String content,
             String requestId,
-            KnowledgeContext knowledgeContext
+            KnowledgeContext knowledgeContext,
+            ToolExecutionCollector toolExecutionCollector
     ) {
         if (content.isBlank() || !saved.compareAndSet(false, true)) {
             return;
@@ -312,8 +335,29 @@ public abstract class AbstractChatAgent implements ChatAgent {
                 requestId,
                 type(),
                 knowledgeContext.retrievalMode(),
-                knowledgeContext.sources()
+                allSources(knowledgeContext, toolExecutionCollector)
         );
+    }
+
+    private static void completeToolEvents(WebSearchToolInvocation webSearchInvocation) {
+        ToolExecutionCollector collector = webSearchInvocation.collector();
+        if (collector != null) {
+            collector.complete();
+        }
+    }
+
+    private static List<RagSourceResponse> allSources(
+            KnowledgeContext knowledgeContext,
+            ToolExecutionCollector toolExecutionCollector
+    ) {
+        if (toolExecutionCollector == null || toolExecutionCollector.webSources().isEmpty()) {
+            return knowledgeContext.sources();
+        }
+        return java.util.stream.Stream.concat(
+                        knowledgeContext.sources().stream(),
+                        toolExecutionCollector.webSources().stream()
+                )
+                .toList();
     }
 
     /**

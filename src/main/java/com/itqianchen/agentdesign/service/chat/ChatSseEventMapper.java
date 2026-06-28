@@ -72,6 +72,15 @@ public class ChatSseEventMapper {
             completeSafely(emitter, completed);
             return;
         }
+        Disposable toolEventSubscription = stream.toolEvents()
+                .subscribe(
+                        event -> sendSafely(emitter, completed, new AgentEvent.Tool(event)),
+                        error -> log.warn("agent_chat_tool_event_failed requestId={} conversationId={}",
+                                stream.requestId(),
+                                stream.conversationId(),
+                                error
+                        )
+                );
         stream.answer()
                 .doOnSubscribe(subscription -> cancellation.attach(cancellationHandle(subscription)))
                 .subscribe(
@@ -84,11 +93,13 @@ public class ChatSseEventMapper {
                             );
                             sendSafely(emitter, completed, new AgentEvent.Error(error.getMessage()));
                             completeSafely(emitter, completed);
+                            toolEventSubscription.dispose();
                             cancellationRegistry.unregister(stream.requestId(), cancellation);
                         },
                         () -> {
                             sendSafely(emitter, completed, new AgentEvent.Done(null, stream.currentContextUsage()));
                             completeSafely(emitter, completed);
+                            toolEventSubscription.dispose();
                             cancellationRegistry.unregister(stream.requestId(), cancellation);
                         }
                 );
@@ -225,6 +236,12 @@ public class ChatSseEventMapper {
             emitter.send(SseEmitter.event()
                     .name("delta")
                     .data(new ChatDeltaEvent(delta.text())));
+            return;
+        }
+        if (event instanceof AgentEvent.Tool tool) {
+            emitter.send(SseEmitter.event()
+                    .name("tool")
+                    .data(tool.event()));
             return;
         }
         if (event instanceof AgentEvent.Done done) {

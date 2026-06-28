@@ -63,6 +63,7 @@ import com.itqianchen.agentdesign.service.chat.ChatReferencesJsonCodec;
 import com.itqianchen.agentdesign.service.chat.RagSourcesJsonCodec;
 import com.itqianchen.agentdesign.service.chat.TokenEstimator;
 import com.itqianchen.agentdesign.service.model.ModelConfigService;
+import com.itqianchen.agentdesign.service.websearch.WebSearchToolPolicy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -640,6 +641,7 @@ class ChatAgentRouterTests {
             FakeAiRuntimeFactory runtimeFactory = new FakeAiRuntimeFactory(runtime);
             PromptAssembler promptAssembler = new PromptAssembler(defaultPromptProperties());
             CogninoteMemoryAdvisor memoryAdvisor = new CogninoteMemoryAdvisor(memorySnapshotService);
+            WebSearchToolPolicy webSearchToolPolicy = new WebSearchToolPolicy(null, null);
             QueryContextualizerAgent queryContextualizerAgent = new QueryContextualizerAgent(
                     runtimeFactory,
                     defaultPromptProperties(),
@@ -655,7 +657,8 @@ class ChatAgentRouterTests {
                             runtimeFactory,
                             promptAssembler,
                             chatSessionService,
-                            memoryAdvisor
+                            memoryAdvisor,
+                            webSearchToolPolicy
                     ),
                     new KnowledgeBaseChatAgent(
                             modelConfigService,
@@ -664,7 +667,8 @@ class ChatAgentRouterTests {
                             promptAssembler,
                             chatSessionService,
                             memoryAdvisor,
-                            queryContextualizerAgent
+                            queryContextualizerAgent,
+                            webSearchToolPolicy
                     )
             ));
         }

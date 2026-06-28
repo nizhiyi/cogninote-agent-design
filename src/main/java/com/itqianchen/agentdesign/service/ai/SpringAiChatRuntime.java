@@ -1,7 +1,6 @@
 package com.itqianchen.agentdesign.service.ai;
 
 
-import com.itqianchen.agentdesign.domain.exception.model.ModelConfigurationException;
 import com.itqianchen.agentdesign.domain.interfaces.ai.AiChatRuntime;
 import com.itqianchen.agentdesign.domain.exception.model.ModelConfigurationException;
 import java.util.List;
@@ -67,6 +66,32 @@ final class SpringAiChatRuntime implements AiChatRuntime {
             List<Advisor> advisors,
             Map<String, Object> advisorParams
     ) {
+        return stream(systemPrompt, userMessage, advisors, advisorParams, List.of(), Map.of());
+    }
+
+    /**
+     * 通过 ChatClient 运行带 advisor 和工具的流式生成。
+     *
+     * <p>Spring AI 的 tools(...) 是 varargs；传入 List 会被识别成一个普通工具对象，
+     * 因此这里必须展开为 Object[]。</p>
+     *
+     * @param systemPrompt 系统提示词
+     * @param userMessage 用户消息
+     * @param advisors 本轮需要启用的 advisor
+     * @param advisorParams advisor 上下文参数
+     * @param tools 本轮允许模型调用的工具对象
+     * @param toolContext 工具执行期后端上下文
+     * @return 文本增量流
+     */
+    @Override
+    public Flux<String> stream(
+            String systemPrompt,
+            String userMessage,
+            List<Advisor> advisors,
+            Map<String, Object> advisorParams,
+            List<Object> tools,
+            Map<String, Object> toolContext
+    ) {
         // ChatClient 才支持 advisors；直接调用 ChatModel 会丢失记忆和 RAG advisor 参数。
         ChatClient.ChatClientRequestSpec spec = ChatClient.builder(chatModel)
                 .build()
@@ -82,6 +107,12 @@ final class SpringAiChatRuntime implements AiChatRuntime {
                     advisor.params(advisorParams);
                 }
             });
+        }
+        if (tools != null && !tools.isEmpty()) {
+            spec = spec.tools(tools.toArray());
+        }
+        if (toolContext != null && !toolContext.isEmpty()) {
+            spec = spec.toolContext(toolContext);
         }
         return spec.stream()
                 .chatResponse()

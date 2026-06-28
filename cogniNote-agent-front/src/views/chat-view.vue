@@ -19,10 +19,12 @@ import { useChatStore } from '../stores/chat'
 import { useLayoutStore } from '../stores/layout'
 import { useModelConfigStore } from '../stores/model-config'
 import { SEARCH_MODES } from '../stores/search'
+import { useWebSearchSettingsStore } from '../stores/web-search-settings'
 
 const chatStore = useChatStore()
 const layoutStore = useLayoutStore()
 const modelConfigStore = useModelConfigStore()
+const webSearchSettingsStore = useWebSearchSettingsStore()
 const AiMarkdownRenderer = defineAsyncComponent(() => import('../components/ai-markdown-renderer.vue'))
 const isComposerSettingsOpen = ref(false)
 const composerSettingsButtonRef = ref(null)
@@ -72,6 +74,14 @@ const conversationMetaItems = computed(() => {
       state: 'info'
     }
   ]
+
+  if (chatStore.useWebSearch) {
+    items.push({
+      id: 'web-search',
+      label: '联网搜索',
+      state: webSearchSettingsStore.available ? 'success' : 'neutral'
+    })
+  }
 
   if (activeModelSummary.value) {
     items.push({
@@ -249,6 +259,12 @@ function formatRetrievalModeLabel(mode) {
   return SEARCH_MODES.find((item) => item.value === mode)?.label || mode || ''
 }
 
+function sourceDisplayName(source) {
+  return source?.sourceType === 'WEB'
+    ? source.title || source.fileName || source.url || '网页来源'
+    : source?.fileName || '文档来源'
+}
+
 /**
  * Enter 直接发送，Shift+Enter 保留换行。
  *
@@ -295,6 +311,14 @@ function handlePageKeydown(event) {
   if (layoutStore.isSourceInspectorOpen) {
     layoutStore.closeSourceInspector()
   }
+}
+
+function handleUseWebSearchChange(value) {
+  if (value && !webSearchSettingsStore.available) {
+    webSearchSettingsStore.fetchSettings({ force: true })
+    return
+  }
+  chatStore.setUseWebSearch(value)
 }
 
 function handleComposerSettingsPointerDown(event) {
@@ -677,6 +701,7 @@ watch(
 )
 
 onMounted(() => {
+  webSearchSettingsStore.fetchSettings()
   window.addEventListener('keydown', handlePageKeydown)
   window.addEventListener('pointerdown', handleComposerSettingsPointerDown)
   document.addEventListener('selectionchange', handleDocumentSelectionChange)
@@ -816,10 +841,10 @@ onBeforeUnmount(() => {
                 :key="source.chunkId"
                 class="message-source-chip"
                 type="button"
-                :title="source.fileName"
+                :title="sourceDisplayName(source)"
                 @click="openMessageSources(message, source)"
               >
-                [{{ source.index }}] {{ source.fileName }}
+                [{{ source.index }}] {{ sourceDisplayName(source) }}
               </button>
             </div>
           </article>
@@ -941,8 +966,12 @@ onBeforeUnmount(() => {
           :use-knowledge-base="chatStore.useKnowledgeBase"
           :mode="chatStore.mode"
           :top-k="chatStore.topK"
+          :use-web-search="chatStore.useWebSearch"
+          :web-search-available="webSearchSettingsStore.available"
+          :web-search-status-label="webSearchSettingsStore.statusLabel"
           :modes="SEARCH_MODES"
           @update:use-knowledge-base="chatStore.setUseKnowledgeBase"
+          @update:use-web-search="handleUseWebSearchChange"
           @update:mode="chatStore.setMode"
           @update:top-k="chatStore.setTopK"
         />

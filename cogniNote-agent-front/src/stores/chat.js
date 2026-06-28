@@ -69,13 +69,27 @@ function normalizeMessage(message, fallbackRole = 'assistant') {
     role,
     content: message?.content || '',
     status: normalizeStatus(message?.status, role),
-    sources: message?.sources || [],
+    sources: normalizeSources(message?.sources),
     references: normalizeReferences(message?.references),
     retrievalMode: message?.retrievalMode || '',
     conversationId: message?.conversationId || '',
     requestId: message?.requestId || '',
     createdAt: message?.createdAt || Date.now()
   }
+}
+
+function normalizeSources(sources) {
+  if (!Array.isArray(sources)) {
+    return []
+  }
+  return sources.map((source) => ({
+    ...source,
+    sourceType: source?.sourceType || 'LOCAL',
+    fileName: source?.fileName || source?.title || source?.url || '来源',
+    sourcePath: source?.sourcePath || source?.url || '',
+    chunkId: source?.chunkId || source?.url || nextId('source'),
+    preview: source?.preview || ''
+  }))
 }
 
 function normalizeReferences(references) {
@@ -200,6 +214,7 @@ export const useChatStore = defineStore('chat', () => {
   const activeSessionId = ref('')
   const draft = ref('')
   const useKnowledgeBaseValue = ref(true)
+  const useWebSearchValue = ref(false)
   const modeValue = ref(DEFAULT_RETRIEVAL_MODE)
   const topKValue = ref(DEFAULT_TOP_K)
   const isLoadingSessions = ref(false)
@@ -228,6 +243,12 @@ export const useChatStore = defineStore('chat', () => {
       useKnowledgeBaseValue.value = normalizeKnowledgeBaseFlag(value)
       syncSessionOptions()
       persistActiveSessionOptions()
+    }
+  })
+  const useWebSearch = computed({
+    get: () => Boolean(useWebSearchValue.value),
+    set: (value) => {
+      useWebSearchValue.value = Boolean(value)
     }
   })
   const mode = computed({
@@ -409,6 +430,7 @@ export const useChatStore = defineStore('chat', () => {
           mode: mode.value,
           topK: Number(topK.value),
           useKnowledgeBase: useKnowledgeBase.value,
+          useWebSearch: useWebSearch.value,
           requestId,
           references: referencesForMessage
         },
@@ -486,6 +508,13 @@ export const useChatStore = defineStore('chat', () => {
       return
     }
 
+    if (eventName === 'tool') {
+      updateAssistantMessage((message) => {
+        message.sources = mergeSources(message.sources, payload.sources)
+      })
+      return
+    }
+
     if (eventName === 'error') {
       const messageText = payload.message || '模型返回错误'
       markAssistantError(messageText)
@@ -517,6 +546,10 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function askAboutSource(source) {
+    if (source?.sourceType === 'WEB') {
+      draft.value = `请结合网页来源 ${source.title || source.fileName || source.url} 继续说明。`
+      return
+    }
     draft.value = `请解释 ${source.fileName} 中和这段内容相关的要点。`
   }
 
@@ -572,6 +605,10 @@ export const useChatStore = defineStore('chat', () => {
 
   function setUseKnowledgeBase(value) {
     useKnowledgeBase.value = value
+  }
+
+  function setUseWebSearch(value) {
+    useWebSearch.value = value
   }
 
   function setMode(value) {
@@ -809,6 +846,19 @@ export const useChatStore = defineStore('chat', () => {
     topKValue.value = normalizeTopK(session.topK)
   }
 
+  function mergeSources(existingSources, incomingSources) {
+    const merged = normalizeSources(existingSources)
+    const seen = new Set(merged.map((source) => source.chunkId))
+    for (const source of normalizeSources(incomingSources)) {
+      if (seen.has(source.chunkId)) {
+        continue
+      }
+      seen.add(source.chunkId)
+      merged.push(source)
+    }
+    return merged
+  }
+
   function defaultSessionPayload() {
     return {
       useKnowledgeBase: useKnowledgeBase.value,
@@ -849,6 +899,7 @@ export const useChatStore = defineStore('chat', () => {
     draft,
     pendingReferences,
     useKnowledgeBase,
+    useWebSearch,
     mode,
     topK,
     isLoadingSessions,
@@ -863,6 +914,7 @@ export const useChatStore = defineStore('chat', () => {
     forgetSessionScrollPosition,
     initializeSessions,
     setUseKnowledgeBase,
+    setUseWebSearch,
     setMode,
     setTopK,
     startNewSession,

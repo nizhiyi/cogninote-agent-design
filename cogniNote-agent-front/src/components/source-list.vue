@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { formatScore } from '../utils/formatters'
 
 /**
@@ -7,7 +7,7 @@ import { formatScore } from '../utils/formatters'
  *
  * <p>source.index 与回答正文中的 [n] 引用编号对应，不能在前端重新排序。</p>
  */
-defineProps({
+const props = defineProps({
   sources: {
     type: Array,
     required: true
@@ -21,6 +21,14 @@ defineProps({
 defineEmits(['ask-source'])
 
 const isExpanded = ref(false)
+const localSources = computed(() => props.sources.filter((source) => source.sourceType !== 'WEB'))
+const webSources = computed(() => props.sources.filter((source) => source.sourceType === 'WEB'))
+
+function sourceTitle(source) {
+  return source.sourceType === 'WEB'
+    ? source.title || source.fileName || source.url || '网页来源'
+    : source.fileName
+}
 </script>
 
 <template>
@@ -42,11 +50,11 @@ const isExpanded = ref(false)
 
     <template v-if="isExpanded">
       <p v-if="sources.length === 0" class="panel-message">发送问题后会列出本次检索命中的文档片段。</p>
-      <article v-for="source in sources" :key="source.chunkId" class="source-row">
+      <article v-for="source in localSources" :key="source.chunkId" class="source-row">
         <div class="source-index">[{{ source.index }}]</div>
         <div class="source-main">
           <div class="document-title-line">
-            <h4>{{ source.fileName }}</h4>
+            <h4>{{ sourceTitle(source) }}</h4>
             <span class="score-chip">{{ formatScore(source.score) }}</span>
           </div>
           <p class="path-text">{{ source.sourcePath }}</p>
@@ -58,6 +66,19 @@ const isExpanded = ref(false)
           </div>
         </div>
         <button class="text-button" type="button" @click="$emit('ask-source', source)">追问</button>
+      </article>
+      <article v-for="source in webSources" :key="source.chunkId" class="source-row source-row--web">
+        <div class="source-index">[{{ source.index }}]</div>
+        <div class="source-main">
+          <div class="document-title-line">
+            <h4>{{ sourceTitle(source) }}</h4>
+            <span class="score-chip">{{ source.provider || 'WEB' }}</span>
+          </div>
+          <p class="path-text">
+            <a :href="source.url || source.sourcePath" target="_blank" rel="noreferrer">{{ source.url || source.sourcePath }}</a>
+          </p>
+          <p class="hit-preview">{{ source.preview }}</p>
+        </div>
       </article>
     </template>
   </section>

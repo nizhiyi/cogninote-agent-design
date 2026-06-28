@@ -5,6 +5,7 @@ import { ChevronUp } from 'lucide-vue-next'
 import DesktopUpdateSettingsPanel from '../components/desktop-update-settings-panel.vue'
 import QueryContextualizerSettingsPanel from '../components/query-contextualizer-settings-panel.vue'
 import SystemStatusCard from '../components/system-status-card.vue'
+import WebSearchSettingsPanel from '../components/web-search-settings-panel.vue'
 import { DEFAULT_SETTINGS_ITEM, SETTINGS_NAV_GROUPS, normalizeSettingsItem } from '../config/settings-navigation'
 import ModelConfigView from './model-config-view.vue'
 import { useChatSettingsStore } from '../stores/chat-settings'
@@ -12,6 +13,7 @@ import { useModelConfigStore } from '../stores/model-config'
 import { useSearchStore } from '../stores/search'
 import { useSystemStore } from '../stores/system'
 import { THEME_OPTIONS, useThemeStore } from '../stores/theme'
+import { useWebSearchSettingsStore } from '../stores/web-search-settings'
 
 const GITHUB_URL = 'https://github.com/ItQianChen/cogninote-agent-design'
 const FRONTEND_VERSION = typeof __COGNINOTE_FRONTEND_VERSION__ === 'string'
@@ -25,6 +27,7 @@ const searchStore = useSearchStore()
 const modelConfigStore = useModelConfigStore()
 const chatSettingsStore = useChatSettingsStore()
 const themeStore = useThemeStore()
+const webSearchSettingsStore = useWebSearchSettingsStore()
 const contentRef = ref(null)
 const showBackToTop = ref(false)
 const desktopVersion = ref('-')
@@ -111,6 +114,11 @@ async function loadActiveItemData(item) {
     return
   }
 
+  if (item === 'web-search') {
+    await webSearchSettingsStore.fetchSettings({ force: true })
+    return
+  }
+
   if (item === 'model-chat') {
     await modelConfigStore.switchRole(modelConfigStore.ROLES.CHAT)
     return
@@ -178,6 +186,7 @@ function readRouteItem(item = route.query.item) {
 
       <DesktopUpdateSettingsPanel v-else-if="activeItem === 'app-update'" />
       <QueryContextualizerSettingsPanel v-else-if="activeItem === 'chat-retrieval'" />
+      <WebSearchSettingsPanel v-else-if="activeItem === 'web-search'" />
       <ModelConfigView
         v-else-if="activeItem === 'model-chat'"
         key="model-chat"

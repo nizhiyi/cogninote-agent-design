@@ -16,8 +16,39 @@ public record RagSourceResponse(
         Integer pageNumber,
         String preview,
         String content,
-        double score
+        double score,
+        String sourceType,
+        String provider,
+        String url,
+        String title,
+        String publishedAt
 ) {
+    public RagSourceResponse {
+        sourceType = sourceType == null || sourceType.isBlank() ? "LOCAL" : sourceType;
+        preview = preview == null ? "" : preview;
+    }
+
+    /**
+     * 兼容旧来源 JSON 和现有本地知识库构造路径。
+     *
+     * <p>新增网页来源字段后，旧消息缺少 sourceType 时仍按本地知识库来源处理。</p>
+     */
+    public RagSourceResponse(
+            int index,
+            String chunkId,
+            String documentId,
+            String fileName,
+            String sourcePath,
+            String heading,
+            Integer pageNumber,
+            String preview,
+            String content,
+            double score
+    ) {
+        this(index, chunkId, documentId, fileName, sourcePath, heading, pageNumber,
+                preview, content, score, "LOCAL", null, null, null, null);
+    }
+
     /**
      * 构造对话来源卡片的初始内容。
      *
@@ -34,7 +65,47 @@ public record RagSourceResponse(
                 hit.pageNumber(),
                 hit.preview(),
                 hit.preview(),
-                hit.score()
+                hit.score(),
+                "LOCAL",
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
+    /**
+     * 构造网页搜索来源。
+     *
+     * <p>fileName/sourcePath 继续填入标题和 URL，保证旧前端组件即使未识别 sourceType 也能展示基本信息。</p>
+     */
+    public static RagSourceResponse web(
+            int index,
+            String chunkId,
+            String title,
+            String url,
+            String preview,
+            double score,
+            String provider,
+            String publishedAt
+    ) {
+        String displayTitle = title == null || title.isBlank() ? url : title;
+        return new RagSourceResponse(
+                index,
+                chunkId,
+                null,
+                displayTitle,
+                url,
+                null,
+                null,
+                preview,
+                null,
+                score,
+                "WEB",
+                provider,
+                url,
+                displayTitle,
+                publishedAt
         );
     }
 
@@ -57,7 +128,12 @@ public record RagSourceResponse(
                 pageNumber,
                 preview,
                 content,
-                score
+                score,
+                sourceType,
+                provider,
+                url,
+                title,
+                publishedAt
         );
     }
 }

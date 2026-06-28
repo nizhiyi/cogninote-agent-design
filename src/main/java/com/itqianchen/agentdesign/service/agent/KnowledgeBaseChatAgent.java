@@ -7,6 +7,7 @@ import com.itqianchen.agentdesign.domain.enums.search.SearchMode;
 import com.itqianchen.agentdesign.service.chat.ChatSessionService;
 import com.itqianchen.agentdesign.service.chat.CogninoteMemoryAdvisor;
 import com.itqianchen.agentdesign.service.model.ModelConfigService;
+import com.itqianchen.agentdesign.service.websearch.WebSearchToolPolicy;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
@@ -35,6 +36,7 @@ public class KnowledgeBaseChatAgent extends AbstractChatAgent {
      * @param chatSessionService 会话服务
      * @param memoryAdvisor 会话记忆 Advisor
      * @param queryContextualizerAgent 追问补全 Agent
+     * @param webSearchToolPolicy 联网搜索工具挂载策略
      */
     public KnowledgeBaseChatAgent(
             ModelConfigService modelConfigService,
@@ -43,9 +45,10 @@ public class KnowledgeBaseChatAgent extends AbstractChatAgent {
             PromptAssembler promptAssembler,
             ChatSessionService chatSessionService,
             CogninoteMemoryAdvisor memoryAdvisor,
-            QueryContextualizerAgent queryContextualizerAgent
+            QueryContextualizerAgent queryContextualizerAgent,
+            WebSearchToolPolicy webSearchToolPolicy
     ) {
-        super(modelConfigService, aiRuntimeFactory, promptAssembler, chatSessionService);
+        super(modelConfigService, aiRuntimeFactory, promptAssembler, chatSessionService, webSearchToolPolicy);
         this.knowledgeContextProvider = knowledgeContextProvider;
         this.promptAssembler = promptAssembler;
         this.memoryAdvisor = memoryAdvisor;

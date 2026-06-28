@@ -1,6 +1,7 @@
 package com.itqianchen.agentdesign.domain.vo.agent;
 
 import com.itqianchen.agentdesign.domain.dto.chat.ChatContextUsageResponse;
+import com.itqianchen.agentdesign.domain.dto.chat.ChatToolEvent;
 import com.itqianchen.agentdesign.domain.dto.chat.RagSourceResponse;
 import com.itqianchen.agentdesign.domain.enums.search.SearchMode;
 import reactor.core.publisher.Flux;
@@ -21,9 +22,27 @@ public record AgentChatStream(
         List<RagSourceResponse> sources,
         ChatContextUsageResponse contextUsage,
         Supplier<ChatContextUsageResponse> contextUsageSupplier,
+        Flux<ChatToolEvent> toolEvents,
         Flux<String> answer,
         Runnable onCancel
 ) {
+    /**
+     * 兼容无工具事件的旧构造路径。
+     */
+    public AgentChatStream(
+            String requestId,
+            String conversationId,
+            SearchMode retrievalMode,
+            List<RagSourceResponse> sources,
+            ChatContextUsageResponse contextUsage,
+            Supplier<ChatContextUsageResponse> contextUsageSupplier,
+            Flux<String> answer,
+            Runnable onCancel
+    ) {
+        this(requestId, conversationId, retrievalMode, sources, contextUsage, contextUsageSupplier,
+                Flux.empty(), answer, onCancel);
+    }
+
     /**
      * 返回当前可展示的上下文用量。
      *

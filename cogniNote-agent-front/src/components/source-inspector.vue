@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { FileText, MessageSquareQuote, X } from 'lucide-vue-next'
+import { ExternalLink, FileText, MessageSquareQuote, X } from 'lucide-vue-next'
 import { getDocumentChunk } from '../api/documents-api'
 import { useLayoutStore } from '../stores/layout'
 import { formatScore } from '../utils/formatters'
@@ -102,17 +102,39 @@ function isSameChunkId(left, right) {
   return String(left ?? '') === String(right ?? '')
 }
 
+function isWebSource(source) {
+  return source?.sourceType === 'WEB'
+}
+
+function sourceDisplayName(source) {
+  return isWebSource(source)
+    ? source.title || source.fileName || source.url || '网页来源'
+    : source?.fileName || '文档来源'
+}
+
 function openMessageSources(message) {
   layoutStore.openSourceInspector(message.id, message.sources?.[0]?.chunkId || '')
 }
 
 function openSourceDialog(source) {
+  if (isWebSource(source)) {
+    openExternalSource(source)
+    return
+  }
   layoutStore.selectInspectorSource(source.chunkId)
   dialogSource.value = source
   dialogChunk.value = null
   dialogChunkError.value = ''
   isDetailDialogOpen.value = true
   loadDialogChunk(source)
+}
+
+function openExternalSource(source) {
+  const url = source?.url || source?.sourcePath
+  if (!url) {
+    return
+  }
+  window.open(url, '_blank', 'noopener,noreferrer')
 }
 
 function closeSourceDialog() {
@@ -219,14 +241,15 @@ function askSource(source) {
           :key="source.chunkId"
           type="button"
           :class="{ active: selectedSource?.chunkId === source.chunkId }"
-          :aria-label="`打开 ${source.fileName} 来源预览，匹配度 ${formatScore(source.score)}`"
+          :aria-label="`打开 ${sourceDisplayName(source)} 来源预览，匹配度 ${formatScore(source.score)}`"
           @click="openSourceDialog(source)"
         >
           <span class="source-inspector__index">[{{ source.index }}]</span>
           <span>
-            <strong>{{ source.fileName }}</strong>
-            <em>{{ formatScore(source.score) }}</em>
+            <strong>{{ sourceDisplayName(source) }}</strong>
+            <em>{{ isWebSource(source) ? (source.provider || 'WEB') : formatScore(source.score) }}</em>
           </span>
+          <ExternalLink v-if="isWebSource(source)" aria-hidden="true" />
         </button>
       </section>
     </template>

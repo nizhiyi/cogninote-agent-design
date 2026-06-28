@@ -1,13 +1,13 @@
 package com.itqianchen.agentdesign.common.api;
 
 
-import com.itqianchen.agentdesign.domain.exception.model.ModelConfigurationException;
 import com.itqianchen.agentdesign.domain.exception.ingestion.DocumentParseException;
 import com.itqianchen.agentdesign.domain.exception.graph.KnowledgeGraphException;
 import com.itqianchen.agentdesign.domain.exception.knowledge.KnowledgeMaintenanceException;
 import com.itqianchen.agentdesign.domain.exception.model.ModelConfigurationException;
 import com.itqianchen.agentdesign.domain.exception.search.EmbeddingUnavailableException;
 import com.itqianchen.agentdesign.domain.exception.search.SearchIndexException;
+import com.itqianchen.agentdesign.domain.exception.websearch.WebSearchConfigurationException;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,6 +66,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ModelConfigurationException.class)
     public ResponseEntity<?> handleModelConfiguration(ModelConfigurationException ex, HttpServletResponse response) {
         return errorResponse(response, HttpStatus.BAD_REQUEST, ApiErrorCode.MODEL_CONFIGURATION, ex.getMessage());
+    }
+
+    /**
+     * 联网搜索配置错误由用户设置触发，返回 400 让前端引导到设置页修正。
+     *
+     * @param ex 联网搜索配置异常
+     * @param response 当前 HTTP 响应
+     * @return API 错误响应
+     */
+    @ExceptionHandler(WebSearchConfigurationException.class)
+    public ResponseEntity<?> handleWebSearchConfiguration(
+            WebSearchConfigurationException ex,
+            HttpServletResponse response
+    ) {
+        return errorResponse(response, HttpStatus.BAD_REQUEST, ApiErrorCode.BAD_REQUEST, ex.getMessage());
     }
 
     /**
